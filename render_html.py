@@ -6,10 +6,22 @@ Jason is handling the real organization/design pass on top of this later.
 
 Run with: python render_html.py   (after build_data.py has run)
 Outputs: site/index.html
+
+2026-09-16 fix: updated field names to match the nflverse-based
+build_data.py output (gameday/gametime/roof/surface instead of the old
+ESPN-based date_utc/city/state, which no longer exist and were causing a
+KeyError crash here). Also switched every direct dict[key] access to
+.get() and wrapped each matchup in try/except, so a schema mismatch on
+ONE matchup (or one field) prints a visible error inline instead of
+taking down the whole page -- this class of bug (render code assuming
+fields that build_data.py stopped producing) is exactly what silently
+crashed this script last time, so being defensive here specifically
+matters.
 """
 
 import json
 import os
+import traceback
 
 DATA_PATH = os.path.join(os.path.dirname(__file__), "data", "matchups.json")
 OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "site", "index.html")
@@ -27,6 +39,27 @@ def dict_to_html(d, level=0):
     return str(d)
 
 
+def render_matchup(m):
+    away_team = (m.get("away") or {}).get("team", "?")
+    home_team = (m.get("home") or {}).get("team", "?")
+    parts = ["<hr>", f"<h2>{away_team} @ {home_team}</h2>"]
+    parts.append(dict_to_html({
+        "gameday": m.get("gameday"),
+        "gametime": m.get("gametime"),
+        "venue": m.get("venue"),
+        "roof": m.get("roof"),
+        "indoor": m.get("indoor"),
+        "surface": m.get("surface"),
+        "networks": m.get("networks"),
+        "weather": m.get("weather"),
+    }))
+    parts.append("<h3>Away</h3>")
+    parts.append(dict_to_html(m.get("away") or {}))
+    parts.append("<h3>Home</h3>")
+    parts.append(dict_to_html(m.get("home") or {}))
+    return parts
+
+
 def main():
     with open(DATA_PATH) as f:
         data = json.load(f)
@@ -34,7 +67,7 @@ def main():
     parts = [
         "<!doctype html><html><head><meta charset='utf-8'>",
         "<title>At a Glance -- v0 raw data</title></head><body>",
-        f"<p><i>Generated {data.get('generated_at_utc')}</i></p>",
+        f"<p><i>Generated {data.get('generated_at_utc')} -- season {data.get('season')}, week {data.get('week')}</i></p>",
     ]
 
     if data.get("warnings"):
@@ -44,22 +77,18 @@ def main():
             parts.append(f"<li>{w}</li>")
         parts.append("</ul></div>")
 
-    for m in data.get("matchups", []):
-        parts.append("<hr>")
-        parts.append(f"<h2>{m['away']['team']} @ {m['home']['team']}</h2>")
-        parts.append(dict_to_html({
-            "date_utc": m["date_utc"],
-            "venue": m["venue"],
-            "city": m["city"],
-            "state": m["state"],
-            "indoor": m["indoor"],
-            "networks": m["networks"],
-            "weather": m["weather"],
-        }))
-        parts.append("<h3>Away</h3>")
-        parts.append(dict_to_html(m["away"]))
-        parts.append("<h3>Home</h3>")
-        parts.append(dict_to_html(m["home"]))
+    matchups = data.get("matchups", [])
+    if not matchups:
+        parts.append("<p><b>No matchups in the data file.</b> Either the week filter in "
+                      "build_data.py didn't match any games, or the season has no games "
+                      "scheduled right now -- check the warnings above and data/matchups.json directly.</p>")
+
+    for m in matchups:
+        try:
+            parts.extend(render_matchup(m))
+        except Exception:
+            parts.append("<hr><div style='background:#fee;padding:8px'>"
+                          f"<b>Failed to render one matchup</b><pre>{traceback.format_exc()}</pre></div>")
 
     parts.append("</body></html>")
 
