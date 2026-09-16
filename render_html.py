@@ -19,6 +19,10 @@ Page 0 design (revised 2026-09-16, layout modeled on Apple Sports' NFL
     weeks; the URL updates to #week-5 / #week-SB so a week can be linked
   - playoff rounds show gray "TBD" placeholder tiles until nflverse has the
     real games (see PLAYOFF_PLACEHOLDER_DAYS)
+  - finished games use a FINAL tile: "FINAL" in the middle, big Inter Black
+    scores beside the helmets (loser's score faded, ties both full), and each
+    team's record right under its score -- frozen at what it was right after
+    that game (computed in build_data.py)
   - one centered column (max 600px wide); games grouped under day headers
     like "Thursday, Sep 17"; each game is its own outlined tile
   - each tile: away helmet + abbreviation | away record | kickoff time
@@ -129,7 +133,8 @@ PAGE0_CSS = """
 }
 html{background:var(--bg)}
 /* Type follows the Framer design: Inter only, Regular 400 / Bold 700,
-   sizes 11px (date/time labels), 16px (week label, records), 20px (team abbreviations). */
+   sizes 11px (date/time labels), 16px (week label, records), 20px (team abbreviations),
+   plus Inter Black 900 for the big final scores (the Framer type spec's "big numbers" weight). */
 body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-system,sans-serif;font-weight:400;
   -webkit-font-smoothing:antialiased;background:var(--bg)}
 .topbar{position:sticky;top:0;z-index:10;display:flex;justify-content:center;padding:14px 16px 6px;
@@ -168,10 +173,17 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
 .time{font-size:20px;font-weight:700;line-height:24px;white-space:nowrap;margin-top:-6px}
 .tz{font-size:11px;font-weight:400;margin-left:3px;color:var(--text-2)}
 .network{font-size:11px;font-weight:400;line-height:13px;color:var(--text-3);white-space:nowrap}
+/* Finished games */
+.result{display:flex;flex-direction:column;align-items:center;gap:4px}
+.team-record{font-size:16px;font-weight:400;line-height:19px;color:var(--text-2)}
+.score{font-size:60px;font-weight:900;line-height:1;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.score.lose{opacity:.3}
+.final-label{font-size:16px;font-weight:700;line-height:19px;letter-spacing:.04em}
 @media (max-width:420px){
   .game{grid-template-columns:72px 1fr auto 1fr 72px;padding:14px 4px}
   .team img{width:42px;height:42px}
   .center{padding:0 4px}
+  .score{font-size:46px}.final-label{font-size:11px;line-height:13px}
 }
 .error{background:#fee;color:#000;padding:8px;font-size:11px;white-space:pre-wrap;border-radius:8px}
 .empty{text-align:center;padding:40px 0;color:var(--text-2);font-size:16px}
@@ -210,6 +222,8 @@ def render_game(m):
             f"{render_team(None, mirrored=True)}"
             "</div>"
         )
+    if m.get("final"):
+        return render_final_game(m)
     time_text = format_time(m.get("gametime"))
     network = format_network(m.get("networks"))
     away_name = TEAM_NAMES.get(away.get("team"), away.get("team", "?"))
@@ -226,6 +240,60 @@ def render_game(m):
         "</div>"
         f'<span class="record">{esc(format_record(home.get("record")))}</span>'
         f"{render_team(home, mirrored=True)}"
+        "</a>"
+    )
+
+
+def _score_text(score):
+    try:
+        return str(int(score))
+    except (TypeError, ValueError):
+        return "–"
+
+
+def render_final_game(m):
+    """
+    Finished game: "FINAL" replaces the kickoff time, a big Inter Black score
+    sits beside each helmet, and each team's record sits right under its score.
+    Winner's score is full strength; loser's is faded; a tie shows both full.
+    """
+    away, home = m.get("away") or {}, m.get("home") or {}
+    a_score, h_score = away.get("score"), home.get("score")
+    a_cls = h_cls = "score"
+    try:
+        if float(a_score) > float(h_score):
+            h_cls += " lose"
+        elif float(h_score) > float(a_score):
+            a_cls += " lose"
+    except (TypeError, ValueError):
+        pass
+
+    def team_block(snapshot, mirrored):
+        team = snapshot.get("team") or None
+        src = "helmets/" + helmets.helmet_filename(team, mirrored=mirrored)
+        return (
+            '<div class="team">'
+            f'<img src="{esc(src)}" alt="" width="48" height="48" loading="lazy">'
+            f'<span class="abbr">{esc(team or "TBD")}</span>'
+            "</div>"
+        )
+
+    away_name = TEAM_NAMES.get(away.get("team"), away.get("team", "?"))
+    home_name = TEAM_NAMES.get(home.get("team"), home.get("team", "?"))
+    label = f"Final: {away_name} {_score_text(a_score)}, {home_name} {_score_text(h_score)}"
+    return (
+        f'<a class="game final" href="#game-{esc(m.get("game_id") or "")}" aria-label="{esc(label)}">'
+        f"{team_block(away, mirrored=False)}"
+        '<div class="result">'
+        f'<span class="{a_cls}">{esc(_score_text(a_score))}</span>'
+        f'<span class="team-record">{esc(format_record(away.get("record")))}</span>'
+        "</div>"
+        '<div class="center"><span class="final-label">FINAL</span></div>'
+        '<div class="result">'
+        f'<span class="{h_cls}">{esc(_score_text(h_score))}</span>'
+        f'<span class="team-record">{esc(format_record(home.get("record")))}</span>'
+        "</div>"
+        f"{team_block(home, mirrored=True)}"
         "</a>"
     )
 
@@ -413,7 +481,7 @@ def render_page0(data):
         "<meta name='description' content='Pro Football Upcoming Game Information'>"
         "<link rel='preconnect' href='https://fonts.googleapis.com'>"
         "<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>"
-        "<link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap' rel='stylesheet'>"
+        "<link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap' rel='stylesheet'>"
         f"<style>{PAGE0_CSS}</style></head><body>"
         "<header class='topbar'>"
         "<label class='week-picker'>"

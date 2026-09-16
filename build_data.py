@@ -121,20 +121,40 @@ def build_season_weeks(schedules, current_week):
                {"key": "WC", "label": "Wild Card", "game_type": "WC", "games": [...]}, ...]
       Playoff rounds are always included; their "games" list stays empty until
       nflverse adds those games (render_html.py shows placeholder tiles meanwhile).
-      Records are each team's CURRENT regular-season record.
+
+    Records are FROZEN per game (added 2026-09-16):
+      - finished regular-season game -> each team's record right after that game
+        (so Week 1 keeps showing 1-0 / 0-1 all season)
+      - game not played yet, or any playoff game -> each team's current
+        regular-season record
+    A game counts as finished ("final": true) once nflverse has both scores.
     """
-    # Current regular-season record for every team
-    records = {}
-    for g in schedules:
-        if g.get("game_type") != "REG":
-            continue
-        hs, as_ = _score(g.get("home_score")), _score(g.get("away_score"))
-        if hs is None or as_ is None:
-            continue
+    blank = lambda: {"wins": 0, "losses": 0, "ties": 0}
+
+    def is_final(g):
+        return _score(g.get("home_score")) is not None and _score(g.get("away_score")) is not None
+
+    # Walk finished regular-season games in kickoff order, keeping a running
+    # record per team and snapshotting it after each game.
+    running = {}
+    frozen = {}  # game_id -> {team: record after that game}
+    finished_reg = sorted(
+        (g for g in schedules if g.get("game_type") == "REG" and is_final(g)),
+        key=lambda g: (str(g.get("gameday") or ""), str(g.get("gametime") or ""), str(g.get("game_id") or "")),
+    )
+    for g in finished_reg:
         home, away = normalize_abbr(g.get("home_team")), normalize_abbr(g.get("away_team"))
+        hs, as_ = _score(g.get("home_score")), _score(g.get("away_score"))
+        snapshot = {}
         for team, mine, theirs in ((home, hs, as_), (away, as_, hs)):
-            r = records.setdefault(team, {"wins": 0, "losses": 0, "ties": 0})
+            r = running.setdefault(team, blank())
             r["wins" if mine > theirs else "losses" if mine < theirs else "ties"] += 1
+            snapshot[team] = dict(r)
+        frozen[g.get("game_id")] = snapshot
+
+    def record_for(g, team):
+        at_game = frozen.get(g.get("game_id"), {}).get(team)
+        return at_game if at_game is not None else dict(running.get(team, blank()))
 
     def game_entry(g):
         home, away = normalize_abbr(g.get("home_team")), normalize_abbr(g.get("away_team"))
@@ -144,9 +164,10 @@ def build_season_weeks(schedules, current_week):
             "week": g.get("week"),
             "gameday": g.get("gameday"),
             "gametime": g.get("gametime"),
+            "final": is_final(g),
             "networks": {"status": "pending"},
-            "away": {"team": away, "record": records.get(away, {"wins": 0, "losses": 0, "ties": 0}), "score": _score(g.get("away_score"))},
-            "home": {"team": home, "record": records.get(home, {"wins": 0, "losses": 0, "ties": 0}), "score": _score(g.get("home_score"))},
+            "away": {"team": away, "record": record_for(g, away), "score": _score(g.get("away_score"))},
+            "home": {"team": home, "record": record_for(g, home), "score": _score(g.get("home_score"))},
         }
 
     reg_weeks = {}
