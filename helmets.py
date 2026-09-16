@@ -8,7 +8,8 @@ The helmet artwork is the exact vector from Jason's Framer Page 0 design
 Here we keep that same shading direction but tint it with each team's
 colors: shell = official PRIMARY color, facemask = official SECONDARY color.
 
-To change a team's colors, edit TEAM_COLORS below -- nothing else.
+To change a team's colors, edit TEAM_COLORS below. To give one team
+lighter/darker shading than the rest, add it to SHADING_OVERRIDES.
 
 Run directly to export all 32 helmets (plus mirrored versions) as files:
     python helmets.py            -> site/helmets/*.svg
@@ -29,13 +30,13 @@ TEAM_COLORS = {
     "CHI": ("#0B162A", "#C83803"),
     "CIN": ("#FB4F14", "#000000"),
     "CLE": ("#311D00", "#FF3C00"),  # JUDGMENT CALL: brown primary (nflverse lists orange first)
-    "DAL": ("#003594", "#869397"),  # JUDGMENT CALL: silver secondary (some sources list navy #041E42)
+    "DAL": ("#B0B7BC", "#003594"),  # Jason's pick: lighter silver shell, blue facemask (+ softer shading, see SHADING_OVERRIDES)
     "DEN": ("#FB4F14", "#002244"),
     "DET": ("#0076B6", "#B0B7BC"),
-    "GB":  ("#203731", "#FFB612"),
+    "GB":  ("#FFB612", "#203731"),  # Jason's pick: gold shell, green facemask
     "HOU": ("#03202F", "#A71930"),
-    "IND": ("#002C5F", "#A2AAAD"),
-    "JAX": ("#101820", "#D7A22A"),  # JUDGMENT CALL: black/gold (nflverse lists teal #006778 / black)
+    "IND": ("#0B4FA0", "#A2AAAD"),  # Jason's pick: brighter than official Speed Blue #002C5F
+    "JAX": ("#101820", "#006778"),  # Jason's pick: black shell, teal facemask
     "KC":  ("#E31837", "#FFB81C"),
     "LAC": ("#0080C6", "#FFC20E"),
     "LAR": ("#003594", "#FFA300"),
@@ -49,7 +50,7 @@ TEAM_COLORS = {
     "PHI": ("#004C54", "#A5ACAF"),
     "PIT": ("#101820", "#FFB612"),  # JUDGMENT CALL: black primary (some sources list gold first)
     "SEA": ("#002244", "#69BE28"),
-    "SF":  ("#AA0000", "#B3995D"),
+    "SF":  ("#B3995D", "#AA0000"),  # Jason's pick: gold shell, red facemask
     "TB":  ("#D50A0A", "#34302B"),
     "TEN": ("#4495D2", "#D50A0A"),  # 2026 rebrand: Titans blue primary (navy demoted); red secondary
     "WAS": ("#5A1414", "#FFB612"),
@@ -84,6 +85,12 @@ SHELL_DARKEN_BOTTOM = 0.40
 MASK_DARKEN_TOP = 0.35
 MASK_LIGHTEN_BOTTOM = 0.30
 
+# Per-team shell shading, (lighten_top, darken_bottom). Teams not listed use
+# SHELL_LIGHTEN_TOP / SHELL_DARKEN_BOTTOM above.
+SHADING_OVERRIDES = {
+    "DAL": (0.35, 0.22),  # Jason's pick: softer shading so the silver reads lighter
+}
+
 
 def helmet_svg(team, mirrored=False, id_prefix=None):
     """
@@ -93,6 +100,7 @@ def helmet_svg(team, mirrored=False, id_prefix=None):
     id_prefix keeps gradient ids unique if several helmets are inlined on one page.
     """
     primary, secondary = TEAM_COLORS.get(team, FALLBACK_COLORS)
+    shell_top, shell_bottom = SHADING_OVERRIDES.get(team, (SHELL_LIGHTEN_TOP, SHELL_DARKEN_BOTTOM))
     pid = id_prefix or f"helmet-{team or 'x'}{'-m' if mirrored else ''}"
     flip = ' transform="translate(100 0) scale(-1 1)"' if mirrored else ""
     return (
@@ -100,8 +108,8 @@ def helmet_svg(team, mirrored=False, id_prefix=None):
         f'aria-label="{team} helmet">'
         "<defs>"
         f'<linearGradient id="{pid}-shell" x1="0.4975" x2="0.5025" y1="0" y2="1">'
-        f'<stop offset="0" stop-color="{_mix(primary, WHITE, SHELL_LIGHTEN_TOP)}"/>'
-        f'<stop offset="1" stop-color="{_mix(primary, BLACK, SHELL_DARKEN_BOTTOM)}"/>'
+        f'<stop offset="0" stop-color="{_mix(primary, WHITE, shell_top)}"/>'
+        f'<stop offset="1" stop-color="{_mix(primary, BLACK, shell_bottom)}"/>'
         "</linearGradient>"
         f'<linearGradient id="{pid}-mask" x1="0.4975" x2="0.5025" y1="0" y2="1">'
         f'<stop offset="0" stop-color="{_mix(secondary, BLACK, MASK_DARKEN_TOP)}"/>'
