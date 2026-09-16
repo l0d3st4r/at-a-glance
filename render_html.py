@@ -2,7 +2,7 @@
 Renders the site from data/matchups.json (after build_data.py has run).
 
 Outputs:
-  site/index.html     -- Page 0: the week's matchup grid (Jason's Framer design)
+  site/index.html     -- Page 0: every week's games, with a week dropdown + swipe
   site/raw.html       -- the old v0 unstyled data dump, kept for debugging
   site/helmets/*.svg  -- team-colored helmets used by Page 0 (see helmets.py)
 
@@ -10,7 +10,15 @@ Run with: python render_html.py
 
 Page 0 design (revised 2026-09-16, layout modeled on Apple Sports' NFL
 "Upcoming" tab, using Jason's helmets, no betting lines):
-  - white background and black text (as in the Framer design), "Week N" title at the top
+  - white background and black text (as in the Framer design)
+  - "Week N" title at the top is a dropdown (native <select> under the hood)
+    listing every week of the season plus Wild Card, Divisional Round,
+    Conference Championships and Super Bowl; it stays pinned while scrolling
+  - all weeks are rendered into one page side by side: swipe left/right on a
+    phone (or trackpad), use the dropdown, or the arrow keys to move between
+    weeks; the URL updates to #week-5 / #week-SB so a week can be linked
+  - playoff rounds show gray "TBD" placeholder tiles until nflverse has the
+    real games (see PLAYOFF_PLACEHOLDER_DAYS)
   - one centered column (max 600px wide); games grouped under day headers
     like "Thursday, Sep 17"; each game is its own outlined tile
   - each tile: away helmet + abbreviation | away record | kickoff time
@@ -124,10 +132,23 @@ html{background:var(--bg)}
    sizes 11px (date/time labels), 16px (week label, records), 20px (team abbreviations). */
 body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-system,sans-serif;font-weight:400;
   -webkit-font-smoothing:antialiased;background:var(--bg)}
-.week{text-align:center;font-size:16px;font-weight:400;line-height:19px;padding:24px 16px 8px}
-main{max-width:600px;margin:0 16px 64px}
-@media (min-width:632px){main{margin:0 auto 64px}}
-.day{text-align:center;font-size:16px;font-weight:400;line-height:19px;padding:24px 0 12px}
+.topbar{position:sticky;top:0;z-index:10;display:flex;justify-content:center;padding:14px 16px 6px;
+  background:rgba(255,255,255,.94);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.week-picker{position:relative;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;
+  font-size:16px;font-weight:400;line-height:19px;cursor:pointer;transition:background-color .16s ease}
+.week-picker:hover{background:rgba(0,0,0,.05)}
+.week-picker:focus-within{outline:2px solid #000;outline-offset:2px}
+.chevron{width:12px;height:12px;flex:none}
+/* The real <select> sits invisibly on top, so phones get their native week picker. */
+.week-picker select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;
+  font-size:16px;-webkit-appearance:none;appearance:none;border:0}
+/* Weeks sit side by side; swipe (or the dropdown) snaps between them. */
+.track{display:flex;align-items:flex-start;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;
+  overscroll-behavior-x:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.track::-webkit-scrollbar{display:none}
+.week-panel{flex:0 0 100%;min-width:0;scroll-snap-align:start;scroll-snap-stop:always}
+.week-inner{max-width:600px;margin:0 auto;padding:0 16px 64px}
+.day{text-align:center;font-size:16px;font-weight:400;line-height:19px;padding:18px 0 12px}
 .games{list-style:none;display:flex;flex-direction:column;gap:10px}
 .game{display:grid;grid-template-columns:84px 1fr minmax(96px,auto) 1fr 84px;align-items:center;
   padding:16px 8px;color:inherit;text-decoration:none;
@@ -135,6 +156,8 @@ main{max-width:600px;margin:0 16px 64px}
   transition:transform .16s ease,background-color .16s ease,border-color .16s ease}
 .game:hover,.game:focus-visible{transform:scale(1.03);background:var(--tile-hover);border-color:var(--tile-border-hover)}
 .game:focus-visible{outline:2px solid #000;outline-offset:2px}
+.game.placeholder{color:var(--text-2)}
+.game.placeholder:hover{transform:none;background:var(--tile);border-color:var(--tile-border)}
 @media (prefers-reduced-motion:reduce){.game{transition:background-color .16s ease,border-color .16s ease}
   .game:hover,.game:focus-visible{transform:none}}
 .team{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
@@ -163,26 +186,38 @@ def time_html(time_text):
 
 
 def render_team(snapshot, mirrored):
-    team = (snapshot or {}).get("team") or "?"
+    team = (snapshot or {}).get("team") or None
     src = "helmets/" + helmets.helmet_filename(team, mirrored=mirrored)
     return (
         '<div class="team">'
-        f'<img src="{esc(src)}" alt="" width="48" height="48">'
-        f'<span class="abbr">{esc(team)}</span>'
+        f'<img src="{esc(src)}" alt="" width="48" height="48" loading="lazy">'
+        f'<span class="abbr">{esc(team or "TBD")}</span>'
         "</div>"
     )
 
 
 def render_game(m):
     away, home = m.get("away") or {}, m.get("home") or {}
+    if m.get("placeholder"):
+        # Playoff game whose teams aren't known yet: gray helmets, not clickable.
+        return (
+            '<div class="game placeholder" aria-label="Matchup to be determined">'
+            f"{render_team(None, mirrored=False)}"
+            '<span class="record"></span>'
+            '<div class="center"><span class="time">TBD</span>'
+            f'<span class="network">{esc(format_network(None))}</span></div>'
+            '<span class="record"></span>'
+            f"{render_team(None, mirrored=True)}"
+            "</div>"
+        )
     time_text = format_time(m.get("gametime"))
     network = format_network(m.get("networks"))
     away_name = TEAM_NAMES.get(away.get("team"), away.get("team", "?"))
     home_name = TEAM_NAMES.get(home.get("team"), home.get("team", "?"))
     label = f"{away_name} at {home_name}, {time_text}"
-    # href is a placeholder until Page 1 exists; game_id is the stable key for it.
+    # href is a placeholder until Page 1 exists; "#game-" hashes are ignored by the week switcher.
     return (
-        f'<a class="game" href="#{esc(m.get("game_id") or "")}" aria-label="{esc(label)}">'
+        f'<a class="game" href="#game-{esc(m.get("game_id") or "")}" aria-label="{esc(label)}">'
         f"{render_team(away, mirrored=False)}"
         f'<span class="record">{esc(format_record(away.get("record")))}</span>'
         '<div class="center">'
@@ -204,12 +239,67 @@ def group_by_day(matchups):
     return [(d, sorted(ms, key=lambda m: str(m.get("gametime") or "99:99"))) for d, ms in ordered]
 
 
-def render_page0(data):
-    week = data.get("week")
+# ---------------------------------------------------------------- weeks + playoff placeholders
+
+PLAYOFF_GAME_COUNTS = {"WC": 6, "DIV": 4, "CON": 2, "SB": 1}
+
+# Days used for placeholder tiles until nflverse publishes the real playoff
+# games. Round dates are from the league schedule for the 2026 season
+# (Wild Card Jan 16-18, Divisional Jan 23-24, Conference Jan 31, Super Bowl
+# LXI Feb 14, 2027); the games-per-day split is the recent usual pattern, not
+# an official announcement. Update for a new season, or placeholders show "Date TBD".
+PLAYOFF_PLACEHOLDER_DAYS = {
+    2026: {
+        "WC": [("2027-01-16", 2), ("2027-01-17", 3), ("2027-01-18", 1)],
+        "DIV": [("2027-01-23", 2), ("2027-01-24", 2)],
+        "CON": [("2027-01-31", 2)],
+        "SB": [("2027-02-14", 1)],
+    },
+}
+
+
+def placeholder_games(code, season):
+    days = PLAYOFF_PLACEHOLDER_DAYS.get(season, {}).get(code) or [(None, PLAYOFF_GAME_COUNTS.get(code, 1))]
+    games = []
+    for day, count in days:
+        for _ in range(count):
+            games.append({"placeholder": True, "gameday": day, "game_id": f"{code}-tbd-{len(games) + 1}"})
+    return games
+
+
+def weeks_for_page0(data):
+    """
+    [(key, label, games), ...] for every week in the dropdown, plus the key of
+    the week to show first. Falls back to just the current week's matchups if
+    build_data.py didn't produce season_weeks (older data file or a failed run).
+    """
+    season = data.get("season")
+    weeks = []
+    for w in data.get("season_weeks") or []:
+        key, label = str(w.get("key")), w.get("label") or f"Week {w.get('key')}"
+        games = w.get("games") or []
+        if not games and w.get("game_type") in PLAYOFF_GAME_COUNTS:
+            games = placeholder_games(w["game_type"], season)
+        weeks.append((key, label, games))
+
+    if not weeks:
+        wk = data.get("week")
+        weeks = [(str(wk), f"Week {wk}" if wk is not None else "This Week", data.get("matchups") or [])]
+
+    keys = [k for k, _, _ in weeks]
+    current = data.get("current_week_key")
+    if current is None and data.get("week") is not None:
+        current = str(data.get("week"))
+    if current not in keys:
+        current = keys[0]
+    return weeks, current
+
+
+def render_week_panel(key, label, games, is_current):
     sections = []
-    for d, games in group_by_day(data.get("matchups") or []):
+    for d, day_games in group_by_day(games):
         rows = []
-        for m in games:
+        for m in day_games:
             try:
                 rows.append(f"<li>{render_game(m)}</li>")
             except Exception:
@@ -219,20 +309,120 @@ def render_page0(data):
             f'<ul class="games">{"".join(rows)}</ul></section>'
         )
     if not sections:
-        sections.append('<p class="empty">No matchups this week.</p>')
+        sections.append('<p class="empty">No games this week.</p>')
+    return (
+        f'<div class="week-panel" id="week-{esc(key)}" data-key="{esc(key)}" data-label="{esc(label)}"'
+        f' data-current="{"true" if is_current else "false"}" role="group" aria-label="{esc(label)}">'
+        f'<div class="week-inner">{"".join(sections)}</div></div>'
+    )
+
+
+PAGE0_JS = """
+(function () {
+  var track = document.getElementById('track');
+  var select = document.getElementById('week-select');
+  var label = document.getElementById('week-label');
+  var topbar = document.querySelector('.topbar');
+  if (!track || !select) return;
+  var panels = Array.prototype.slice.call(track.querySelectorAll('.week-panel'));
+  var idx = Math.max(0, panels.findIndex(function (p) { return p.dataset.current === 'true'; }));
+
+  function keyIndex(k) { return panels.findIndex(function (p) { return p.dataset.key === k; }); }
+  function hashIndex() {
+    var m = location.hash.match(/^#week-(.+)$/);
+    return m ? keyIndex(decodeURIComponent(m[1])) : -1;
+  }
+  // Track height = tallest of the current week and its neighbours, so a short
+  // week (e.g. the Super Bowl) doesn't leave a long blank page, and nothing is
+  // cut off while swiping to the next week.
+  function sizeTrack() {
+    var h = 0;
+    for (var i = idx - 1; i <= idx + 1; i++) if (panels[i]) h = Math.max(h, panels[i].offsetHeight);
+    track.style.height = h + 'px';
+  }
+  function setActive(i, opts) {
+    opts = opts || {};
+    if (!panels[i]) return;
+    var changed = i !== idx;
+    idx = i;
+    var p = panels[i];
+    select.value = p.dataset.key;
+    label.textContent = p.dataset.label;
+    document.title = p.dataset.label + ' · At A Glance';
+    if (opts.scroll) track.scrollTo({ left: i * track.clientWidth, behavior: opts.smooth ? 'smooth' : 'auto' });
+    sizeTrack();
+    if (opts.updateHash !== false) history.replaceState(null, '', '#week-' + encodeURIComponent(p.dataset.key));
+    if (changed) {
+      var top = track.getBoundingClientRect().top + window.scrollY - topbar.offsetHeight;
+      if (window.scrollY > top) window.scrollTo({ top: top });
+    }
+  }
+
+  select.addEventListener('change', function () {
+    var i = keyIndex(select.value);
+    if (i >= 0) setActive(i, { scroll: true, smooth: Math.abs(i - idx) === 1 });
+  });
+
+  var settle;
+  track.addEventListener('scroll', function () {
+    clearTimeout(settle);
+    settle = setTimeout(function () {
+      var i = Math.round(track.scrollLeft / track.clientWidth);
+      if (i !== idx) setActive(i);
+    }, 90);
+  }, { passive: true });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.target === select || e.altKey || e.metaKey || e.ctrlKey) return;
+    if (e.key === 'ArrowRight') setActive(idx + 1, { scroll: true, smooth: true });
+    if (e.key === 'ArrowLeft') setActive(idx - 1, { scroll: true, smooth: true });
+  });
+
+  window.addEventListener('hashchange', function () {
+    var i = hashIndex();
+    if (i >= 0 && i !== idx) setActive(i, { scroll: true, updateHash: false });
+  });
+  window.addEventListener('resize', function () {
+    track.scrollLeft = idx * track.clientWidth;
+    sizeTrack();
+  });
+  if ('ResizeObserver' in window) new ResizeObserver(sizeTrack).observe(track);
+
+  var fromHash = hashIndex();
+  if (fromHash >= 0) idx = fromHash;
+  track.scrollLeft = idx * track.clientWidth;
+  setActive(idx, { updateHash: false });
+})();
+"""
+
+
+def render_page0(data):
+    weeks, current = weeks_for_page0(data)
+    current_label = next(label for key, label, _ in weeks if key == current)
+    options = "".join(
+        f'<option value="{esc(k)}"{" selected" if k == current else ""}>{esc(label)}</option>'
+        for k, label, _ in weeks
+    )
+    panels = "".join(render_week_panel(k, label, games, k == current) for k, label, games in weeks)
 
     return (
         "<!doctype html><html lang='en'><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
         "<meta name='theme-color' content='#ffffff'>"
-        "<title>At A Glance</title>"
+        f"<title>{esc(current_label)} · At A Glance</title>"
         "<meta name='description' content='Pro Football Upcoming Game Information'>"
         "<link rel='preconnect' href='https://fonts.googleapis.com'>"
         "<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>"
         "<link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap' rel='stylesheet'>"
         f"<style>{PAGE0_CSS}</style></head><body>"
-        f"<header class='week'>Week {esc(week) if week is not None else '–'}</header>"
-        f"<main>{''.join(sections)}</main>"
+        "<header class='topbar'>"
+        "<label class='week-picker'>"
+        f"<span id='week-label'>{esc(current_label)}</span>"
+        "<svg class='chevron' viewBox='0 0 12 12' aria-hidden='true'><path d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>"
+        f"<select id='week-select' aria-label='Choose week'>{options}</select>"
+        "</label></header>"
+        f"<main class='track' id='track'>{panels}</main>"
+        f"<script>{PAGE0_JS}</script>"
         "</body></html>"
     )
 

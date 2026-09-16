@@ -93,6 +93,89 @@ def record_summary(results):
     return {"wins": wins, "losses": losses, "ties": ties}
 
 
+# ---------------------------------------------------------------- full season (Page 0 week switcher)
+
+# nflverse game_type values -> display label, in bracket order.
+PLAYOFF_ROUNDS = [
+    ("WC", "Wild Card"),
+    ("DIV", "Divisional Round"),
+    ("CON", "Conference Championships"),
+    ("SB", "Super Bowl"),
+]
+# Fallback when a week number is past the regular season but no games for it
+# are in the schedule yet (nflverse numbering since the 2021 season).
+PLAYOFF_WEEK_NUMBERS = {19: "WC", 20: "DIV", 21: "CON", 22: "SB", 23: "SB"}
+
+
+def _score(value):
+    return value if isinstance(value, (int, float)) else None
+
+
+def build_season_weeks(schedules, current_week):
+    """
+    Every week of the season for the Page 0 week dropdown, built only from
+    the schedule (cheap -- no per-team injuries/rosters/stats here).
+
+    Returns (weeks, current_key):
+      weeks = [{"key": "1", "label": "Week 1", "game_type": "REG", "games": [...]}, ...,
+               {"key": "WC", "label": "Wild Card", "game_type": "WC", "games": [...]}, ...]
+      Playoff rounds are always included; their "games" list stays empty until
+      nflverse adds those games (render_html.py shows placeholder tiles meanwhile).
+      Records are each team's CURRENT regular-season record.
+    """
+    # Current regular-season record for every team
+    records = {}
+    for g in schedules:
+        if g.get("game_type") != "REG":
+            continue
+        hs, as_ = _score(g.get("home_score")), _score(g.get("away_score"))
+        if hs is None or as_ is None:
+            continue
+        home, away = normalize_abbr(g.get("home_team")), normalize_abbr(g.get("away_team"))
+        for team, mine, theirs in ((home, hs, as_), (away, as_, hs)):
+            r = records.setdefault(team, {"wins": 0, "losses": 0, "ties": 0})
+            r["wins" if mine > theirs else "losses" if mine < theirs else "ties"] += 1
+
+    def game_entry(g):
+        home, away = normalize_abbr(g.get("home_team")), normalize_abbr(g.get("away_team"))
+        return {
+            "game_id": g.get("game_id"),
+            "game_type": g.get("game_type"),
+            "week": g.get("week"),
+            "gameday": g.get("gameday"),
+            "gametime": g.get("gametime"),
+            "networks": {"status": "pending"},
+            "away": {"team": away, "record": records.get(away, {"wins": 0, "losses": 0, "ties": 0}), "score": _score(g.get("away_score"))},
+            "home": {"team": home, "record": records.get(home, {"wins": 0, "losses": 0, "ties": 0}), "score": _score(g.get("home_score"))},
+        }
+
+    reg_weeks = {}
+    playoff_games = {code: [] for code, _ in PLAYOFF_ROUNDS}
+    week_to_type = {}
+    for g in schedules:
+        gtype, wk = g.get("game_type"), g.get("week")
+        if wk is not None:
+            week_to_type.setdefault(wk, gtype)
+        if gtype == "REG" and wk is not None:
+            reg_weeks.setdefault(int(wk), []).append(game_entry(g))
+        elif gtype in playoff_games:
+            playoff_games[gtype].append(game_entry(g))
+
+    weeks = [{"key": str(wk), "label": f"Week {wk}", "game_type": "REG", "games": reg_weeks[wk]}
+             for wk in sorted(reg_weeks)]
+    weeks += [{"key": code, "label": label, "game_type": code, "games": playoff_games[code]}
+              for code, label in PLAYOFF_ROUNDS]
+
+    current_key = None
+    if current_week is not None:
+        wtype = week_to_type.get(current_week)
+        if wtype == "REG" or (wtype is None and int(current_week) <= 18):
+            current_key = str(current_week)
+        else:
+            current_key = wtype if wtype in playoff_games else PLAYOFF_WEEK_NUMBERS.get(int(current_week))
+    return weeks, current_key
+
+
 def build_team_snapshot(team_abbr, schedules, team_stats_by_team, ranks_by_team, rosters_by_team_raw, injuries_by_team_raw, warnings):
     team_abbr = normalize_abbr(team_abbr)
     all_results = team_results_from_schedules(schedules, team_abbr)
@@ -205,12 +288,22 @@ def main():
             "away": build_team_snapshot(away_abbr, schedules, team_stats_by_team, ranks_by_team, rosters_by_team_raw, injuries_by_team_raw, warnings),
         })
 
+    # Full season for the Page 0 week dropdown. Wrapped so a problem here can
+    # never break the existing current-week data above.
+    season_weeks, current_week_key = [], None
+    try:
+        season_weeks, current_week_key = build_season_weeks(schedules, week)
+    except Exception as e:
+        warnings.append(f"build_season_weeks: {e}")
+
     output = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "season": season,
         "week": week,
+        "current_week_key": current_week_key,
         "warnings": warnings,
         "matchups": matchups,
+        "season_weeks": season_weeks,
     }
 
     os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
