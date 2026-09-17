@@ -7,7 +7,9 @@ Design = Jason's approved v8 preview (2026-09-16):
         "‹ Week N" over mini helmets + AWAY @ HOME; one card per screen that
         snaps while scrolling, slivers of the cards above/below with a label,
         position dots on the right
-      * condensed: "‹ Week N" only in the top bar; every card on one screen
+      * condensed: every card on one screen, same top bar
+  - finished games: final score in the top bar next to each abbreviation (loser
+    faded), and the Leaders card shows each team's leaders in THAT game, no crowns
   - cards: Game Info, away team, home team, Leaders
   - team cards: last-game arrow (green up = W, red down = L, yellow line = T),
     record, top 3 injuries (starters first), offense/defense ranks
@@ -15,9 +17,11 @@ Design = Jason's approved v8 preview (2026-09-16):
   - cards, borders, hover, top bar, week pill, 600px column, Bold abbreviations
     all match Page 0
 
-How it opens from Page 0: render_html.py adds a small script to index.html that
-expands the clicked tile to full screen, fetches this file, and shows its
-.p1 block inside a shadow root (so Page 0's CSS and Page 1's CSS can't clash).
+How it opens from Page 0: render_html.py adds a script to index.html that zooms
+into the tapped tile, flies its helmets/abbreviations/scores up into this page's
+top bar, then brings the cards in. It fetches this file and shows its .p1 block
+inside a shadow root (so Page 0's CSS and Page 1's CSS can't clash). Swiping
+left/right moves between the week's games; pinching in minimizes back into the tile.
 Opened directly (shared link), the file works on its own too.
 
 Data comes from data/matchups.json -> "game_details" (see page1_data.py).
@@ -169,21 +173,6 @@ def game_body(d):
     small = f"<small>{ampm}</small>" if ampm else ""
     headline = f'<div class="time">{esc(t)}{small}</div>'
     corner = f'<div class="network">{esc(fmt_network(d.get("networks")))}</div>'
-    score = d.get("score") if d.get("final") else None
-    if score:
-        # Finished game: final score (away – home, loser faded like Page 0's FINAL tiles) and "FINAL".
-        a_s, h_s = score.get("away"), score.get("home")
-        a_cls = h_cls = "sc"
-        try:
-            if float(a_s) > float(h_s):
-                h_cls += " lose"
-            elif float(h_s) > float(a_s):
-                a_cls += " lose"
-        except (TypeError, ValueError):
-            pass
-        headline = (f'<div class="time final-score"><span class="{a_cls}">{esc(fmt_value(a_s))}</span>'
-                    f'<span class="sc-dash">–</span><span class="{h_cls}">{esc(fmt_value(h_s))}</span></div>')
-        corner = '<div class="network final-label">FINAL</div>'
     return (
         '<div class="game-top">'
         f'<div>{headline}<div class="date">{esc(fmt_date(d.get("gameday")))}</div></div>'
@@ -268,6 +257,23 @@ def leader_rows(d):
 
 # ---------------------------------------------------------------- page
 
+def header_scores(d):
+    """Finished game -> (away_html, home_html) score spans for the header, loser faded like Page 0. Else ('', '')."""
+    score = d.get("score") if d.get("final") else None
+    if not score:
+        return "", ""
+    a_s, h_s = score.get("away"), score.get("home")
+    a_cls = h_cls = "hscore"
+    try:
+        if float(a_s) > float(h_s):
+            h_cls += " lose"
+        elif float(h_s) > float(a_s):
+            a_cls += " lose"
+    except (TypeError, ValueError):
+        pass
+    return (f'<span class="{a_cls}">{esc(fmt_value(a_s))}</span>', f'<span class="{h_cls}">{esc(fmt_value(h_s))}</span>')
+
+
 def render_p1_block(d, prefix="../"):
     """The <div class="p1"> block (shared by the standalone page and the Page 0 overlay)."""
     away, home = d.get("away") or {}, d.get("home") or {}
@@ -276,23 +282,23 @@ def render_p1_block(d, prefix="../"):
     week_label = d.get("week_label") or ""
     rows = leader_rows(d)
     img = lambda team, size, mir=False: helmet_img(team, size, mir, prefix)
+    a_score, h_score = header_scores(d)
+    game_scope = d.get("leaders_scope") == "game"
+    leaders_name = "Game Leaders" if game_scope else "Leaders"
 
     bar = (
         '<header class="bar"><div class="bar-in">'
         f'<a class="week" href="{esc(week_href)}">{CHEV}<span>{esc(week_label)}</span></a>'
         f'<div class="teams" aria-label="{esc(TEAM_NAMES.get(a, a))} at {esc(TEAM_NAMES.get(h, h))}">'
-        f'{img(a, 44)}<span class="abbr">{esc(a)}</span><span class="at">@</span><span class="abbr">{esc(h)}</span>{img(h, 44, True)}</div>'
+        f'{img(a, 44)}<span class="abbr">{esc(a)}</span>{a_score}<span class="at">@</span>{h_score}<span class="abbr">{esc(h)}</span>{img(h, 44, True)}</div>'
         f'<button class="toggle" type="button"><span class="i-plus">{PLUS}</span><span class="i-minus">{MINUS}</span></button>'
         "</div></header>"
     )
     condensed = (
         '<div class="view view-c" aria-label="Condensed matchup">'
-        '<div class="c-matchup">'
-        f'<div class="c-side">{img(a, 48)}<span class="abbr">{esc(a)}</span></div>'
-        f'<div class="c-side"><span class="abbr">{esc(h)}</span>{img(h, 48, True)}</div></div>'
         f'<a class="card c-game" tabindex="0" data-detail="game-info" aria-label="Game info">{game_body(d)}</a>'
         f'<div class="c-teams">{c_team(away, "away")}{c_team(home, "home")}</div>'
-        f'<a class="card c-cmp" tabindex="0" data-detail="leaders" aria-label="Season leaders"><div class="c-cmp-in">{rows}</div></a>'
+        f'<a class="card c-cmp" tabindex="0" data-detail="leaders" aria-label="{leaders_name}"><div class="c-cmp-in">{rows}</div></a>'
         "</div>"
     )
     cmp_head = (
@@ -303,7 +309,7 @@ def render_p1_block(d, prefix="../"):
     cards = [("game-info", "Game Info", "game", game_body(d)),
              ("away-team", a, "team", l_team(away)),
              ("home-team", h, "team", l_team(home)),
-             ("leaders", "Leaders", "compare", cmp_head + rows)]
+             ("leaders", leaders_name, "compare", cmp_head + rows)]
     slots = "".join(
         f'<section class="slot"><a class="card {kind}" tabindex="-1" data-detail="{cid}" aria-label="{esc(name)}">'
         f'<span class="peek peek-top">{DOWN}<span>{esc(name)}</span></span><div class="body">{body}</div>'
@@ -401,8 +407,8 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     else if (e.key === 'ArrowUp' || e.key === 'PageUp') { e.preventDefault(); go(active - 1); }
   });
   on(window, 'resize', function () { if (large()) go(active, true); });
-  setView('large');  // always opens expanded
-  return { destroy: function () { bound.forEach(function (b) { b[0].removeEventListener(b[1], b[2], b[3]); }); bound = []; } };
+  setView(opts.view === 'condensed' ? 'condensed' : 'large');  // opens expanded unless told otherwise
+  return { view: function () { return wrap.getAttribute('data-view'); }, destroy: function () { bound.forEach(function (b) { b[0].removeEventListener(b[1], b[2], b[3]); }); bound = []; } };
 } };
 """
 
@@ -411,8 +417,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
 P1_CSS = r"""
 :host{display:block}
 .p1{--ink:#000;--tile:#fff;--tile-border:rgba(0,0,0,.12);--tile-border-soft:rgba(0,0,0,.07);--tile-hover:rgba(0,0,0,.03);--tile-border-hover:rgba(0,0,0,.28);--text-2:rgba(0,0,0,.62);--text-3:rgba(0,0,0,.4);
-  --out:#A00000;--doubt:#A52800;--ques:#B58900;--win:#1E8A3C;--loss:#A00000;--tie:#B58900;--gold:#D4A20A;--silver:#A2A7AD;--bronze:#B5702F;--bar:52px;--peek:40px;--gap:12px;--col:600px}
-.p1[data-view=large]{--bar:96px}
+  --out:#A00000;--doubt:#A52800;--ques:#B58900;--win:#1E8A3C;--loss:#A00000;--tie:#B58900;--gold:#D4A20A;--silver:#A2A7AD;--bronze:#B5702F;--bar:96px;--peek:40px;--gap:12px;--col:600px}
 *{box-sizing:border-box;margin:0;padding:0}
 .p1{min-height:100%;background:#fff;color:var(--ink);font-family:Inter,system-ui,-apple-system,sans-serif;font-weight:400;-webkit-font-smoothing:antialiased}
 .view{display:none}
@@ -430,8 +435,7 @@ a.card:focus-visible{outline:2px solid #000;outline-offset:2px}
 .week:hover{background:rgba(0,0,0,.05)}
 .week:focus-visible{outline:2px solid #000;outline-offset:2px}
 .week .chev{width:12px;height:12px}
-.teams{display:none;align-items:center;gap:8px}
-.p1[data-view=large] .teams{display:flex}
+.teams{display:flex;align-items:center;gap:8px}
 .teams .abbr{font-size:20px}
 .teams .at{font-size:16px;padding:0 4px}
 .teams img{display:block}
@@ -444,12 +448,8 @@ a.card:focus-visible{outline:2px solid #000;outline-offset:2px}
 
 /* ===== Condensed view: everything on one screen ===== */
 .view-c{max-width:var(--col);margin:0 auto;height:100dvh;min-height:720px;padding:calc(var(--bar) + 12px) 16px 16px;gap:12px;
-  grid-template-rows:auto minmax(0,.74fr) minmax(0,1.3fr) minmax(0,1.38fr)}
+  grid-template-rows:minmax(0,.74fr) minmax(0,1.3fr) minmax(0,1.38fr)}
 .view-c a.card:hover,.view-c a.card:focus-visible{transform:scale(1.03);background:var(--tile-hover);border-color:var(--tile-border-hover);z-index:1}
-.c-matchup{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.c-side{display:flex;align-items:center;justify-content:center;gap:8px}
-.c-side .abbr{font-size:24px}
-.c-side img{display:block}
 
 /* Game info: content pulled in from the edges, centered vertically */
 a.card.c-game{padding:0 clamp(22px,7%,32px);display:flex;flex-direction:column;justify-content:center;gap:clamp(10px,1.6vh,20px);overflow:hidden}
@@ -570,11 +570,9 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:clam
 @media (prefers-reduced-motion:reduce){a.card,.slot.active a.card{transition:background-color .16s,border-color .16s!important}.body,.peek,.dot,.toggle{transition:none!important}
   .view-c a.card:hover,.slot.active a.card:hover,.slot:not(.active) a.card{transform:none}}
 /* ===== Production additions (not in the preview) ===== */
-/* Finished games: final score replaces the kickoff time (Inter Black like Page 0's scores) */
-.final-score{font-weight:900;letter-spacing:-.02em;font-variant-numeric:tabular-nums;display:flex;align-items:baseline}
-.final-score .sc.lose{opacity:.3}
-.final-score .sc-dash{padding:0 .12em;font-weight:400;opacity:.35}
-.final-label{font-weight:700;letter-spacing:.04em}
+/* Finished games: final score sits in the header next to each abbreviation */
+.teams .hscore{font-size:20px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.01em;padding:0 2px}
+.teams .hscore.lose{opacity:.3}
 a.card{cursor:pointer}
 .temp-word{font-size:26px}
 .c-game .temp-word{font-size:clamp(18px,2.6vh,22px)}

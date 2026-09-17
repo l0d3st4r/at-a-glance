@@ -13,7 +13,9 @@ before the game):
                                      per-game averages so bye weeks don't skew ranks
                                      (offense: most points/yards = 1st;
                                       defense: fewest allowed = 1st)
-  - season leaders + league crowns . same weeks as the ranks
+  - season leaders + league crowns . same weeks as the ranks. FINISHED games show each
+                                     team's leaders in that game instead, no crowns
+                                     (Jason, 2026-09-16)
   - injury report .................. that week's official report (Out / Doubtful /
                                      Questionable), starters first, then severity.
                                      Starter = first string on that team's depth chart
@@ -292,10 +294,9 @@ def _leader_builder(player_weekly, warnings):
             warnings.append(f"page1 leaders: player stats missing team/name columns (have: {sorted(sample)[:20]}...)")
         else:
             for r in player_weekly:
-                if stcol and r.get(stcol) not in (None, "REG"):
-                    continue
                 wk = _int_week(r.get(wcol)) if wcol else None
                 rows.append({
+                    "regular": not stcol or r.get(stcol) in (None, "REG"),
                     "week": wk,
                     "team": normalize_abbr(r.get(tcol)),
                     "id": r.get(idcol) if idcol else r.get(ncol),
@@ -315,6 +316,8 @@ def _leader_builder(player_weekly, warnings):
         league_totals = defaultdict(lambda: defaultdict(float)) # id -> stat -> total
         info = {}
         for r in rows:
+            if not r["regular"]:
+                continue
             if week_limit is not None and (r["week"] is None or r["week"] >= week_limit):
                 continue
             info[r["id"]] = (r["name"], r["position"])
@@ -337,6 +340,24 @@ def _leader_builder(player_weekly, warnings):
         cache[week_limit] = result
         return result
 
+    by_game = defaultdict(list)  # (team, week) -> that game's player rows (regular season or playoffs)
+    for r in rows:
+        by_game[(r["team"], r["week"])].append(r)
+
+    def game_leaders(team, week):
+        """{stat_key: leader} for one team's players in one game (no league rank)."""
+        out = {}
+        for key, _label, _c in LEADER_STATS:
+            best = None
+            for r in by_game.get((team, week), []):
+                v = r["stats"].get(key, 0)
+                if v > 0 and (best is None or v > best["value"]):
+                    best = {"name": short_name(r["name"]), "full_name": r["name"], "position": r["position"] or "",
+                            "value": v, "league_rank": None}
+            out[key] = best
+        return out
+
+    leaders_through.game = game_leaders
     return leaders_through
 
 
@@ -526,6 +547,13 @@ def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, w
                     "ranks": ranks.get(team) or {},
                 }
 
+            if g["final"]:
+                game = {g["away"]: leaders_through.game(g["away"], g["week"]),
+                        g["home"]: leaders_through.game(g["home"], g["week"])}
+                pick = lambda k, team: game[team].get(k)
+            else:
+                pick = lambda k, team: leaders.get(k, {}).get(team)
+
             details[gid] = {
                 "game_id": gid,
                 "game_type": g["game_type"],
@@ -542,10 +570,9 @@ def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, w
                 "stats_through_week": (limit - 1) if limit else "regular season",
                 "away": side(g["away"]),
                 "home": side(g["home"]),
+                "leaders_scope": "game" if g["final"] else "season",
                 "leaders": [
-                    {"key": k, "label": lbl,
-                     "away": leaders.get(k, {}).get(g["away"]),
-                     "home": leaders.get(k, {}).get(g["home"])}
+                    {"key": k, "label": lbl, "away": pick(k, g["away"]), "home": pick(k, g["home"])}
                     for k, lbl, _c in LEADER_STATS
                 ],
             }

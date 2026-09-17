@@ -189,13 +189,16 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
 }
 .error{background:#fee;color:#000;padding:8px;font-size:11px;white-space:pre-wrap;border-radius:8px}
 .empty{text-align:center;padding:40px 0;color:var(--text-2);font-size:16px}
-/* Page 1 opens on top of Page 0: the clicked tile grows into this full-screen sheet
-   (see PAGE1_OVERLAY_JS). Page 1's own styles live inside a shadow root. */
+/* Page 1 opens on top of Page 0 (see PAGE1_OVERLAY_JS): tapping a tile zooms into it, its helmets,
+   abbreviations and scores fly up into Page 1's top bar, then Page 1's cards come in. Page 1's own
+   styles live inside a shadow root on .p1-host. Swipe sideways for the week's other games; pinch in
+   to minimize back into the tile. */
 .p1-overlay{position:fixed;z-index:100;box-sizing:border-box;background:var(--tile);
   border:1px solid var(--tile-border);border-radius:20px;overflow:hidden}
-.p1-overlay.is-open{inset:0;border-radius:0;border-color:transparent;overflow-y:auto;overscroll-behavior:contain;
-  touch-action:pan-x pan-y}  /* two-finger pinch is ours: pinch in to close */
-.p1-host{min-height:100%}
+.p1-overlay.is-open{inset:0;border-radius:0;border-color:transparent;
+  touch-action:pan-y}  /* sideways swipes and two-finger pinches are handled by the script */
+.p1-host{position:absolute;inset:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;background:#fff}
+.p1-shell{position:fixed;box-sizing:border-box;background:var(--tile);border:1px solid var(--tile-border);border-radius:20px;pointer-events:none}
 html.p1-open{overflow:hidden}
 """
 
@@ -483,22 +486,33 @@ PAGE0_JS = """
 })();
 """
 
-PAGE1_OVERLAY_JS = """
+PAGE1_OVERLAY_JS = r"""
 (function () {
-  if (!window.fetch || !Element.prototype.attachShadow || !window.AAG_P1) return;  // old browsers: plain links
+  if (!window.fetch || !Element.prototype.attachShadow || !Element.prototype.animate || !window.AAG_P1) return;  // old browsers: plain links
   var docEl = document.documentElement, cache = {}, state = null;
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
   var EASE = 'cubic-bezier(.2,.8,.2,1)';
-  var PINCH_CLOSE = 0.8;  // let go below 80% size and Page 1 closes
+  var TILE = 'a.game[href^="#game-"]';
+  var PINCH_CLOSE = 0.8;     // let go of a pinch below 80% size and Page 1 closes
+  var SWIPE_COMMIT = 0.22;   // drag a quarter of the screen (or flick) to change games
 
+  // ------------------------------------------------------------ helpers
   function idFromHash(h) { var m = (h || '').match(/^#game-(.+)$/); return m ? decodeURIComponent(m[1]) : null; }
+  function tileId(t) { return idFromHash(t.getAttribute('href')); }
   function tileFor(id) {
-    var tiles = document.querySelectorAll('a.game[href^="#game-"]');
-    for (var i = 0; i < tiles.length; i++) if (idFromHash(tiles[i].getAttribute('href')) === id) return tiles[i];
+    var tiles = document.querySelectorAll(TILE);
+    for (var i = 0; i < tiles.length; i++) if (tileId(tiles[i]) === id) return tiles[i];
     return null;
+  }
+  function neighborId(id, dir) {  // the next/previous game in the same week, in Page 0's order
+    var t = tileFor(id), panel = t && t.closest('.week-panel');
+    if (!panel) return null;
+    var ids = [].map.call(panel.querySelectorAll(TILE), tileId), i = ids.indexOf(id);
+    return i < 0 ? null : ids[i + dir] || null;
   }
   function pageUrl(id) { return 'game/' + encodeURIComponent(id) + '.html'; }
   function load(id) {
+    if (!id) return Promise.reject(new Error('no game'));
     if (!cache[id]) {
       cache[id] = fetch(pageUrl(id)).then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); });
       cache[id].catch(function () { delete cache[id]; });
@@ -506,88 +520,153 @@ PAGE1_OVERLAY_JS = """
     return cache[id];
   }
   function box(r) { return { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' }; }
-  function screenBox() { return box({ left: 0, top: 0, width: innerWidth, height: innerHeight }); }
-  function frame(b, radius, border) { return Object.assign({ borderRadius: radius, borderColor: border }, b); }
+  function screenRect() { return { left: 0, top: 0, width: innerWidth, height: innerHeight }; }
+  function frame(r, radius, border) { return Object.assign({ borderRadius: radius, borderColor: border }, box(r)); }
   function visibleRect(el) {
     if (!el) return null;
     var r = el.getBoundingClientRect();
     return (r.width && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth) ? r : null;
   }
+  function done(anim) { return anim ? anim.finished.catch(function () {}) : Promise.resolve(); }
+  function all(list) { return [].slice.call(list); }
 
+  // ------------------------------------------------------------ Page 1 content
+  function mount(s, text, opts) {
+    var page = new DOMParser().parseFromString(text, 'text/html');
+    var css = page.getElementById('p1-css'), block = page.querySelector('.p1');
+    if (!block) throw new Error('bad page');
+    var host = document.createElement('div'), root = host.attachShadow({ mode: 'open' });
+    host.className = 'p1-host';
+    root.innerHTML = '<style>' + (css ? css.textContent : '') + '</style>' + block.outerHTML.replace(/(src|href)="\.\.\//g, '$1="');
+    if (opts.view) root.querySelector('.p1').setAttribute('data-view', opts.view);
+    if (opts.hidden) host.style.visibility = 'hidden';
+    if (opts.dx) host.style.transform = 'translateX(' + opts.dx + 'px)';
+    s.overlay.appendChild(host);
+    var m = { host: host, root: root, title: page.title };
+    if (opts.preview) {  // a neighbour shown while swiping: first card in place, no listeners yet
+      var slots = root.querySelectorAll('.slot');
+      if (slots[0]) slots[0].classList.add('active');
+      if (slots[1]) slots[1].classList.add('below');
+    } else {
+      m.inst = window.AAG_P1.init(root, { onBack: requestClose, view: opts.view });
+      if (m.title) document.title = m.title;
+    }
+    return m;
+  }
+  function tileParts(tile) {  // pieces of a Page 0 tile that travel to Page 1's top bar
+    var out = {}, teams = tile.querySelectorAll('.team'), scores = tile.querySelectorAll('.score');
+    [0, 1].forEach(function (i) {
+      var t = teams[i];
+      if (t && t.querySelector('img')) out['img' + i] = t.querySelector('img');
+      if (t && t.querySelector('.abbr')) out['abbr' + i] = t.querySelector('.abbr');
+      if (scores[i]) out['score' + i] = scores[i];
+    });
+    return out;
+  }
+  function headerParts(root) {
+    var out = {};
+    all(root.querySelectorAll('.bar .teams img')).forEach(function (e, i) { out['img' + i] = e; });
+    all(root.querySelectorAll('.bar .teams .abbr')).forEach(function (e, i) { out['abbr' + i] = e; });
+    all(root.querySelectorAll('.bar .teams .hscore')).forEach(function (e, i) { out['score' + i] = e; });
+    return out;
+  }
+  function flyer(src) {  // a free-floating copy of an element, sitting exactly on top of it
+    var r = src.getBoundingClientRect(), cs = getComputedStyle(src), c = src.cloneNode(true);
+    c.removeAttribute('class');
+    Object.assign(c.style, {
+      position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px',
+      margin: '0', padding: '0', boxSizing: 'border-box', zIndex: '120', pointerEvents: 'none', transformOrigin: '0 0',
+      display: 'block', textAlign: 'center', whiteSpace: 'nowrap', lineHeight: r.height + 'px',
+      fontFamily: cs.fontFamily, fontSize: cs.fontSize, fontWeight: cs.fontWeight, letterSpacing: cs.letterSpacing,
+      fontVariantNumeric: cs.fontVariantNumeric, color: cs.color, opacity: cs.opacity
+    });
+    document.body.appendChild(c);
+    return { el: c, r: r, fs: parseFloat(cs.fontSize) || 1, img: src.tagName === 'IMG' };
+  }
+  function flyTo(f, target, duration, delay) {
+    var t = target.getBoundingClientRect();
+    var sc = f.img ? t.width / f.r.width : (parseFloat(getComputedStyle(target).fontSize) || f.fs) / f.fs;
+    var dx = (t.left + t.width / 2) - (f.r.left + f.r.width * sc / 2);
+    var dy = (t.top + t.height / 2) - (f.r.top + f.r.height * sc / 2);
+    return f.el.animate([{ transform: 'none' }, { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + sc + ')' }],
+                        { duration: duration, delay: delay || 0, easing: EASE, fill: 'forwards' });
+  }
+  function reveal(m) {  // Page 1's cards come in after the header pieces land
+    m.host.style.visibility = '';
+    if (reduce.matches) return;
+    all(m.root.querySelectorAll('.bar .week, .bar .toggle, .bar .at, .dots')).forEach(function (el) {
+      el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 260, delay: 60, easing: 'ease-out', fill: 'backwards' });
+    });
+    var large = m.root.querySelector('.p1').getAttribute('data-view') === 'large';
+    all(m.root.querySelectorAll(large ? '.slot' : '.view-c > .card, .c-teams > .card')).forEach(function (el, i) {
+      el.animate([{ opacity: 0, transform: 'translateY(56px) scale(.96)' }, { opacity: 1, transform: 'none' }],
+                 { duration: 480, delay: 30 + i * 70, easing: EASE, fill: 'backwards' });
+    });
+  }
+
+  // ------------------------------------------------------------ open: zoom into the tile
   function open(id, opts) {
     opts = opts || {};
-    if (state) return;
+    if (state || !id) return;
     var tile = tileFor(id), overlay = document.createElement('div');
     var start = opts.animate === false || reduce.matches ? null : visibleRect(tile);
     overlay.className = 'p1-overlay';
-    Object.assign(overlay.style, start ? box(start) : screenBox());
+    Object.assign(overlay.style, box(start || screenRect()));
     document.body.appendChild(overlay);
-    pinchToClose(overlay);
+    attachGestures(overlay);
     docEl.classList.add('p1-open');
-    state = { id: id, overlay: overlay, pushed: !!opts.push, title: document.title, scrollY: window.scrollY };
+    var s = state = { id: id, overlay: overlay, pushed: !!opts.push, title: document.title, scrollY: window.scrollY, extras: [] };
     if (opts.push) history.pushState({ p1: id }, '', '#game-' + encodeURIComponent(id));
 
-    var grow = start
-      ? overlay.animate([frame(box(start), '20px', 'rgba(0,0,0,.12)'), frame(screenBox(), '0px', 'rgba(0,0,0,0)')],
-                        { duration: 440, easing: EASE, fill: 'forwards' }).finished
-      : Promise.resolve();
-    Promise.all([grow, load(id)]).then(function (res) {
-      if (!state || state.id !== id || state.closing) return;
+    var grow, flyers = [];
+    if (start) {
+      // 1 · the tile's own content zooms up and fades while its card grows to fill the screen
+      var ghost = tile.cloneNode(true), parts = tileParts(tile);
+      ghost.removeAttribute('href');
+      Object.assign(ghost.style, { position: 'fixed', left: start.left + 'px', top: start.top + 'px', width: start.width + 'px',
+        height: start.height + 'px', margin: '0', zIndex: '110', pointerEvents: 'none', background: 'transparent',
+        borderColor: 'transparent', transform: 'none', transition: 'none' });
+      var gp = tileParts(ghost);
+      Object.keys(gp).forEach(function (k) { gp[k].style.visibility = 'hidden'; });
+      document.body.appendChild(ghost);
+      s.extras.push(ghost);
+      ghost.animate([{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(1.3)', opacity: 0 }],
+                    { duration: 320, easing: 'ease-out', fill: 'forwards' });
+      Object.keys(parts).forEach(function (k) { var f = flyer(parts[k]); f.key = k; flyers.push(f); s.extras.push(f.el); });
+      grow = overlay.animate([frame(start, '20px', 'rgba(0,0,0,.12)'), frame(screenRect(), '0px', 'rgba(0,0,0,0)')],
+                             { duration: 460, easing: EASE, fill: 'forwards' });
+    } else {
+      grow = overlay.animate([{ opacity: 0 }, { opacity: 1 }], { duration: reduce.matches ? 1 : 200, fill: 'forwards' });
+    }
+
+    load(id).then(function (text) {
+      if (state !== s || s.closing) throw 0;
+      var m = mount(s, text, { hidden: true });
+      s.host = m.host; s.root = m.root; s.inst = m.inst;
+      // 2 · helmets, abbreviations (and final scores) fly from the tile up into Page 1's top bar
+      var targets = headerParts(m.root);
+      var landed = flyers.map(function (f) {
+        return targets[f.key] ? done(flyTo(f, targets[f.key], 540))
+                              : done(f.el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, fill: 'forwards' }));
+      });
+      return Promise.all([done(grow)].concat(landed)).then(function () { return m; });
+    }).then(function (m) {
+      if (state !== s || s.closing) return;
       overlay.style.cssText = '';
       overlay.classList.add('is-open');
       overlay.getAnimations().forEach(function (a) { a.cancel(); });
-      mount(res[1]);
-    }).catch(function () { location.href = pageUrl(id); });
+      reveal(m);  // 3 · cards come in
+      s.extras.forEach(function (el) { el.remove(); });
+      s.extras = [];
+      load(neighborId(id, 1)).catch(function () {});
+      load(neighborId(id, -1)).catch(function () {});
+    }).catch(function (e) {
+      s.extras.forEach(function (el) { el.remove(); });
+      if (e !== 0 && state === s && !s.closing) location.href = pageUrl(id);
+    });
   }
 
-  function mount(text) {
-    var page = new DOMParser().parseFromString(text, 'text/html');
-    var css = page.getElementById('p1-css'), block = page.querySelector('.p1');
-    if (!block) { location.href = pageUrl(state.id); return; }
-    var host = document.createElement('div'), root = host.attachShadow({ mode: 'open' });
-    host.className = 'p1-host';
-    root.innerHTML = '<style>' + (css ? css.textContent : '') + '</style>' +
-      block.outerHTML.replace(/(src|href)="\\.\\.\\//g, '$1="');
-    state.overlay.appendChild(host);
-    state.host = host;
-    if (!reduce.matches) host.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, easing: 'ease-out' });
-    state.inst = window.AAG_P1.init(root, { onBack: requestClose });
-    if (page.title) document.title = page.title;
-  }
-
-  // Pinch in to close (phones): the sheet follows your fingers as it shrinks;
-  // let go small enough and it closes back into its tile, otherwise it springs back.
-  function pinchToClose(overlay) {
-    var d0 = 0, scale = 1;
-    function dist(t) { return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY); }
-    overlay.addEventListener('touchstart', function (e) {
-      if (!state || state.closing || !overlay.classList.contains('is-open') || e.touches.length !== 2) return;
-      d0 = dist(e.touches); scale = 1;
-      overlay.style.transformOrigin = ((e.touches[0].clientX + e.touches[1].clientX) / 2) + 'px ' +
-                                      ((e.touches[0].clientY + e.touches[1].clientY) / 2) + 'px';
-    }, { passive: true });
-    overlay.addEventListener('touchmove', function (e) {
-      if (!d0 || e.touches.length !== 2) return;
-      e.preventDefault();  // keep the browser from zooming instead
-      scale = Math.max(0.4, Math.min(1, dist(e.touches) / d0));
-      overlay.style.transform = 'scale(' + scale + ')';
-      overlay.style.borderRadius = (20 / scale) + 'px';
-      overlay.style.borderColor = 'rgba(0,0,0,.12)';
-      overlay.style.overflow = 'hidden';
-    }, { passive: false });
-    function release(e) {
-      if (!d0 || (e.touches && e.touches.length >= 2)) return;
-      d0 = 0;
-      if (scale < PINCH_CLOSE && state && !state.closing) { state.pinchRect = overlay.getBoundingClientRect(); requestClose(); return; }
-      var from = overlay.style.transform || 'scale(1)';
-      overlay.style.transform = overlay.style.borderRadius = overlay.style.borderColor = overlay.style.overflow = '';
-      if (from !== 'scale(1)' && !reduce.matches) overlay.animate([{ transform: from }, { transform: 'scale(1)' }], { duration: 220, easing: EASE });
-    }
-    overlay.addEventListener('touchend', release);
-    overlay.addEventListener('touchcancel', release);
-  }
-  document.addEventListener('gesturestart', function (e) { if (state) e.preventDefault(); });  // iOS Safari zoom
-
+  // ------------------------------------------------------------ close: minimize back into the tile
   function requestClose() {
     if (!state) return;
     if (state.pushed && history.state && history.state.p1 === state.id) history.back();  // popstate closes it
@@ -597,25 +676,21 @@ PAGE1_OVERLAY_JS = """
   function close() {
     if (!state || state.closing) return;
     var s = state; s.closing = true;
+    s.extras.forEach(function (el) { el.remove(); });
     if (s.inst) s.inst.destroy();
-    // Going back to "#week-N" makes the browser jump to that week's top; keep the list where it was.
+    var tile = tileFor(s.id);
+    if (tile && !visibleRect(tile) && s.host) {  // e.g. after swiping to another game: bring its tile into view underneath
+      var r = tile.getBoundingClientRect();
+      s.scrollY = Math.max(0, window.scrollY + r.top - innerHeight / 2 + r.height / 2);
+    }
+    // Going back to "#week-N" makes the browser jump to that week's top; keep the list where it should be.
     function pin() { if (Math.abs(window.scrollY - s.scrollY) > 1) window.scrollTo(0, s.scrollY); }
     pin();
     window.addEventListener('scroll', pin);
-    var end = reduce.matches ? null : visibleRect(tileFor(s.id));
-    var fade = s.host && !reduce.matches
-      ? s.host.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 140, fill: 'forwards' }).finished
-      : Promise.resolve();
-    fade.then(function () {
-      if (s.host) s.host.remove();
-      if (!end) return s.overlay.animate([{ opacity: 1 }, { opacity: 0 }], { duration: reduce.matches ? 1 : 180, fill: 'forwards' }).finished;
-      var from = s.pinchRect ? box(s.pinchRect) : screenBox();
-      s.overlay.classList.remove('is-open');
-      s.overlay.style.transform = '';
-      Object.assign(s.overlay.style, from);
-      return s.overlay.animate([frame(from, s.pinchRect ? '20px' : '0px', s.pinchRect ? 'rgba(0,0,0,.12)' : 'rgba(0,0,0,0)'), frame(box(end), '20px', 'rgba(0,0,0,.12)')],
-                               { duration: 380, easing: EASE, fill: 'forwards' }).finished;
-    }).then(function () {
+    var end = reduce.matches || !s.host ? null : visibleRect(tile);
+    var finished = end ? minimize(s, tile, end)
+      : done(s.overlay.animate([{ opacity: 1 }, { opacity: 0 }], { duration: reduce.matches ? 1 : 200, fill: 'forwards' }));
+    finished.then(function () {
       s.overlay.remove();
       pin();
       window.removeEventListener('scroll', pin);
@@ -626,32 +701,225 @@ PAGE1_OVERLAY_JS = """
     });
   }
 
+  function minimize(s, tile, end) {
+    var host = s.host, overlay = s.overlay, cx = end.left + end.width / 2, cy = end.top + end.height / 2;
+    var s0 = s.pinchScale || 1, from = s.pinchRect || screenRect();
+    // header pieces fly back to their places on the tile
+    var dest = tileParts(tile), heads = headerParts(s.root), flights = [], hidden = [];
+    Object.keys(heads).forEach(function (k) {
+      if (!dest[k]) return;
+      var f = flyer(heads[k]);
+      heads[k].style.visibility = 'hidden';
+      dest[k].style.visibility = 'hidden';
+      hidden.push(dest[k]);
+      flights.push(f);
+      f.anim = flyTo(f, dest[k], 440, 40);
+    });
+    // a card outline shrinks from the page to the tile...
+    var shell = document.createElement('div');
+    shell.className = 'p1-shell';
+    overlay.insertBefore(shell, host);
+    overlay.style.background = 'transparent';
+    overlay.style.borderColor = 'transparent';
+    var shellAnim = shell.animate([frame(from, s0 < 1 ? '20px' : '0px', 'rgba(0,0,0,.12)'), frame(end, '20px', 'rgba(0,0,0,.12)')],
+                                  { duration: 440, easing: EASE, fill: 'forwards' });
+    // ...while the cards minimize into it and fade
+    host.style.transformOrigin = cx + 'px ' + cy + 'px';
+    var hostAnim = host.animate([{ transform: 'scale(' + s0 + ')', opacity: 1 },
+                                 { transform: 'scale(' + Math.max(0.15, end.width / innerWidth * 0.6) + ')', opacity: 0 }],
+                                { duration: 360, easing: EASE, fill: 'forwards' });
+    return Promise.all([done(shellAnim), done(hostAnim)].concat(flights.map(function (f) { return done(f.anim); }))).then(function () {
+      hidden.forEach(function (el) { el.style.visibility = ''; });
+      flights.forEach(function (f) { f.el.remove(); });
+      return done(shell.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 140, fill: 'forwards' }));
+    });
+  }
+
+  // ------------------------------------------------------------ gestures: pinch in to close, swipe to change games
+  function dist(t) { return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY); }
+
+  function setPinch(s, scale) {
+    var h = s.host;
+    h.style.transform = 'scale(' + scale + ')';
+    h.style.borderRadius = (20 / scale) + 'px';
+    h.style.overflow = 'hidden';
+    h.style.boxShadow = '0 0 0 ' + (1 / scale) + 'px rgba(0,0,0,.12)';
+    s.overlay.style.background = 'transparent';
+  }
+  function clearPinch(s) {
+    ['transform', 'borderRadius', 'overflow', 'boxShadow', 'transformOrigin'].forEach(function (p) { s.host.style[p] = ''; });
+    s.overlay.style.background = '';
+  }
+
+  function goTo(s, dir, fromDx, velocityHint) {
+    var nid = neighborId(s.id, dir), w = innerWidth;
+    if (!nid || s.busy) return Promise.resolve(false);
+    s.busy = true;
+    var view = s.inst ? s.inst.view() : 'large';
+    return load(nid).then(function (text) {
+      if (state !== s || s.closing) throw 0;
+      var n = s.swipeHost && s.swipeHost.dir === dir ? s.swipeHost.m : mount(s, text, { preview: true, view: view, dx: dir * w + (fromDx || 0) });
+      var oldHost = s.host, dur = velocityHint ? 220 : 320;
+      var a1 = oldHost.animate([{ transform: 'translateX(' + (fromDx || 0) + 'px)' }, { transform: 'translateX(' + (-dir * w) + 'px)' }], { duration: dur, easing: EASE, fill: 'forwards' });
+      var a2 = n.host.animate([{ transform: 'translateX(' + (dir * w + (fromDx || 0)) + 'px)' }, { transform: 'translateX(0)' }], { duration: dur, easing: EASE, fill: 'forwards' });
+      return Promise.all([done(a1), done(a2)]).then(function () {
+        if (state !== s || s.closing) return false;
+        if (s.inst) s.inst.destroy();
+        oldHost.remove();
+        n.host.style.transform = '';
+        n.host.getAnimations().forEach(function (a) { a.cancel(); });
+        var slots = n.root.querySelectorAll('.slot');
+        all(slots).forEach(function (el) { el.classList.remove('active', 'below', 'above'); });
+        s.host = n.host; s.root = n.root; s.id = nid; s.swipeHost = null;
+        s.inst = window.AAG_P1.init(n.root, { onBack: requestClose, view: view });
+        if (n.title) document.title = n.title;
+        history.replaceState(s.pushed ? { p1: nid } : null, '', '#game-' + encodeURIComponent(nid));
+        load(neighborId(nid, dir)).catch(function () {});
+        return true;
+      });
+    }).catch(function () { return false; }).then(function (ok) { s.busy = false; return ok; });
+  }
+
+  function attachGestures(overlay) {
+    var mode = null, x0 = 0, y0 = 0, dx = 0, t0 = 0, d0 = 0, scale = 1;
+    overlay.addEventListener('touchstart', function (e) {
+      var s = state;
+      if (!s || s.closing || s.busy || !s.inst) return;
+      if (e.touches.length === 2) {
+        if (mode === 'swipe') return;
+        mode = 'pinch'; d0 = dist(e.touches); scale = 1;
+        var tile = tileFor(s.id);
+        if (tile && !visibleRect(tile)) {
+          var r = tile.getBoundingClientRect();
+          s.scrollY = Math.max(0, window.scrollY + r.top - innerHeight / 2 + r.height / 2);
+          window.scrollTo(0, s.scrollY);
+        }
+        var tr = visibleRect(tile);
+        s.host.style.transformOrigin = tr ? (tr.left + tr.width / 2) + 'px ' + (tr.top + tr.height / 2) + 'px'
+          : ((e.touches[0].clientX + e.touches[1].clientX) / 2) + 'px ' + ((e.touches[0].clientY + e.touches[1].clientY) / 2) + 'px';
+      } else if (e.touches.length === 1) {
+        mode = 'pending'; x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0; t0 = Date.now();
+      }
+    }, { passive: true });
+
+    overlay.addEventListener('touchmove', function (e) {
+      var s = state;
+      if (!s || !mode || s.closing) return;
+      if (mode === 'pinch') {
+        if (e.touches.length !== 2) return;
+        e.preventDefault();  // keep the browser from zooming instead
+        scale = Math.max(0.35, Math.min(1, dist(e.touches) / d0));
+        setPinch(s, scale);
+        return;
+      }
+      if (e.touches.length !== 1) return;
+      var mx = e.touches[0].clientX - x0, my = e.touches[0].clientY - y0;
+      if (mode === 'pending') {
+        if (Math.abs(mx) > 10 && Math.abs(mx) > Math.abs(my) * 1.2) mode = 'swipe';
+        else if (Math.abs(my) > 10) { mode = null; return; }
+        else return;
+      }
+      e.preventDefault();
+      var dir = mx < 0 ? 1 : -1, nid = neighborId(s.id, dir), w = innerWidth;
+      dx = nid ? mx : mx * 0.3;  // rubber band at the first/last game
+      s.host.style.transform = 'translateX(' + dx + 'px)';
+      if (nid && (!s.swipeHost || s.swipeHost.dir !== dir)) {
+        if (s.swipeHost) { s.swipeHost.m.host.remove(); s.swipeHost = null; }
+        var want = { dir: dir, id: nid };
+        s.swipeWant = want;
+        load(nid).then(function (text) {
+          if (state !== s || s.swipeWant !== want || s.swipeHost || mode !== 'swipe') return;
+          s.swipeHost = { dir: dir, m: mount(s, text, { preview: true, view: s.inst.view(), dx: dir * w + dx }) };
+        }).catch(function () {});
+      }
+      if (s.swipeHost) s.swipeHost.m.host.style.transform = 'translateX(' + (s.swipeHost.dir * w + dx) + 'px)';
+    }, { passive: false });
+
+    function release(e) {
+      var s = state;
+      if (!s || !mode) return;
+      if (mode === 'pinch') {
+        if (e.touches && e.touches.length >= 2) return;
+        mode = null;
+        if (scale < PINCH_CLOSE && !s.closing) {
+          s.pinchScale = scale;
+          s.pinchRect = s.host.getBoundingClientRect();
+          clearPinchLook(s);
+          requestClose();
+          return;
+        }
+        var from = s.host.style.transform || 'none';
+        var back = reduce.matches ? null : s.host.animate([{ transform: from }, { transform: 'none' }], { duration: 220, easing: EASE });
+        done(back).then(function () { if (state === s && !s.closing) clearPinch(s); });
+        s.host.style.transform = '';
+        return;
+      }
+      if (mode === 'swipe') {
+        mode = null;
+        var dir = dx < 0 ? 1 : -1, v = Math.abs(dx) / Math.max(1, Date.now() - t0);
+        var go = neighborId(s.id, dir) && (Math.abs(dx) > innerWidth * SWIPE_COMMIT || v > 0.5);
+        if (go) { goTo(s, dir, dx, v > 0.5); return; }
+        var cur = s.host, sh = s.swipeHost, w = innerWidth, startDx = dx;
+        s.swipeHost = null; s.swipeWant = null;
+        cur.animate([{ transform: 'translateX(' + startDx + 'px)' }, { transform: 'none' }], { duration: 220, easing: EASE });
+        cur.style.transform = '';
+        if (sh) done(sh.m.host.animate([{ transform: 'translateX(' + (sh.dir * w + startDx) + 'px)' }, { transform: 'translateX(' + (sh.dir * w) + 'px)' }],
+                                       { duration: 220, easing: EASE, fill: 'forwards' })).then(function () { sh.m.host.remove(); });
+        return;
+      }
+      mode = null;
+    }
+    function clearPinchLook(s) { s.host.style.boxShadow = ''; }
+    overlay.addEventListener('touchend', release);
+    overlay.addEventListener('touchcancel', release);
+
+    // Trackpads / mice with sideways scrolling
+    var acc = 0, idle = 0, locked = false;
+    overlay.addEventListener('wheel', function (e) {
+      var s = state;
+      if (!s || s.closing || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+      e.preventDefault();  // no browser back/forward swipe while Page 1 is open
+      clearTimeout(idle); idle = setTimeout(function () { acc = 0; locked = false; }, 180);
+      if (locked) return;
+      acc += e.deltaX;
+      if (Math.abs(acc) > 40) { locked = true; goTo(s, acc > 0 ? 1 : -1); acc = 0; }
+    }, { passive: false });
+  }
+
+  // ------------------------------------------------------------ wiring
   document.addEventListener('click', function (e) {
-    var tile = e.target.closest && e.target.closest('a.game[href^="#game-"]');
+    var tile = e.target.closest && e.target.closest(TILE);
     if (!tile || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     e.preventDefault();
-    open(idFromHash(tile.getAttribute('href')), { push: true });
+    open(tileId(tile), { push: true });
   });
   // Start downloading a game's page as soon as someone points at or touches its tile.
   ['mouseover', 'touchstart', 'focusin'].forEach(function (type) {
     document.addEventListener(type, function (e) {
-      var tile = e.target.closest && e.target.closest('a.game[href^="#game-"]');
-      if (tile) load(idFromHash(tile.getAttribute('href')));
+      var tile = !state && e.target.closest && e.target.closest(TILE);
+      if (tile) load(tileId(tile)).catch(function () {});
     }, { passive: true });
   });
+  window.addEventListener('keydown', function (e) {
+    if (!state || state.closing || e.altKey || e.metaKey || e.ctrlKey) return;
+    if (e.key === 'ArrowRight') { e.preventDefault(); goTo(state, 1); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); goTo(state, -1); }
+  });
+  document.addEventListener('gesturestart', function (e) { if (state) e.preventDefault(); });  // iOS Safari zoom
   window.addEventListener('popstate', function () {
     var id = idFromHash(location.hash);
     if (state && id !== state.id) close();
     else if (!state && id) open(id, {});
   });
 
-  // Shared link straight to a game (index.html#game-...): show its week underneath, open without the grow.
+  // Shared link straight to a game (index.html#game-...): show its week underneath, open without the zoom.
   var first = idFromHash(location.hash);
   if (first) {
     var t = tileFor(first);
     if (t && window.AAG_P0) window.AAG_P0.showTile(t);
     open(first, { animate: false });
   }
+
 })();
 """
 
