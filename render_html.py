@@ -471,7 +471,6 @@ PAGE0_JS = """
   function setActive(i, opts) {
     opts = opts || {};
     if (!panels[i]) return;
-    var changed = i !== idx;
     idx = i;
     var p = panels[i];
     select.value = p.dataset.key;
@@ -480,10 +479,6 @@ PAGE0_JS = """
     if (opts.scroll) track.scrollTo({ left: i * track.clientWidth, behavior: opts.smooth ? 'smooth' : 'auto' });
     sizeTrack();
     if (opts.updateHash !== false && !document.documentElement.classList.contains('p1-open')) history.replaceState(null, '', '#week-' + encodeURIComponent(p.dataset.key));
-    if (changed) {
-      var top = track.getBoundingClientRect().top + window.scrollY;
-      if (window.scrollY > top) window.scrollTo({ top: top });
-    }
   }
 
   select.addEventListener('change', function () {

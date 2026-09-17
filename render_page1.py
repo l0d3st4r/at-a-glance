@@ -324,7 +324,7 @@ def leader_cell(p):
     if not p:
         return f'<div class="ldr"><div class="ldr-v na"><span>{DASH}</span></div><div class="ldr-n">&nbsp;</div></div>'
     return (
-        f'<div class="ldr"><div class="ldr-v"><span>{esc(fmt_value(p.get("value")))}</span>{crown(p.get("league_rank"))}</div>'
+        f'<div class="ldr"><div class="ldr-v"><span>{esc(fmt_value(p.get("value"))).replace(",", "<i class=cm>,</i>")}</span>{crown(p.get("league_rank"))}</div>'
         f'<div class="ldr-n"><span class="nm">{esc(p.get("name") or "")}</span><span class="pos">{esc(p.get("position") or "")}</span></div></div>'
     )
 
@@ -656,8 +656,10 @@ a.card.c-team{padding:var(--ctitle) 10px clamp(8px,1.4vh,14px);display:flex;flex
 a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(--ctitle) 0 clamp(8px,1.4vh,14px);overflow:hidden}
 .c-cmp-in{width:84%;height:100%;display:flex;flex-direction:column;justify-content:space-evenly}
 .c-cmp .cmp-row{grid-template-columns:1fr 76px 1fr}
-.c-cmp .ldr-v{position:relative;display:inline-block;font-size:clamp(18px,2.65vh,26px);font-weight:700;line-height:1.05}
-.c-cmp .ldr-n{font-size:11.5px;margin-top:1px}
+.c-cmp .ldr-v{position:relative;display:inline-block;font-size:clamp(18px,2.65vh,26px);font-weight:700;line-height:1}
+.c-cmp .ldr-n{font-size:11.5px;line-height:1.1;margin-top:-1px}   /* the name hugs its own stat; the gap to the next row stays larger */
+.cm{font-style:normal}
+.c-cmp .cm{position:relative;top:-.1em}   /* lift thousands commas so their tails clear the name below */
 .c-cmp .cmp-lbl{font-size:10px}
 .crown{position:absolute;left:100%;top:50%;transform:translate(4px,-62%);overflow:visible}
 
@@ -714,9 +716,10 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .rec-split{display:inline-flex;align-items:baseline}
 .rc{position:relative;display:inline-block}
 .rc-mark{position:absolute;left:50%;transform:translateX(-50%);line-height:0}
-/* tucked right against the digit: the line box has ~.12em of empty space above and below the numerals */
-.rc-mark.above{bottom:calc(100% - .1em)}
-.rc-mark.below{top:calc(100% - .08em)}
+/* the same clear ~.12em gap above or below the digit (the line box leaves .115em of space above the numerals and .145em below) */
+.rc-mark.above{bottom:calc(100% + .005em)}
+.rc-mark.below{top:calc(100% - .025em)}
+.rc-mark .trend.t-t{margin-top:-.06em}   /* the tie bar is drawn mid-box, so pull it up to match */
 .rc-mark .trend{width:.26em;height:.17em;min-width:11px;min-height:7px}
 .team .record{font-size:70px;font-weight:900;line-height:1;letter-spacing:-.01em;white-space:nowrap}
 .team .record.rec-4{font-size:52px}.team .record.rec-5{font-size:46px}.team .record.rec-6{font-size:38px}
@@ -752,6 +755,9 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .ldr-v{font-size:20px;font-weight:700;line-height:1.2}
 .compare .ldr-v{position:relative;display:inline-block;font-size:clamp(28px,8.2vw,36px);line-height:1.05}
 .compare .ldr-v .crown{width:20px;height:16px;transform:translate(5px,-64%)}
+/* home column: crown in front of the number, so crowns sit toward the middle of the chart */
+.cmp-row>.ldr:last-child .crown{left:auto;right:100%;transform:translate(-4px,-62%)}
+.compare .cmp-row>.ldr:last-child .ldr-v .crown{transform:translate(-5px,-64%)}
 .compare .ldr-n{margin-top:2px}
 .ldr-n{font-size:14px;white-space:nowrap;display:flex;justify-content:center;min-width:0}
 .ldr-n .nm{overflow:hidden;text-overflow:ellipsis;min-width:0}
