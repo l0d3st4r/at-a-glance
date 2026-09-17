@@ -197,38 +197,120 @@ def injuries_html(side, full):
     return "".join(out)
 
 
+# Offense/defense rank colors (Jason, 2026-09-17, revised): green #1E8A3C for 1st through grey
+# #6E6E6E to red #A00000 for 32nd, weighted instead of even steps. Top 5 / bottom 5 carry almost
+# the full green / red, ranks 6-10 and 23-27 a clearly lighter tint, and the middle 12 (11-22)
+# stay close to grey with only small differences. Blended in OKLab; every color is 4.4:1 or
+# better on white.
+RANK_COLORS = [
+    "#1E8A3C", "#27893F", "#2E8842", "#348645", "#3A8548",   # 1-5
+    "#498052", "#4F7E55", "#537C59", "#577B5C", "#5B795E",   # 6-10
+    "#637565", "#657466", "#677268", "#69716A", "#6B706C", "#6D6F6D",   # 11-16
+    "#706D6C", "#736A69", "#766865", "#786562", "#7B635E", "#7E605B",   # 17-22
+    "#86564F", "#895149", "#8C4D44", "#8F473D", "#924136",   # 23-27
+    "#992D23", "#9B261D", "#9D1E15", "#9E130C", "#A00000",   # 28-32
+]
+
+
+def rank_color(n):
+    return RANK_COLORS[max(1, min(len(RANK_COLORS), n)) - 1]
+
+
 def big_rank(n, label):
+    """Rank number + ordinal colored on the green-to-red scale; POINTS/YARDS label stays black.
+    Used on the expanded team cards and (smaller, via CSS) on the condensed ones."""
     if not isinstance(n, int):
         return f'<div class="rank"><span class="rank-n na">{DASH}</span><span class="rank-sfx"></span><span class="rank-lbl">{label}</span></div>'
-    return f'<div class="rank"><span class="rank-n">{n}</span><span class="rank-sfx">{ordinal(n)}</span><span class="rank-lbl">{label}</span></div>'
+    c = rank_color(n)
+    return (f'<div class="rank"><span class="rank-n" style="color:{c}">{n}</span>'
+            f'<span class="rank-sfx" style="color:{c}">{ordinal(n)}</span><span class="rank-lbl">{label}</span></div>')
 
 
-def small_rank(n, label):
-    if not isinstance(n, int):
-        return f'<div class="crank"><b class="na">{DASH}</b><span>{label}</span></div>'
-    return f'<div class="crank"><b>{n}<sup>{ordinal(n)}</sup></b><span>{label}</span></div>'
+def record_block(side, final):
+    """
+    Record with its last-game indicator (Jason, 2026-09-17):
+      - finished game: the indicator sits on the column this game changed -- green
+        chevron above the wins, red chevron under the losses, yellow bar under the
+        ties -- and that number takes the same color
+      - upcoming game: the current streak length, colored like its indicator, beside
+        the record; green chevron above the number for a win streak, red chevron /
+        yellow bar below it for a losing / tie streak
+    """
+    rec = side.get("record") or {}
+    text = fmt_record(rec)
+    size = record_size(text)
+    last = side.get("last")
+    if final and last in TREND:
+        col = {"W": 0, "L": 1, "T": 2}[last]
+        vals = [rec.get("wins", 0), rec.get("losses", 0)] + ([rec.get("ties", 0)] if rec.get("ties") else [])
+        parts = []
+        for i, v in enumerate(vals):
+            if i:
+                parts.append('<span class="rc-dash">-</span>')
+            if i == col:
+                where = "above" if last == "W" else "below"
+                parts.append(f'<span class="rc rc-hit t-{last.lower()}">{v}<span class="rc-mark {where}">{TREND[last]}</span></span>')
+            else:
+                parts.append(f'<span class="rc">{v}</span>')
+        return f'<span class="record rec-split{size}" aria-label="Record {esc(text)}">{"".join(parts)}</span>'
+    streak = side.get("streak") or 0
+    if last in TREND and streak:
+        mark = TREND[last]
+        inner = f'{mark}<b>{streak}</b>' if last == "W" else f'<b>{streak}</b>{mark}'
+        word = {"W": "win", "L": "losing", "T": "tie"}[last]
+        return (f'<span class="streak t-{last.lower()}" role="img" aria-label="{streak}-game {word} streak">{inner}</span>'
+                f'<span class="record{size}">{esc(text)}</span>')
+    return f'<span class="record{size}">{esc(text)}</span>'
 
 
-def c_team(side, label):
+def record_size(record_text):
+    """Longer records ("10-6", "2-2-1", "10-6-1") get a smaller size class so they fit next to the helmet."""
+    n = len(record_text)
+    return "" if n <= 3 else " rec-4" if n == 4 else " rec-5" if n == 5 else " rec-6"
+
+
+def team_pill(team):
+    """A flat pill in the team's helmet-shell color (the PRIMARY color in helmets.py, no gradient)."""
+    primary, _secondary = helmets.TEAM_COLORS.get(team, helmets.FALLBACK_COLORS)
+    return f'<span class="pill" style="background:{primary}" role="img" aria-label="{esc(TEAM_NAMES.get(team, team))}"></span>'
+
+
+def pill_row(a, h):
+    """Leaders card column heads: away team's pill over the left column, home team's over the right."""
+    return f'<div class="cmp-row cmp-head">{team_pill(a)}<div></div>{team_pill(h)}</div>'
+
+
+def card_title(name):
+    """The card's name at the top center of the card -- the same label its peeking sliver shows."""
+    return f'<span class="card-title">{esc(name)}</span>'
+
+
+def c_team(side, label, final=False):
     r = side.get("ranks") or {}
+    team = side.get("team")
+    rec = fmt_record(side.get("record"))
     return (
-        f'<a class="card c-team" tabindex="0" data-detail="{label}-team" aria-label="{esc(side.get("team"))} team">'
-        f'<div class="c-rec">{TREND.get(side.get("last"), "")}<span class="record">{esc(fmt_record(side.get("record")))}</span></div>'
+        f'<a class="card c-team" tabindex="0" data-detail="{label}-team" aria-label="{esc(team)} team">'
+        f'{card_title(team)}'
+        '<div class="l-top">'
+        f'<div class="l-id">{helmet_img(team, 40)}</div>'
+        f'<div class="l-rec">{record_block(side, final)}</div>'
+        "</div>"
         f'<ul class="injuries c-inj">{injuries_html(side, full=False)}</ul>'
-        '<div class="cranks">'
-        f'<div class="ccol"><h3>Offense</h3>{small_rank(r.get("off_points"), "PTS")}{small_rank(r.get("off_yards"), "YDS")}</div>'
-        f'<div class="ccol"><h3>Defense</h3>{small_rank(r.get("def_points"), "PTS")}{small_rank(r.get("def_yards"), "YDS")}</div>'
+        '<div class="ranks">'
+        f'<div class="rank-col"><h3>Offense</h3>{big_rank(r.get("off_points"), "PTS")}{big_rank(r.get("off_yards"), "YDS")}</div>'
+        f'<div class="rank-col"><h3>Defense</h3>{big_rank(r.get("def_points"), "PTS")}{big_rank(r.get("def_yards"), "YDS")}</div>'
         "</div></a>"
     )
 
 
-def l_team(side):
+def l_team(side, final=False):
     r = side.get("ranks") or {}
     team = side.get("team")
     return (
         '<div class="l-top">'
-        f'<div class="l-id">{helmet_img(team, 84)}<span class="abbr">{esc(team)}</span></div>'
-        f'<div class="l-rec">{TREND.get(side.get("last"), "")}<span class="record">{esc(fmt_record(side.get("record")))}</span></div>'
+        f'<div class="l-id">{helmet_img(team, 84)}</div>'
+        f'<div class="l-rec">{record_block(side, final)}</div>'
         "</div>"
         f'<ul class="l-inj">{injuries_html(side, full=True)}</ul>'
         '<div class="ranks">'
@@ -243,7 +325,7 @@ def leader_cell(p):
         return f'<div class="ldr"><div class="ldr-v na"><span>{DASH}</span></div><div class="ldr-n">&nbsp;</div></div>'
     return (
         f'<div class="ldr"><div class="ldr-v"><span>{esc(fmt_value(p.get("value")))}</span>{crown(p.get("league_rank"))}</div>'
-        f'<div class="ldr-n"><span class="nm">{esc(p.get("name") or "")}</span> <span class="pos">{esc(p.get("position") or "")}</span></div></div>'
+        f'<div class="ldr-n"><span class="nm">{esc(p.get("name") or "")}</span><span class="pos">{esc(p.get("position") or "")}</span></div></div>'
     )
 
 
@@ -285,6 +367,7 @@ def render_p1_block(d, prefix="../"):
     img = lambda team, size, mir=False: helmet_img(team, size, mir, prefix)
     a_score, h_score = header_scores(d)
     game_scope = d.get("leaders_scope") == "game"
+    final = bool(d.get("final"))
     leaders_name = "Game Leaders" if game_scope else "Leaders"
 
     bar = (
@@ -300,19 +383,15 @@ def render_p1_block(d, prefix="../"):
     )
     condensed = (
         '<div class="view view-c" aria-label="Condensed matchup">'
-        f'<a class="card c-game" tabindex="0" data-detail="game-info" aria-label="Game info">{game_body(d)}</a>'
-        f'<div class="c-teams">{c_team(away, "away")}{c_team(home, "home")}</div>'
-        f'<a class="card c-cmp" tabindex="0" data-detail="leaders" aria-label="{leaders_name}"><div class="c-cmp-in">{rows}</div></a>'
+        f'<a class="card c-game" tabindex="0" data-detail="game-info" aria-label="Game info">{card_title("Game Info")}{game_body(d)}</a>'
+        f'<div class="c-teams">{c_team(away, "away", final)}{c_team(home, "home", final)}</div>'
+        f'<a class="card c-cmp" tabindex="0" data-detail="leaders" aria-label="{leaders_name}">{card_title(leaders_name)}<div class="c-cmp-in">{pill_row(a, h)}{rows}</div></a>'
         "</div>"
     )
-    cmp_head = (
-        '<div class="cmp-row cmp-head">'
-        f'<div class="l-id-s">{img(a, 52)}<span class="abbr">{esc(a)}</span></div><div></div>'
-        f'<div class="l-id-s">{img(h, 52, True)}<span class="abbr">{esc(h)}</span></div></div>'
-    )
+    cmp_head = pill_row(a, h)  # team-color pills replace the helmets + abbreviations (2026-09-17)
     cards = [("game-info", "Game Info", "game", game_body(d)),
-             ("away-team", a, "team", l_team(away)),
-             ("home-team", h, "team", l_team(home)),
+             ("away-team", a, "team", l_team(away, final)),
+             ("home-team", h, "team", l_team(home, final)),
              ("leaders", leaders_name, "compare", cmp_head + rows)]
     slots = "".join(
         f'<section class="slot"><a class="card {kind}" tabindex="-1" data-detail="{cid}" aria-label="{esc(name)}">'
@@ -369,12 +448,16 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
   var wrap = root.querySelector('.p1'); if (!wrap) return { destroy: function () {} };
   var deck = root.querySelector('.deck'), slots = [].slice.call(root.querySelectorAll('.slot')),
       dots = [].slice.call(root.querySelectorAll('.dot')), toggle = root.querySelector('.toggle'),
-      week = root.querySelector('.week'), active = -1, bound = [];
-  var smooth = matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+      week = root.querySelector('.week'), active = -1, bound = [], morphing = false;
+  // Motion always plays, whatever the device's Reduce Motion setting (Jason, 2026-09-17).
+  // Speed/easing taken from yeezy.com: 200-300ms moves on cubic-bezier(.22,1,.36,1), 150ms fades.
+  var reduce = false;
+  var smooth = 'smooth', EASE = 'cubic-bezier(.22,1,.36,1)';
+  var lastCard = Math.max(0, Math.min(slots.length - 1, opts.card || 0));  // expanded card to return to
   function on(t, type, fn, o) { t.addEventListener(type, fn, o); bound.push([t, type, fn, o]); }
   function large() { return wrap.getAttribute('data-view') === 'large'; }
   function setActive(i) {
-    if (i === active) return; active = i;
+    if (i === active) return; active = i; lastCard = i;
     slots.forEach(function (s, k) {
       s.classList.toggle('active', k === i); s.classList.toggle('above', k === i - 1); s.classList.toggle('below', k === i + 1);
       var c = s.querySelector('a.card'); c.tabIndex = k === i ? 0 : -1; c.setAttribute('aria-hidden', k === i ? 'false' : 'true');
@@ -391,17 +474,78 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     deck.scrollTo({ top: s.offsetTop - (deck.clientHeight - s.offsetHeight) / 2, behavior: instant ? 'auto' : smooth });
   }
   var ticking = false;
-  on(deck, 'scroll', function () { if (!ticking) { ticking = true; requestAnimationFrame(function () { setActive(current()); ticking = false; }); } }, { passive: true });
+  on(deck, 'scroll', function () { if (!ticking && large() && !morphing) { ticking = true; requestAnimationFrame(function () { if (large()) setActive(current()); ticking = false; }); } }, { passive: true });
   // Tapping a peeking card brings it in; tapping the active card will open Page 2 later.
   slots.forEach(function (s, k) { on(s.querySelector('a.card'), 'click', function (e) { e.preventDefault(); if (k !== active) go(k); }); });
   dots.forEach(function (d, k) { on(d, 'click', function () { go(k); }); });
-  function setView(v) {
-    wrap.setAttribute('data-view', v);
+
+  // Condensed card for each expanded card: game info, away team, home team, leaders
+  function condensedCards() { return [root.querySelector('.c-game')].concat([].slice.call(root.querySelectorAll('.c-team')), [root.querySelector('.c-cmp')]); }
+  function labelToggle(v) {
     toggle.setAttribute('aria-label', v === 'large' ? 'Switch to condensed view' : 'Switch to expanded view');
     toggle.setAttribute('aria-pressed', v === 'large' ? 'true' : 'false');
-    if (v === 'large') requestAnimationFrame(function () { go(active < 0 ? 0 : active, true); setActive(current()); });
   }
-  on(toggle, 'click', function () { setView(large() ? 'condensed' : 'large'); });
+  function place(v, card) {
+    wrap.setAttribute('data-view', v);
+    labelToggle(v);
+    if (v === 'large') { active = -1; go(card, true); setActive(card); }
+  }
+  // A plain card-shaped box holding a frozen copy of a card, used to morph between the two views.
+  function morphFrom(el) {
+    var r = el.getBoundingClientRect(), box = document.createElement('div'), copy = el.cloneNode(true);
+    box.className = 'morph';
+    Object.assign(box.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
+    copy.removeAttribute('tabindex');
+    Object.assign(copy.style, { width: r.width + 'px', height: r.height + 'px' });
+    box.appendChild(copy);
+    wrap.appendChild(box);
+    return { box: box, copy: copy, r: r };
+  }
+  function geo(r) { return { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' }; }
+  function fin(a) { return a.finished.catch(function () {}); }
+
+  function switchView(v) {
+    if (morphing || v === wrap.getAttribute('data-view')) return;
+    var card = lastCard;
+    if (reduce || !Element.prototype.animate) { place(v, card); return; }
+    morphing = true;
+    var toLarge = v === 'large', D = 300;
+    var fromEl = toLarge ? condensedCards()[card] : slots[card].querySelector('a.card');
+    var others = toLarge ? condensedCards().filter(function (_, k) { return k !== card; }) : [];
+    var ghosts = others.map(function (el) { return morphFrom(el); });   // condensed neighbours zoom past and fade
+    var m = morphFrom(fromEl);
+    place(v, card);
+    var toEl = toLarge ? slots[card].querySelector('a.card') : condensedCards()[card];
+    var r1 = toEl.getBoundingClientRect();
+    toEl.style.opacity = '0';
+    var anims = [];
+    anims.push(m.box.animate([geo(m.r), geo(r1)], { duration: D, easing: EASE, fill: 'forwards' }));
+    m.copy.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: 'forwards' });
+    ghosts.forEach(function (g) {
+      g.box.animate([{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(1.12)', opacity: 0 }], { duration: 160, easing: EASE, fill: 'forwards' });
+    });
+    if (toLarge) {
+      // the peeking neighbours and dots arrive once the card has nearly filled its spot
+      [slots[card - 1], slots[card + 1]].forEach(function (s) {
+        if (s) s.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, delay: D - 90, easing: 'ease-out', fill: 'backwards' });
+      });
+      dots.forEach(function (d) { d.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, delay: D - 90, fill: 'backwards' }); });
+    } else {
+      // the other condensed cards settle into place from slightly larger, as if zooming out
+      condensedCards().forEach(function (el, k) {
+        if (k === card) return;
+        el.animate([{ transform: 'scale(1.08)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 240, delay: 50, easing: EASE, fill: 'backwards' });
+      });
+    }
+    Promise.all(anims.map(fin)).then(function () {
+      toEl.style.opacity = '';
+      toEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120, easing: 'ease-out' });
+      m.box.remove();
+      ghosts.forEach(function (g) { g.box.remove(); });
+      morphing = false;
+    });
+  }
+  on(toggle, 'click', function () { switchView(large() ? 'condensed' : 'large'); });
   function back() { if (opts.onBack) opts.onBack(); else location.href = week.href; }
   on(week, 'click', function (e) { if (opts.onBack) { e.preventDefault(); opts.onBack(); } });
   on(window, 'keydown', function (e) {
@@ -411,8 +555,16 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     else if (e.key === 'ArrowUp' || e.key === 'PageUp') { e.preventDefault(); go(active - 1); }
   });
   on(window, 'resize', function () { if (large()) go(active, true); });
-  setView(opts.view === 'condensed' ? 'condensed' : 'large');  // opens expanded unless told otherwise
-  return { view: function () { return wrap.getAttribute('data-view'); }, destroy: function () { bound.forEach(function (b) { b[0].removeEventListener(b[1], b[2], b[3]); }); bound = []; } };
+  // Opens expanded unless told otherwise; opts.card keeps the same card when swiping between games.
+  var startView = opts.view === 'condensed' ? 'condensed' : 'large';
+  wrap.setAttribute('data-view', startView);
+  labelToggle(startView);
+  if (startView === 'large') requestAnimationFrame(function () { go(lastCard, true); setActive(lastCard); });
+  return {
+    view: function () { return wrap.getAttribute('data-view'); },
+    card: function () { return lastCard; },
+    destroy: function () { bound.forEach(function (b) { b[0].removeEventListener(b[1], b[2], b[3]); }); bound = []; }
+  };
 } };
 """
 
@@ -421,7 +573,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
 P1_CSS = r"""
 :host{display:block}
 .p1{--ink:#000;--tile:#fff;--tile-border:rgba(0,0,0,.12);--tile-border-soft:rgba(0,0,0,.07);--tile-hover:rgba(0,0,0,.03);--tile-border-hover:rgba(0,0,0,.28);--text-2:rgba(0,0,0,.62);--text-3:rgba(0,0,0,.4);
-  --out:#A00000;--doubt:#A52800;--ques:#B58900;--win:#1E8A3C;--loss:#A00000;--tie:#B58900;--gold:#D4A20A;--silver:#A2A7AD;--bronze:#B5702F;--bar:64px;--bbar:calc(52px + env(safe-area-inset-bottom));--peek:40px;--gap:12px;--col:600px}
+  --out:#A00000;--doubt:#A52800;--ques:#B58900;--win:#1E8A3C;--loss:#A00000;--tie:#B58900;--gold:#D4A20A;--silver:#A2A7AD;--bronze:#B5702F;--bar:64px;--bbar:calc(52px + env(safe-area-inset-bottom));--peek:40px;--gap:12px;--col:600px;--ctitle:clamp(22px,3.2vh,30px)}
 *{box-sizing:border-box;margin:0;padding:0}
 .p1{min-height:100%;background:#fff;color:var(--ink);font-family:Inter,system-ui,-apple-system,sans-serif;font-weight:400;-webkit-font-smoothing:antialiased}
 .view{display:none}
@@ -460,7 +612,7 @@ a.card:focus-visible{outline:2px solid #000;outline-offset:2px}
 .view-c a.card:hover,.view-c a.card:focus-visible{transform:scale(1.03);background:var(--tile-hover);border-color:var(--tile-border-hover);z-index:1}
 
 /* Game info: content pulled in from the edges, centered vertically */
-a.card.c-game{padding:0 clamp(22px,7%,32px);display:flex;flex-direction:column;justify-content:center;gap:clamp(10px,1.6vh,20px);overflow:hidden}
+a.card.c-game{padding:var(--ctitle) clamp(22px,7%,32px) 6px;display:flex;flex-direction:column;justify-content:center;gap:clamp(10px,1.6vh,20px);overflow:hidden}
 .c-game .time{font-size:clamp(32px,4.6vh,46px)} .c-game .time small{font-size:13px}
 .c-game .date{font-size:clamp(18px,2.6vh,25px);margin-top:3px}
 .c-game .network{font-size:13px;margin-top:8px}
@@ -470,23 +622,38 @@ a.card.c-game{padding:0 clamp(22px,7%,32px);display:flex;flex-direction:column;j
 
 /* Team cards: centered column — trend + record, 3 injuries, spaced ranks */
 .c-teams{display:grid;grid-template-columns:1fr 1fr;gap:12px;min-height:0}
-a.card.c-team{padding:clamp(12px,2vh,20px) 10px;display:flex;flex-direction:column;align-items:center;justify-content:space-evenly;text-align:center;overflow:hidden;min-width:0}
-.c-rec{display:flex;align-items:center;gap:9px}
-.c-team .record{font-size:clamp(38px,5.4vh,46px);font-weight:900;line-height:1;letter-spacing:-.01em}
+a.card.c-team{padding:var(--ctitle) 10px clamp(8px,1.4vh,14px);display:flex;flex-direction:column;align-items:center;justify-content:space-evenly;text-align:center;overflow:hidden;min-width:0;container-type:inline-size}
+/* helmet + abbreviation left, last-game arrow + record right -- same as the expanded card (2026-09-17) */
+.c-team .l-top{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:0 2px}
+.c-team .l-id{gap:1px}
+.c-team .l-id img{width:clamp(28px,4.2vh,40px);height:clamp(28px,4.2vh,40px);display:block}
+.c-team .l-id .abbr{font-size:12px}
+.c-team .l-rec{gap:6px;min-width:0}
+.c-team .streak{gap:1px}
+.c-team .streak b{font-size:clamp(12px,1.7vh,15px)}
+.c-team .streak .trend{width:12px;height:8px}
+.c-team .l-top{padding-top:10px;padding-bottom:8px}
+.c-team .record{font-weight:900;line-height:1;letter-spacing:-.01em;white-space:nowrap;
+  font-size:clamp(28px,4.4vh,42px);font-size:min(clamp(28px,4.4vh,42px),calc((100cqi - 92px) / 1.8))}
+.c-team .record.rec-4{font-size:30px;font-size:min(clamp(24px,4vh,38px),calc((100cqi - 92px) / 2.4))}
+.c-team .record.rec-5{font-size:26px;font-size:min(clamp(22px,3.6vh,34px),calc((100cqi - 92px) / 2.85))}
+.c-team .record.rec-6{font-size:22px;font-size:min(clamp(20px,3.2vh,30px),calc((100cqi - 92px) / 3.5))}
 .trend{flex:none;display:block}
 .t-w{color:var(--win)} .t-l{color:var(--loss)} .t-t{color:var(--tie)}
+.rc-hit.t-w,.rc-hit.t-l,.rc-hit.t-t{font:inherit}
 .c-inj{font-size:12px;line-height:1.45;max-width:100%}
 .c-inj li{justify-content:center}
-.cranks{display:grid;grid-template-columns:auto auto;column-gap:clamp(16px,5vw,34px)}
-.ccol{display:grid;grid-template-columns:auto auto;column-gap:4px;row-gap:clamp(3px,.8vh,8px);align-items:baseline}
-.ccol h3{grid-column:1/-1;font-size:13px;font-weight:700;margin-bottom:1px;text-align:center}
-.crank{display:contents}
-.crank b{font-size:clamp(21px,2.9vh,27px);font-weight:900;line-height:1;text-align:right}
-.crank sup{font-size:10px;font-weight:900;vertical-align:top;position:relative;top:.15em;margin-left:1px}
-.crank span{font-size:9px;font-weight:300;letter-spacing:.05em;text-align:left}
+/* condensed ranks use the expanded layout: ordinal top-right of the number, PTS/YDS under it */
+.c-team .ranks{column-gap:clamp(12px,4cqi,26px)}
+.c-team .rank-col{gap:clamp(2px,.7vh,7px)}
+.c-team .rank-col h3{font-size:13px}
+.c-team .rank{width:auto;column-gap:2px}
+.c-team .rank-n{font-size:clamp(21px,2.9vh,27px);min-width:1.25em}
+.c-team .rank-sfx{font-size:10px;padding-top:1px}
+.c-team .rank-lbl{font-size:9px;padding-bottom:2px;letter-spacing:.05em}
 
 /* Leaders: bigger numbers, columns pulled toward the center, league-rank crowns */
-a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:clamp(10px,1.6vh,16px) 0;overflow:hidden}
+a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(--ctitle) 0 clamp(8px,1.4vh,14px);overflow:hidden}
 .c-cmp-in{width:84%;height:100%;display:flex;flex-direction:column;justify-content:space-evenly}
 .c-cmp .cmp-row{grid-template-columns:1fr 76px 1fr}
 .c-cmp .ldr-v{position:relative;display:inline-block;font-size:clamp(18px,2.65vh,26px);font-weight:700;line-height:1.05}
@@ -499,25 +666,28 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:clam
 .deck::-webkit-scrollbar{display:none}
 .slot{height:100%;min-height:520px;max-width:var(--col);margin:0 auto var(--gap);padding:0 16px;scroll-snap-align:center;scroll-snap-stop:always}
 .slot:last-child{margin-bottom:0}
-.slot a.card{height:100%;overflow:hidden;transition:transform .35s cubic-bezier(.2,.7,.2,1),border-color .25s,background-color .25s}
-.body{height:100%;display:flex;flex-direction:column;transition:opacity .25s}
+.slot a.card{height:100%;overflow:hidden;transition:transform .2s cubic-bezier(.22,1,.36,1),border-color .15s,background-color .15s}
+.body{height:100%;display:flex;flex-direction:column;transition:opacity .15s}
 .slot.active a.card{transition:transform .16s,background-color .16s,border-color .16s}
 .slot.active a.card:hover,.slot.active a.card:focus-visible{transform:scale(1.03);background:var(--tile-hover);border-color:var(--tile-border-hover)}
 .slot:not(.active) a.card{border-color:var(--tile-border-soft);transform:scale(.96)}
 .slot:not(.active) .body{opacity:0}
-.peek{position:absolute;left:0;right:0;height:calc(var(--peek) - 1px);display:flex;align-items:center;justify-content:center;gap:7px;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-2);opacity:0;transition:opacity .25s;pointer-events:none}
+.peek{position:absolute;left:0;right:0;height:calc(var(--peek) - 1px);display:flex;align-items:center;justify-content:center;gap:7px;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-2);opacity:0;transition:opacity .15s;pointer-events:none}
 .peek-top{top:0}.peek-bot{bottom:0}
 .slot.below .peek-top,.slot.above .peek-bot{opacity:1}
+/* the card in the middle keeps its name at the top, where its sliver showed it (no arrow) */
+.slot.active .peek-top{opacity:1}
+.slot.active .peek-top svg{display:none}
 .slot.below a.card:hover,.slot.above a.card:hover{border-color:var(--tile-border-hover);background:var(--tile-hover)}
 .slot.below a.card:hover .peek,.slot.above a.card:hover .peek{color:#000}
-.dots{display:none;position:fixed;right:10px;top:calc(var(--bar) + (100% - var(--bar) - var(--bbar)) / 2);transform:translateY(-50%);z-index:10}
-.dots{flex-direction:column;gap:8px}
+.dots{display:none;position:fixed;right:calc(max(16px,(100vw - var(--col)) / 2 + 16px) / 2 - 3px);top:calc(var(--bar) + (100% - var(--bar) - var(--bbar)) / 2);transform:translateY(-50%);z-index:10}
+.dots{flex-direction:column;align-items:center;gap:8px}
 .p1[data-view=large] .dots{display:flex}
-.dot{width:6px;height:6px;border-radius:3px;border:0;background:#CFCFCF;cursor:pointer;padding:0;transition:height .25s,background-color .25s}
+.dot{width:6px;height:6px;border-radius:3px;border:0;background:#CFCFCF;cursor:pointer;padding:0;transition:height .2s,background-color .2s}
 .dot.on{height:18px;background:#000}
 @media (min-width:680px){.dots{right:calc(50% - 300px - 22px)}}
 
-.game .body{padding:40px 24px 32px;justify-content:space-between}
+.game .body{padding:44px 24px 32px;justify-content:space-between}
 .game-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .time{white-space:nowrap;font-size:63px;font-weight:700;line-height:1;letter-spacing:-.01em}
 .time small{font-size:16px;font-weight:400;letter-spacing:0;margin-left:6px}
@@ -528,15 +698,28 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:clam
 .weather{display:flex;align-items:center;gap:14px}
 .temp{font-size:43px;font-weight:700;line-height:1}
 
-.team .body{padding:28px 0 30px;justify-content:space-evenly;align-items:center}
+.team .body{padding:44px 0 30px;justify-content:space-evenly;align-items:center}
 .team .body>*{width:min(272px,calc(100% - 80px))}
-.l-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.l-top{display:flex;align-items:center;justify-content:center;gap:28px}
 .l-id{display:flex;flex-direction:column;align-items:center;gap:2px}
 .l-id .abbr{font-size:30px}
 .l-id img,.l-id-s img{display:block}
 .l-rec{display:flex;align-items:center;gap:12px}
 .l-rec .trend{width:28px;height:19px}
-.team .record{font-size:70px;font-weight:900;line-height:1;letter-spacing:-.01em}
+/* upcoming: streak number with its indicator (chevron above a win streak, chevron/bar below the others) */
+.streak{display:flex;flex-direction:column;align-items:center;gap:2px;flex:none;line-height:1}
+.streak b{font-size:22px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
+.streak .trend{width:18px;height:12px}
+/* finished: indicator sits on the column this game changed, and that number takes its color */
+.rec-split{display:inline-flex;align-items:baseline}
+.rc{position:relative;display:inline-block}
+.rc-mark{position:absolute;left:50%;transform:translateX(-50%);line-height:0}
+/* tucked right against the digit: the line box has ~.12em of empty space above and below the numerals */
+.rc-mark.above{bottom:calc(100% - .1em)}
+.rc-mark.below{top:calc(100% - .08em)}
+.rc-mark .trend{width:.26em;height:.17em;min-width:11px;min-height:7px}
+.team .record{font-size:70px;font-weight:900;line-height:1;letter-spacing:-.01em;white-space:nowrap}
+.team .record.rec-4{font-size:52px}.team .record.rec-5{font-size:46px}.team .record.rec-6{font-size:38px}
 .l-inj{list-style:none;display:flex;flex-direction:column;gap:9px;font-size:15px;line-height:1.2}
 .l-inj li{display:flex;justify-content:space-between;align-items:baseline;gap:12px;white-space:nowrap}
 .l-inj .inj-name{font-weight:700;overflow:hidden;text-overflow:ellipsis}
@@ -557,31 +740,39 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:clam
 .rank-sfx{font-size:16px;font-weight:900;line-height:1;padding-top:3px}
 .rank-lbl{font-size:12px;font-weight:300;line-height:1;align-self:end;padding-bottom:4px;letter-spacing:.02em}
 
-.compare .body{padding:18px 0 20px;justify-content:space-evenly;align-items:center}
+.compare .body{padding:46px 0 20px;justify-content:space-evenly;align-items:center}
 .compare .body>.cmp-row{width:90%}
 .compare .cmp-row{grid-template-columns:1fr 84px 1fr}
 .cmp-row{display:grid;grid-template-columns:1fr 104px 1fr;align-items:center}
-.cmp-head .l-id-s{display:flex;flex-direction:column;align-items:center;gap:2px}
-.cmp-head .abbr{font-size:20px}
+.cmp-head{justify-items:center}
+.pill{display:block;width:56px;height:14px;border-radius:999px}
+.c-cmp .pill{width:36px;height:9px}
+.c-cmp .cmp-head{padding-bottom:4px}
 .ldr{text-align:center;min-width:0}
 .ldr-v{font-size:20px;font-weight:700;line-height:1.2}
 .compare .ldr-v{position:relative;display:inline-block;font-size:clamp(28px,8.2vw,36px);line-height:1.05}
 .compare .ldr-v .crown{width:20px;height:16px;transform:translate(5px,-64%)}
 .compare .ldr-n{margin-top:2px}
-.ldr-n{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ldr-n .pos{font-weight:200}
+.ldr-n{font-size:14px;white-space:nowrap;display:flex;justify-content:center;min-width:0}
+.ldr-n .nm{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ldr-n .pos{font-weight:200;flex:none;margin-left:.28em}   /* position never gets cut off */
 .cmp-lbl{font-size:12px;text-align:center;line-height:1.2}
 
-@media (max-width:400px){.view-l .time{font-size:54px}.view-l .date{font-size:29px}.team .record{font-size:62px}
+@media (max-width:400px){.view-l .time{font-size:54px}.view-l .date{font-size:29px}.team .record{font-size:62px}.team .record.rec-4{font-size:48px}.team .record.rec-5{font-size:42px}.team .record.rec-6{font-size:35px}
   .game .body{padding-left:16px;padding-right:16px}.team .body>*{width:min(272px,calc(100% - 64px))}}
 @media (max-height:700px){.p1{--peek:28px}.l-id img{width:64px;height:64px}}
-@media (prefers-reduced-motion:reduce){a.card,.slot.active a.card{transition:background-color .16s,border-color .16s!important}.body,.peek,.dot,.toggle{transition:none!important}
-  .view-c a.card:hover,.slot.active a.card:hover,.slot:not(.active) a.card{transform:none}}
+/* no prefers-reduced-motion override: motion always plays (Jason, 2026-09-17) */
 /* ===== Production additions (not in the preview) ===== */
 /* Finished games: final score sits in the header next to each abbreviation */
 .teams .hscore{font-size:20px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.01em;padding:0 2px}
 .teams .hscore.lose{opacity:.3}
 a.card{cursor:pointer}
+/* condensed cards: name at the top center, same type as the expanded slivers */
+.card-title{position:absolute;left:0;right:0;top:0;height:var(--ctitle);display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-2);pointer-events:none;line-height:1}
+/* view toggle: a card-shaped box that grows/shrinks between the two views */
+.morph{position:fixed;z-index:9;background:var(--tile);border:1px solid var(--tile-border);border-radius:20px;overflow:hidden;pointer-events:none}
+.morph>.card{position:absolute;left:0;top:0;border:0;border-radius:0;background:transparent;transform:none;transition:none}
 .temp-word{font-size:26px}
 .c-game .temp-word{font-size:clamp(18px,2.6vh,22px)}
 .temp-na,.rank-n.na,.crank b.na,.ldr-v.na{color:var(--text-3)}

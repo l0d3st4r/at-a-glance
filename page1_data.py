@@ -185,23 +185,25 @@ def _games(schedules):
 
 def _game_records(games):
     """
-    game_id -> {team: {"record": {...}, "last": "W"|"L"|"T"|None}}
-    Upcoming game: record and last result from games finished before it.
+    game_id -> {team: {"record": {...}, "last": "W"|"L"|"T"|None, "streak": int}}
+    Upcoming game: record, last result and current streak (games in a row with that
+    result) from games finished before it.
     Finished game: record right after it (regular-season record, like Page 0's
-    frozen tiles) and "last" = this game's result.
+    frozen tiles), "last" = this game's result, streak including this game.
     """
     blank = lambda: {"wins": 0, "losses": 0, "ties": 0}
-    running, last = defaultdict(blank), {}
+    running, last, streak = defaultdict(blank), {}, {}
     out = {}
     for g in games:  # already in kickoff order
         teams = (g["home"], g["away"])
         if g["final"]:
             for team, mine, theirs in ((g["home"], g["home_score"], g["away_score"]), (g["away"], g["away_score"], g["home_score"])):
                 result = "W" if mine > theirs else "L" if mine < theirs else "T"
+                streak[team] = streak.get(team, 0) + 1 if last.get(team) == result else 1
                 last[team] = result
                 if g["game_type"] == "REG":
                     running[team]["wins" if result == "W" else "losses" if result == "L" else "ties"] += 1
-        out[g["game_id"]] = {t: {"record": dict(running[t]), "last": last.get(t)} for t in teams}
+        out[g["game_id"]] = {t: {"record": dict(running[t]), "last": last.get(t), "streak": streak.get(t, 0)} for t in teams}
     return out
 
 
@@ -542,6 +544,7 @@ def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, w
                     "team": team,
                     "record": pre.get("record") or {"wins": 0, "losses": 0, "ties": 0},
                     "last": pre.get("last"),
+                    "streak": pre.get("streak", 0),
                     "injuries": injuries_for(team, g["week"], g["gameday"]),
                     "injury_report_out": injuries_for.report_out(g["week"]),
                     "ranks": ranks.get(team) or {},

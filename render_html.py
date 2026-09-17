@@ -173,8 +173,7 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
 .game:focus-visible{outline:2px solid #000;outline-offset:2px}
 .game.placeholder{color:var(--text-2)}
 .game.placeholder:hover{transform:none;background:var(--tile);border-color:var(--tile-border)}
-@media (prefers-reduced-motion:reduce){.game{transition:background-color .16s ease,border-color .16s ease}
-  .game:hover,.game:focus-visible{transform:none}}
+/* no prefers-reduced-motion override: motion always plays (Jason, 2026-09-17) */
 .team{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
 .team img{width:48px;height:48px;display:block}
 .abbr{font-size:20px;font-weight:700;line-height:24px}
@@ -538,8 +537,10 @@ PAGE1_OVERLAY_JS = r"""
 (function () {
   if (!window.fetch || !Element.prototype.attachShadow || !Element.prototype.animate || !window.AAG_P1) return;  // old browsers: plain links
   var docEl = document.documentElement, cache = {}, state = null;
-  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
-  var EASE = 'cubic-bezier(.2,.8,.2,1)';
+  // Motion always plays, whatever the device's Reduce Motion setting (Jason, 2026-09-17).
+  // Speed/easing taken from yeezy.com: 200-300ms moves on cubic-bezier(.22,1,.36,1), 150ms fades.
+  var reduce = { matches: false };
+  var EASE = 'cubic-bezier(.22,1,.36,1)';
   var TILE = 'a.game[href^="#game-"]';
   var PINCH_CLOSE = 0.8;     // let go of a pinch below 80% size and Page 1 closes
   var SWIPE_COMMIT = 0.22;   // drag a quarter of the screen (or flick) to change games
@@ -591,12 +592,15 @@ PAGE1_OVERLAY_JS = r"""
     if (opts.dx) host.style.transform = 'translateX(' + opts.dx + 'px)';
     s.overlay.appendChild(host);
     var m = { host: host, root: root, title: page.title };
-    if (opts.preview) {  // a neighbour shown while swiping: first card in place, no listeners yet
-      var slots = root.querySelectorAll('.slot');
-      if (slots[0]) slots[0].classList.add('active');
-      if (slots[1]) slots[1].classList.add('below');
+    if (opts.preview) {  // a neighbour shown while swiping: same card as the current game, no listeners yet
+      var slots = root.querySelectorAll('.slot'), i = Math.max(0, Math.min(slots.length - 1, opts.card || 0));
+      if (slots[i]) slots[i].classList.add('active');
+      if (slots[i - 1]) slots[i - 1].classList.add('above');
+      if (slots[i + 1]) slots[i + 1].classList.add('below');
+      var deck = root.querySelector('.deck');
+      if (deck && slots[i] && opts.view !== 'condensed') deck.scrollTop = slots[i].offsetTop - (deck.clientHeight - slots[i].offsetHeight) / 2;
     } else {
-      m.inst = window.AAG_P1.init(root, { onBack: requestClose, view: opts.view });
+      m.inst = window.AAG_P1.init(root, { onBack: requestClose, view: opts.view, card: opts.card });
       if (m.title) document.title = m.title;
     }
     return m;
@@ -643,12 +647,12 @@ PAGE1_OVERLAY_JS = r"""
     m.host.style.visibility = '';
     if (reduce.matches) return;
     all(m.root.querySelectorAll('.bbar .week, .bbar .toggle, .bar .at, .dots')).forEach(function (el) {
-      el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 260, delay: 60, easing: 'ease-out', fill: 'backwards' });
+      el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, delay: 40, easing: 'ease-out', fill: 'backwards' });
     });
     var large = m.root.querySelector('.p1').getAttribute('data-view') === 'large';
     all(m.root.querySelectorAll(large ? '.slot' : '.view-c > .card, .c-teams > .card')).forEach(function (el, i) {
       el.animate([{ opacity: 0, transform: 'translateY(56px) scale(.96)' }, { opacity: 1, transform: 'none' }],
-                 { duration: 480, delay: 30 + i * 70, easing: EASE, fill: 'backwards' });
+                 { duration: 300, delay: 20 + i * 35, easing: EASE, fill: 'backwards' });
     });
   }
 
@@ -679,12 +683,12 @@ PAGE1_OVERLAY_JS = r"""
       document.body.appendChild(ghost);
       s.extras.push(ghost);
       ghost.animate([{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(1.3)', opacity: 0 }],
-                    { duration: 320, easing: 'ease-out', fill: 'forwards' });
+                    { duration: 200, easing: EASE, fill: 'forwards' });
       Object.keys(parts).forEach(function (k) { var f = flyer(parts[k]); f.key = k; flyers.push(f); s.extras.push(f.el); });
       grow = overlay.animate([frame(start, '20px', 'rgba(0,0,0,.12)'), frame(screenRect(), '0px', 'rgba(0,0,0,0)')],
-                             { duration: 460, easing: EASE, fill: 'forwards' });
+                             { duration: 300, easing: EASE, fill: 'forwards' });
     } else {
-      grow = overlay.animate([{ opacity: 0 }, { opacity: 1 }], { duration: reduce.matches ? 1 : 200, fill: 'forwards' });
+      grow = overlay.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, fill: 'forwards' });
     }
 
     load(id).then(function (text) {
@@ -694,8 +698,8 @@ PAGE1_OVERLAY_JS = r"""
       // 2 · helmets, abbreviations (and final scores) fly from the tile up into Page 1's top bar
       var targets = headerParts(m.root);
       var landed = flyers.map(function (f) {
-        return targets[f.key] ? done(flyTo(f, targets[f.key], 540))
-                              : done(f.el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, fill: 'forwards' }));
+        return targets[f.key] ? done(flyTo(f, targets[f.key], 320))
+                              : done(f.el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, fill: 'forwards' }));
       });
       return Promise.all([done(grow)].concat(landed)).then(function () { return m; });
     }).then(function (m) {
@@ -737,7 +741,7 @@ PAGE1_OVERLAY_JS = r"""
     window.addEventListener('scroll', pin);
     var end = reduce.matches || !s.host ? null : visibleRect(tile);
     var finished = end ? minimize(s, tile, end)
-      : done(s.overlay.animate([{ opacity: 1 }, { opacity: 0 }], { duration: reduce.matches ? 1 : 200, fill: 'forwards' }));
+      : done(s.overlay.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, fill: 'forwards' }));
     finished.then(function () {
       s.overlay.remove();
       pin();
@@ -761,7 +765,7 @@ PAGE1_OVERLAY_JS = r"""
       dest[k].style.visibility = 'hidden';
       hidden.push(dest[k]);
       flights.push(f);
-      f.anim = flyTo(f, dest[k], 440, 40);
+      f.anim = flyTo(f, dest[k], 280, 0);
     });
     // a card outline shrinks from the page to the tile...
     var shell = document.createElement('div');
@@ -770,16 +774,16 @@ PAGE1_OVERLAY_JS = r"""
     overlay.style.background = 'transparent';
     overlay.style.borderColor = 'transparent';
     var shellAnim = shell.animate([frame(from, s0 < 1 ? '20px' : '0px', 'rgba(0,0,0,.12)'), frame(end, '20px', 'rgba(0,0,0,.12)')],
-                                  { duration: 440, easing: EASE, fill: 'forwards' });
+                                  { duration: 280, easing: EASE, fill: 'forwards' });
     // ...while the cards minimize into it and fade
     host.style.transformOrigin = cx + 'px ' + cy + 'px';
     var hostAnim = host.animate([{ transform: 'scale(' + s0 + ')', opacity: 1 },
                                  { transform: 'scale(' + Math.max(0.15, end.width / innerWidth * 0.6) + ')', opacity: 0 }],
-                                { duration: 360, easing: EASE, fill: 'forwards' });
+                                { duration: 220, easing: EASE, fill: 'forwards' });
     return Promise.all([done(shellAnim), done(hostAnim)].concat(flights.map(function (f) { return done(f.anim); }))).then(function () {
       hidden.forEach(function (el) { el.style.visibility = ''; });
       flights.forEach(function (f) { f.el.remove(); });
-      return done(shell.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 140, fill: 'forwards' }));
+      return done(shell.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 100, fill: 'forwards' }));
     });
   }
 
@@ -803,11 +807,11 @@ PAGE1_OVERLAY_JS = r"""
     var nid = neighborId(s.id, dir), w = innerWidth;
     if (!nid || s.busy) return Promise.resolve(false);
     s.busy = true;
-    var view = s.inst ? s.inst.view() : 'large';
+    var view = s.inst ? s.inst.view() : 'large', card = s.inst && s.inst.card ? s.inst.card() : 0;  // stay on the same card
     return load(nid).then(function (text) {
       if (state !== s || s.closing) throw 0;
-      var n = s.swipeHost && s.swipeHost.dir === dir ? s.swipeHost.m : mount(s, text, { preview: true, view: view, dx: dir * w + (fromDx || 0) });
-      var oldHost = s.host, dur = velocityHint ? 220 : 320;
+      var n = s.swipeHost && s.swipeHost.dir === dir ? s.swipeHost.m : mount(s, text, { preview: true, view: view, card: card, dx: dir * w + (fromDx || 0) });
+      var oldHost = s.host, dur = velocityHint ? 160 : 220;
       var a1 = oldHost.animate([{ transform: 'translateX(' + (fromDx || 0) + 'px)' }, { transform: 'translateX(' + (-dir * w) + 'px)' }], { duration: dur, easing: EASE, fill: 'forwards' });
       var a2 = n.host.animate([{ transform: 'translateX(' + (dir * w + (fromDx || 0)) + 'px)' }, { transform: 'translateX(0)' }], { duration: dur, easing: EASE, fill: 'forwards' });
       return Promise.all([done(a1), done(a2)]).then(function () {
@@ -819,7 +823,7 @@ PAGE1_OVERLAY_JS = r"""
         var slots = n.root.querySelectorAll('.slot');
         all(slots).forEach(function (el) { el.classList.remove('active', 'below', 'above'); });
         s.host = n.host; s.root = n.root; s.id = nid; s.swipeHost = null;
-        s.inst = window.AAG_P1.init(n.root, { onBack: requestClose, view: view });
+        s.inst = window.AAG_P1.init(n.root, { onBack: requestClose, view: view, card: card });
         if (n.title) document.title = n.title;
         history.replaceState(s.pushed ? { p1: nid } : null, '', '#game-' + encodeURIComponent(nid));
         load(neighborId(nid, dir)).catch(function () {});
@@ -877,7 +881,7 @@ PAGE1_OVERLAY_JS = r"""
         s.swipeWant = want;
         load(nid).then(function (text) {
           if (state !== s || s.swipeWant !== want || s.swipeHost || mode !== 'swipe') return;
-          s.swipeHost = { dir: dir, m: mount(s, text, { preview: true, view: s.inst.view(), dx: dir * w + dx }) };
+          s.swipeHost = { dir: dir, m: mount(s, text, { preview: true, view: s.inst.view(), card: s.inst.card ? s.inst.card() : 0, dx: dir * w + dx }) };
         }).catch(function () {});
       }
       if (s.swipeHost) s.swipeHost.m.host.style.transform = 'translateX(' + (s.swipeHost.dir * w + dx) + 'px)';
@@ -897,7 +901,7 @@ PAGE1_OVERLAY_JS = r"""
           return;
         }
         var from = s.host.style.transform || 'none';
-        var back = reduce.matches ? null : s.host.animate([{ transform: from }, { transform: 'none' }], { duration: 220, easing: EASE });
+        var back = reduce.matches ? null : s.host.animate([{ transform: from }, { transform: 'none' }], { duration: 180, easing: EASE });
         done(back).then(function () { if (state === s && !s.closing) clearPinch(s); });
         s.host.style.transform = '';
         return;
@@ -909,10 +913,10 @@ PAGE1_OVERLAY_JS = r"""
         if (go) { goTo(s, dir, dx, v > 0.5); return; }
         var cur = s.host, sh = s.swipeHost, w = innerWidth, startDx = dx;
         s.swipeHost = null; s.swipeWant = null;
-        cur.animate([{ transform: 'translateX(' + startDx + 'px)' }, { transform: 'none' }], { duration: 220, easing: EASE });
+        cur.animate([{ transform: 'translateX(' + startDx + 'px)' }, { transform: 'none' }], { duration: 180, easing: EASE });
         cur.style.transform = '';
         if (sh) done(sh.m.host.animate([{ transform: 'translateX(' + (sh.dir * w + startDx) + 'px)' }, { transform: 'translateX(' + (sh.dir * w) + 'px)' }],
-                                       { duration: 220, easing: EASE, fill: 'forwards' })).then(function () { sh.m.host.remove(); });
+                                       { duration: 180, easing: EASE, fill: 'forwards' })).then(function () { sh.m.host.remove(); });
         return;
       }
       mode = null;
