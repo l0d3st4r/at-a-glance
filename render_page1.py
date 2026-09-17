@@ -62,10 +62,12 @@ UP = ('<svg viewBox="0 0 12 8" width="10" height="7" fill="none" stroke="current
       'stroke-linejoin="round" aria-hidden="true"><path d="M1 6.5 6 1.5l5 5"/></svg>')
 DOWN = ('<svg viewBox="0 0 12 8" width="10" height="7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" '
         'stroke-linejoin="round" aria-hidden="true"><path d="M1 1.5 6 6.5l5-5"/></svg>')
-PLUS = ('<svg viewBox="0 0 14 14" width="14" height="14" stroke="currentColor" stroke-width="2" stroke-linecap="round" '
-        'aria-hidden="true"><path d="M7 1.5v11M1.5 7h11"/></svg>')
-MINUS = ('<svg viewBox="0 0 14 14" width="14" height="14" stroke="currentColor" stroke-width="2" stroke-linecap="round" '
-         'aria-hidden="true"><path d="M1.5 7h11"/></svg>')
+# Heavier glyphs (2026-09-17): stroke 2 -> 2.75, 14 -> 17px. Page 0 imports these, so both
+# pages draw the same button.
+PLUS = ('<svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.75" '
+        'stroke-linecap="round" aria-hidden="true"><path d="M8 1.9v12.2M1.9 8h12.2"/></svg>')
+MINUS = ('<svg viewBox="0 0 16 16" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.75" '
+         'stroke-linecap="round" aria-hidden="true"><path d="M1.9 8h12.2"/></svg>')
 
 TREND = {
     "W": ('<svg class="trend t-w" viewBox="0 0 18 12" width="18" height="12" fill="none" stroke="currentColor" stroke-width="3" '
@@ -796,10 +798,14 @@ a.card:focus-visible{outline:2px solid #000;outline-offset:2px}
 .head-fly{position:fixed;inset:0;display:block;margin:0;z-index:12;pointer-events:none}
 .head-fly .hf{position:fixed;margin:0;transform-origin:0 0;will-change:transform,opacity}
 .p1:not([data-view=large]) .head-fly,.p1[data-view=large]:not([data-head=moving]) .head-fly{display:none}
-.toggle{position:absolute;right:16px;top:10px;width:32px;height:32px;border-radius:50%;border:1px solid var(--tile-border);background:#fff;color:#000;
-  display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .16s,background-color .16s,border-color .16s}
-.toggle:hover{transform:scale(1.03);background:rgba(0,0,0,.05);border-color:var(--tile-border-hover)}
-.toggle:focus-visible{outline:2px solid #000;outline-offset:2px}
+/* +/- toggle (2026-09-17): no circle and no hover fill -- hovering or pressing only enlarges it.
+   Page 0's bottom bar uses the same rules, so the button is identical on both pages. */
+.toggle{position:absolute;right:16px;top:9px;width:34px;height:34px;border:0;background:none;color:#000;padding:0;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;
+  transition:transform .2s cubic-bezier(.22,1,.36,1)}
+.toggle:hover{transform:scale(1.18)}
+.toggle:active{transform:scale(1.30)}
+.toggle:focus-visible{outline:2px solid #000;outline-offset:2px;border-radius:50%}
 .toggle .i-minus,.p1[data-view=large] .toggle .i-plus{display:none}
 .p1[data-view=large] .toggle .i-minus{display:block}
 

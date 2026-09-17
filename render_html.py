@@ -36,6 +36,17 @@ Page 0 design (revised 2026-09-16, layout modeled on Apple Sports' NFL
     so they read as clickable
   - fonts match the Framer design exactly: Inter Regular 400 / Bold 700 at
     11px, 16px and 20px only
+  - a +/- toggle sits at the right of the bottom bar (2026-09-17), in the same
+    spot and at the same size as Page 1's. Condensed shows "+" (tap to expand),
+    expanded shows "-" (tap to condense). Page 0 opens expanded every time,
+    the same way Page 1 does.
+  - CONDENSED VIEW (body[data-view=condensed]): the whole week on one screen,
+    nothing scrolls -- the same philosophy as Page 1's condensed view. The TV
+    network line is cut, the abbreviation moves off the helmet and sits over
+    the record, and the tiles share whatever height is left (flex:1 1 0), so a
+    16-game week and a 1-game week both fill the screen exactly. Both
+    placements of the abbreviation are in the markup (see render_stack) and
+    CSS shows one of them; the Page 1 flight picks whichever is on screen.
 
 Defensive on purpose (same reasoning as the 2026-09-16 KeyError fix):
 every field is read with .get(), and each matchup is rendered inside
@@ -146,9 +157,22 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
 /* Week picker lives in a bar pinned to the bottom of the screen (Page 1 puts its "‹ Week N" back
    button and +/− toggle in the same spot, same size). --bbar = bar height incl. the iPhone home-indicator area. */
 :root{--bbar:calc(52px + env(safe-area-inset-bottom))}
-.bottombar{position:fixed;left:0;right:0;bottom:0;z-index:10;height:var(--bbar);display:flex;justify-content:center;
-  align-items:flex-start;padding:10px 16px env(safe-area-inset-bottom);
+.bottombar{position:fixed;left:0;right:0;bottom:0;z-index:10;height:var(--bbar);padding-bottom:env(safe-area-inset-bottom);
   background:rgba(255,255,255,.94);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+/* Same inner column as Page 1's .bbar-in, so the week pill and the +/- toggle sit in the same
+   spot on both pages. */
+.bar-in{position:relative;max-width:600px;height:52px;margin:0 auto;display:flex;align-items:flex-start;justify-content:center;padding-top:10px}
+/* +/- toggle (2026-09-17): no circle and no hover fill -- hovering or pressing only enlarges it.
+   Condensed shows "+" (tap to expand); expanded shows "-" (tap to condense), same as Page 1. */
+.toggle{position:absolute;right:16px;top:9px;width:34px;height:34px;border:0;background:none;color:#000;padding:0;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;
+  transition:transform .2s cubic-bezier(.22,1,.36,1)}
+.toggle:hover{transform:scale(1.18)}
+.toggle:active{transform:scale(1.30)}
+.toggle:focus-visible{outline:2px solid #000;outline-offset:2px;border-radius:50%}
+.toggle .i-minus{display:none}
+[data-view=condensed] .toggle .i-plus{display:none}
+[data-view=condensed] .toggle .i-minus{display:block}
 .week-picker{position:relative;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;
   font-size:16px;font-weight:400;line-height:19px;cursor:pointer;transition:background-color .16s ease}
 .week-picker:hover{background:rgba(0,0,0,.05)}
@@ -177,6 +201,8 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
 .team{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
 .team img{width:48px;height:48px;display:block}
 .abbr{font-size:20px;font-weight:700;line-height:24px}
+.stack{display:flex;flex-direction:column;align-items:center;min-width:0}
+.abbr-c{display:none}   /* the condensed view's copy of the abbreviation, over the record */
 .record{font-size:16px;font-weight:400;line-height:19px;color:var(--text-2);text-align:center}  /* vertically centered in the tile */
 .center{display:flex;flex-direction:column;align-items:center;gap:4px;padding:0 8px}
 .time{font-size:20px;font-weight:700;line-height:24px;white-space:nowrap;margin-top:-6px}
@@ -203,6 +229,60 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
 .bye-team img{width:48px;height:48px;display:block}
 @media (max-width:420px){.bye-list{display:grid;grid-template-columns:repeat(var(--bye-cols),56px);justify-content:center;gap:12px 14px;padding:14px 8px}
   .bye-team img{width:42px;height:42px}}
+/* ===== Condensed view (2026-09-17) -- the whole week on one screen =====
+   Same philosophy as Page 1's condensed view: nothing scrolls. The coverage line is cut, the
+   abbreviation moves off the helmet and sits over the record, and the tiles share whatever
+   height is left over (flex:1 1 0), so a 16-game week and a 1-game week both fill the screen. */
+body[data-view=condensed]{height:100dvh;overflow:hidden}
+[data-view=condensed] .track{height:100dvh}
+[data-view=condensed] .week-panel{height:100dvh}
+[data-view=condensed] .week-inner{height:100dvh;display:flex;flex-direction:column;gap:4px;
+  padding:max(6px,env(safe-area-inset-top)) 12px calc(6px + var(--bbar))}
+/* day sections and their lists fall away, so every tile is a flex child of the week column
+   and they all share the leftover height evenly */
+[data-view=condensed] .week-inner>section,[data-view=condensed] .games{display:contents}
+[data-view=condensed] .games>li{flex:1 1 0;min-height:0;display:flex}
+[data-view=condensed] .day{font-size:11px;line-height:13px;padding:5px 0 2px;color:var(--text-2);flex:none}
+[data-view=condensed] .game{flex:1;min-height:0;border-radius:12px;padding:2px 6px;
+  grid-template-columns:34px 1fr minmax(60px,auto) 1fr 34px}
+[data-view=condensed] .game:hover,[data-view=condensed] .game:focus-visible{transform:scale(1.02)}
+[data-view=condensed] .team img{width:30px;height:30px}
+[data-view=condensed] .team .abbr{display:none}
+[data-view=condensed] .abbr-c{display:block}
+[data-view=condensed] .abbr{font-size:12px;line-height:14px}
+[data-view=condensed] .record{font-size:10px;line-height:11px}
+[data-view=condensed] .time{font-size:13px;line-height:15px;margin-top:0}
+[data-view=condensed] .tz{font-size:8px;margin-left:2px}
+[data-view=condensed] .network{display:none}          /* coverage is cut */
+[data-view=condensed] .center{gap:0;padding:0 4px}
+[data-view=condensed] .score{font-size:22px}
+[data-view=condensed] .team-record{font-size:10px;line-height:11px}
+[data-view=condensed] .final-label{font-size:9px;line-height:11px}
+[data-view=condensed] .game.final .center{min-width:60px}
+/* finished tiles: abbreviation over record, with the score on the inside next to FINAL */
+[data-view=condensed] .result{display:grid;grid-template-columns:auto auto;align-items:center;justify-items:center;gap:0 6px}
+[data-view=condensed] .result.away{grid-template-areas:"abbr score" "rec score"}
+[data-view=condensed] .result.home{grid-template-areas:"score abbr" "score rec"}
+[data-view=condensed] .result .abbr-c{grid-area:abbr}
+[data-view=condensed] .result .team-record{grid-area:rec}
+[data-view=condensed] .result .score{grid-area:score}
+/* teams on bye: one compact row that keeps its own height */
+[data-view=condensed] .byes{display:contents}
+[data-view=condensed] .bye-list{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 10px;padding:6px 8px;border-radius:12px;flex:none}
+[data-view=condensed] .bye-team{width:38px;gap:1px}
+[data-view=condensed] .bye-team img{width:24px;height:24px}
+[data-view=condensed] .bye-team .abbr{display:block;font-size:9px;line-height:11px}
+@media (min-width:601px){
+  [data-view=condensed] .game{padding:4px 10px;border-radius:14px;grid-template-columns:44px 1fr minmax(76px,auto) 1fr 44px}
+  [data-view=condensed] .team img{width:38px;height:38px}
+  [data-view=condensed] .abbr{font-size:14px;line-height:17px}
+  [data-view=condensed] .record,[data-view=condensed] .team-record{font-size:11px;line-height:13px}
+  [data-view=condensed] .time{font-size:15px;line-height:18px}
+  [data-view=condensed] .score{font-size:26px}
+  [data-view=condensed] .final-label{font-size:11px;line-height:13px}
+  [data-view=condensed] .day{font-size:12px;line-height:14px;padding:7px 0 3px}
+  [data-view=condensed] .bye-team img{width:30px;height:30px}
+}
 .error{background:#fee;color:#000;padding:8px;font-size:11px;white-space:pre-wrap;border-radius:8px}
 .empty{text-align:center;padding:40px 0;color:var(--text-2);font-size:16px}
 /* Page 1 opens on top of Page 0 (see PAGE1_OVERLAY_JS): tapping a tile zooms into it, its helmets,
@@ -237,6 +317,20 @@ def render_team(snapshot, mirrored):
     )
 
 
+def render_stack(team, record):
+    """
+    The record column. The condensed view sets the abbreviation over the record to save a
+    row of height, so both placements are in the markup and CSS shows one of them:
+    .team .abbr under the helmet (expanded), .abbr-c over the record (condensed).
+    """
+    return (
+        '<span class="stack">'
+        f'<span class="abbr abbr-c" aria-hidden="true">{esc(team or "TBD")}</span>'
+        f'<span class="record">{esc(record)}</span>'
+        "</span>"
+    )
+
+
 def render_game(m):
     away, home = m.get("away") or {}, m.get("home") or {}
     if m.get("placeholder"):
@@ -244,10 +338,10 @@ def render_game(m):
         return (
             '<div class="game placeholder" aria-label="Matchup to be determined">'
             f"{render_team(None, mirrored=False)}"
-            '<span class="record"></span>'
+            f"{render_stack(None, '')}"
             '<div class="center"><span class="time">TBD</span>'
             f'<span class="network">{esc(format_network(None))}</span></div>'
-            '<span class="record"></span>'
+            f"{render_stack(None, '')}"
             f"{render_team(None, mirrored=True)}"
             "</div>"
         )
@@ -262,12 +356,12 @@ def render_game(m):
     return (
         f'<a class="game" href="#game-{esc(m.get("game_id") or "")}" aria-label="{esc(label)}">'
         f"{render_team(away, mirrored=False)}"
-        f'<span class="record">{esc(format_record(away.get("record")))}</span>'
+        f"{render_stack(away.get('team'), format_record(away.get('record')))}"
         '<div class="center">'
         f'<span class="time">{time_html(time_text)}</span>'
         f'<span class="network">{esc(network)}</span>'
         "</div>"
-        f'<span class="record">{esc(format_record(home.get("record")))}</span>'
+        f"{render_stack(home.get('team'), format_record(home.get('record')))}"
         f"{render_team(home, mirrored=True)}"
         "</a>"
     )
@@ -314,12 +408,14 @@ def render_final_game(m):
     return (
         f'<a class="game final" href="#game-{esc(m.get("game_id") or "")}" aria-label="{esc(label)}">'
         f"{team_block(away, mirrored=False)}"
-        '<div class="result">'
+        '<div class="result away">'
+        f'<span class="abbr abbr-c" aria-hidden="true">{esc(away.get("team") or "TBD")}</span>'
         f'<span class="{a_cls}">{esc(_score_text(a_score))}</span>'
         f'<span class="team-record">{esc(format_record(away.get("record")))}</span>'
         "</div>"
         f'<div class="center"><span class="final-label">{final_text}</span></div>'
-        '<div class="result">'
+        '<div class="result home">'
+        f'<span class="abbr abbr-c" aria-hidden="true">{esc(home.get("team") or "TBD")}</span>'
         f'<span class="{h_cls}">{esc(_score_text(h_score))}</span>'
         f'<span class="team-record">{esc(format_record(home.get("record")))}</span>'
         "</div>"
@@ -464,6 +560,8 @@ PAGE0_JS = """
   // week (e.g. the Super Bowl) doesn't leave a long blank page, and nothing is
   // cut off while swiping to the next week.
   function sizeTrack() {
+    // The condensed view is exactly one screen tall, so the track sizes itself.
+    if (document.body.dataset.view === 'condensed') { track.style.height = ''; return; }
     var h = 0;
     for (var i = idx - 1; i <= idx + 1; i++) if (panels[i]) h = Math.max(h, panels[i].offsetHeight);
     track.style.height = h + 'px';
@@ -516,6 +614,24 @@ PAGE0_JS = """
   if (fromHash >= 0) idx = fromHash;
   track.scrollLeft = idx * track.clientWidth;
   setActive(idx, { updateHash: false });
+
+  // +/- toggle: expanded (the scrolling week) <-> condensed (the whole week on one screen).
+  // Page 0 opens expanded every time, the same way Page 1 opens expanded every time.
+  var toggle = document.getElementById('view-toggle');
+  if (toggle) {
+    var setView = function (v) {
+      document.body.dataset.view = v;
+      toggle.setAttribute('aria-label', v === 'condensed' ? 'Switch to expanded view' : 'Switch to condensed view');
+      toggle.setAttribute('aria-pressed', v === 'condensed' ? 'true' : 'false');
+      if (v === 'condensed') window.scrollTo(0, 0);
+      sizeTrack();
+      track.scrollLeft = idx * track.clientWidth;
+    };
+    toggle.addEventListener('click', function () {
+      setView(document.body.dataset.view === 'condensed' ? 'expanded' : 'condensed');
+    });
+    setView(document.body.dataset.view || 'expanded');
+  }
 
   // Used by the Page 1 overlay: jump to the week a game belongs to, and the hash to return to.
   window.AAG_P0 = {
@@ -603,10 +719,13 @@ PAGE1_OVERLAY_JS = r"""
   }
   function tileParts(tile) {  // pieces of a Page 0 tile that travel to Page 1's top bar
     var out = {}, teams = tile.querySelectorAll('.team'), scores = tile.querySelectorAll('.score');
+    // The abbreviation sits under the helmet in the expanded view and over the record in the
+    // condensed one; both are in the markup, so fly whichever copy is actually on screen.
+    var abbrs = all(tile.querySelectorAll('.abbr')).filter(function (e) { return e.offsetWidth; });
     [0, 1].forEach(function (i) {
       var t = teams[i];
       if (t && t.querySelector('img')) out['img' + i] = t.querySelector('img');
-      if (t && t.querySelector('.abbr')) out['abbr' + i] = t.querySelector('.abbr');
+      if (abbrs[i]) out['abbr' + i] = abbrs[i];
       if (scores[i]) out['score' + i] = scores[i];
     });
     return out;
@@ -1012,14 +1131,19 @@ def render_page0(data):
         "<link rel='preconnect' href='https://fonts.googleapis.com'>"
         "<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>"
         "<link href='https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;700;900&display=swap' rel='stylesheet'>"
-        f"<style>{PAGE0_CSS}</style></head><body>"
+        f"<style>{PAGE0_CSS}</style></head><body data-view='expanded'>"
         f"<main class='track' id='track'>{panels}</main>"
         "<nav class='bottombar' aria-label='Week'>"
+        "<div class='bar-in'>"
         "<label class='week-picker'>"
         f"<span id='week-label'>{esc(current_label)}</span>"
         "<svg class='chevron' viewBox='0 0 12 12' aria-hidden='true'><path d='M2.5 7.5 6 4l3.5 3.5' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>"
         f"<select id='week-select' aria-label='Choose week'>{options}</select>"
-        "</label></nav>"
+        "</label>"
+        "<button class='toggle' id='view-toggle' type='button' aria-label='Switch to condensed view' aria-pressed='false'>"
+        f"<span class='i-plus'>{render_page1.PLUS}</span><span class='i-minus'>{render_page1.MINUS}</span>"
+        "</button>"
+        "</div></nav>"
         f"<script>{PAGE0_JS}</script>"
         f"<script>{render_page1.P1_JS}</script>"
         f"<script>{PAGE1_OVERLAY_JS}</script>"
