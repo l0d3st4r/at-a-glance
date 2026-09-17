@@ -162,7 +162,18 @@ def helmet_img(team, size, mirrored=False, prefix="../"):
 
 # ---------------------------------------------------------------- pieces
 
-def game_body(d):
+def fmt_when(d):
+    """Two lines for the expanded header: ('MON OCT 19', '8:15 PM ET')."""
+    t, ampm = fmt_time(d.get("gametime"))
+    try:
+        day = date.fromisoformat(str(d.get("gameday"))[:10])
+        when = f"{DAY_NAMES[day.weekday()][:3].upper()} {MONTHS_UPPER[day.month - 1]} {day.day}"
+    except (TypeError, ValueError):
+        when = "DATE TBD"
+    return when, (f"{t} {ampm}".strip() if t != "TBD" else "TIME TBD")
+
+
+def game_body(d, hero=""):
     t, ampm = fmt_time(d.get("gametime"))
     w, venue = d.get("weather") or {}, d.get("venue") or {}
     if w.get("indoor"):
@@ -178,6 +189,7 @@ def game_body(d):
         '<div class="game-top">'
         f'<div>{headline}<div class="date">{esc(fmt_date(d.get("gameday")))}</div></div>'
         f'{corner}</div>'
+        f'{hero}'
         f'<div class="game-bottom"><div class="city">{esc(venue.get("city") or "")}</div><div class="weather">{weather}</div></div>'
     )
 
@@ -370,10 +382,21 @@ def render_p1_block(d, prefix="../"):
     final = bool(d.get("final"))
     leaders_name = "Game Leaders" if game_scope else "Leaders"
 
+    when_day, when_time = fmt_when(d)
+    # One header row, drawn twice (top bar + the middle of the Game Info card) and morphed between the two.
+    # Each team is a unit: helmet plus its abbreviation (and final score) — side by side when condensed,
+    # stacked and pushed to the edges of the screen in the expanded view (2026-09-17).
+    row = (
+        f'<div class="side away">{img(a, 44)}<span class="abbr">{esc(a)}</span>{a_score}</div>'
+        f'<div class="mid"><span class="at">@</span>'
+        f'<span class="when"><span>{esc(when_day)}</span><span>{esc(when_time)}</span></span>'
+        f'<span class="final-lbl">{"FINAL/OT" if d.get("overtime") else "FINAL"}</span></div>'
+        f'<div class="side home">{h_score}<span class="abbr">{esc(h)}</span>{img(h, 44, True)}</div>'
+    )
+    hero = f'<div class="hero" aria-hidden="true"><div class="teams">{row}</div></div>'
     bar = (
         '<header class="bar"><div class="bar-in">'
-        f'<div class="teams" aria-label="{esc(TEAM_NAMES.get(a, a))} at {esc(TEAM_NAMES.get(h, h))}">'
-        f'{img(a, 44)}<span class="abbr">{esc(a)}</span>{a_score}<span class="at">@</span>{h_score}<span class="abbr">{esc(h)}</span>{img(h, 44, True)}</div>'
+        f'<div class="teams" aria-label="{esc(TEAM_NAMES.get(a, a))} at {esc(TEAM_NAMES.get(h, h))}">{row}</div>'
         "</div></header>"
         # back button + view toggle live at the bottom of the screen (2026-09-17)
         '<nav class="bbar" aria-label="Page controls"><div class="bbar-in">'
@@ -389,7 +412,7 @@ def render_p1_block(d, prefix="../"):
         "</div>"
     )
     cmp_head = pill_row(a, h)  # team-color pills replace the helmets + abbreviations (2026-09-17)
-    cards = [("game-info", "Game Info", "game", game_body(d)),
+    cards = [("game-info", "Game Info", "game", game_body(d, hero)),
              ("away-team", a, "team", l_team(away, final)),
              ("home-team", h, "team", l_team(home, final)),
              ("leaders", leaders_name, "compare", cmp_head + rows)]
@@ -401,7 +424,8 @@ def render_p1_block(d, prefix="../"):
     )
     dots = "".join(f'<button class="dot" type="button" aria-label="{esc(name)}"></button>' for _c, name, _k, _b in cards)
     large = f'<div class="view view-l deck" aria-label="Expanded matchup">{slots}</div><nav class="dots" aria-label="Cards">{dots}</nav>'
-    return f'<div class="p1" data-view="large" data-game="{esc(d.get("game_id"))}">{bar}{condensed}{large}</div>'
+    return (f'<div class="p1" data-view="large" data-head="card"{" data-final" if final else ""} '
+            f'data-game="{esc(d.get("game_id"))}">{bar}{condensed}{large}</div>')
 
 
 def render_standalone(d):
@@ -473,8 +497,148 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     i = Math.max(0, Math.min(slots.length - 1, i)); var s = slots[i];
     deck.scrollTo({ top: s.offsetTop - (deck.clientHeight - s.offsetHeight) / 2, behavior: instant ? 'auto' : smooth });
   }
+  // ---- header: in the Game Info card on the first card, condensing into the top bar as you scroll on (2026-09-17).
+  // Every piece travels on its own (helmets, abbreviations, scores), because the three layouts arrange them
+  // differently; the middle crossfades between the card's "@" and the bar's date and time.
+  var barRow = root.querySelector('.bar .teams'), heroRow = root.querySelector('.hero .teams');
+  var flyBox = null, flyAtoms = [], flyAt = null, flyWhen = null;
+  function atoms(row) { return [].slice.call(row.querySelectorAll('img, .abbr, .hscore')); }
+  function shown(el) { return !!(el && el.getClientRects().length); }
+  function sizeOf(el) { return el.tagName === 'IMG' ? el.offsetWidth : parseFloat(getComputedStyle(el).fontSize) || 1; }
+  function rectOf(el) { return el.getBoundingClientRect(); }
+  function park(el, r) { Object.assign(el.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' }); }
+  function toward(el, r, from, e, scale) {
+    // el is parked on its own rect r; put its centre e of the way from "from" to r, at the given scale
+    var cx = from.left + from.width / 2 + (r.left + r.width / 2 - (from.left + from.width / 2)) * e;
+    var cy = from.top + from.height / 2 + (r.top + r.height / 2 - (from.top + from.height / 2)) * e;
+    el.style.transform = 'translate(' + (cx - r.left - r.width * scale / 2) + 'px,' + (cy - r.top - r.height * scale / 2) + 'px) scale(' + scale + ')';
+  }
+  function copyOf(src) {
+    var c = src.cloneNode(true), cs = getComputedStyle(src);
+    c.className = (src.className || '') + ' hf';
+    c.style.fontSize = cs.fontSize;
+    if (src.tagName === 'IMG') { c.style.width = src.offsetWidth + 'px'; c.style.height = src.offsetHeight + 'px'; }
+    else c.style.display = src.classList.contains('when') ? 'flex' : 'block';   // the date keeps its two stacked lines
+    return c;
+  }
+  if (barRow && heroRow) {
+    flyBox = document.createElement('div');
+    flyBox.className = 'teams head-fly';   // .teams so the copies keep the header's own styling
+    flyBox.setAttribute('aria-hidden', 'true');
+    atoms(barRow).forEach(function (el) { var c = copyOf(el); flyBox.appendChild(c); flyAtoms.push(c); });
+    flyAt = copyOf(heroRow.querySelector('.at'));
+    flyWhen = copyOf(barRow.querySelector(wrap.hasAttribute('data-final') ? '.final-lbl' : '.when'));
+    flyBox.appendChild(flyAt);
+    flyBox.appendChild(flyWhen);
+    wrap.appendChild(flyBox);
+  }
+  function centerTop(s) { return s.offsetTop - (deck.clientHeight - s.offsetHeight) / 2; }
+  function headProgress() {  // 0 with the Game Info card in the middle, 1 once the next card is
+    if (slots.length < 2) return 0;
+    var a = centerTop(slots[0]), step = centerTop(slots[1]) - a;
+    return step > 0 ? Math.max(0, Math.min(1, (deck.scrollTop - a) / step)) : 0;
+  }
+  function setHead(mode) { if (wrap.getAttribute('data-head') !== mode) wrap.setAttribute('data-head', mode); }
+  function updateHead() {
+    if (!flyBox || !large()) return;
+    var p = headProgress(), e = 1 - (1 - p) * (1 - p);  // ease-out: the header settles before the next card does
+    if (p <= 0.001) { setHead('card'); return; }
+    if (p >= 0.999) { setHead('bar'); return; }
+    var ba = atoms(barRow), ha = atoms(heroRow);
+    if (!ba.length || rectOf(ba[0]).width === 0) return;
+    ba.forEach(function (el, k) {
+      var f = flyAtoms[k], src = ha[k];
+      if (!f || !src) return;
+      var r = rectOf(el), sc = sizeOf(src) / sizeOf(el);
+      park(f, r);
+      toward(f, r, rectOf(src), e, sc + (1 - sc) * e);
+    });
+    var at = heroRow.querySelector('.at'), when = barRow.querySelector(wrap.hasAttribute('data-final') ? '.final-lbl' : '.when');
+    var scale = sizeOf(ha[0]) / sizeOf(ba[0]), mid = rectOf(barRow.querySelector('.mid'));
+    if (shown(at)) {
+      var ar = rectOf(at);
+      park(flyAt, ar);
+      toward(flyAt, ar, mid, 1 - e, 1 - (1 - 1 / scale) * e);   // shrinks with the units as it fades out
+      flyAt.style.opacity = Math.max(0, 1 - e / 0.5);
+      flyAt.style.display = 'block';
+    } else flyAt.style.display = 'none';
+    if (shown(when)) {
+      var wr = rectOf(when);
+      park(flyWhen, wr);
+      toward(flyWhen, wr, mid, e, 1 + (scale - 1) * (1 - e));
+      flyWhen.style.opacity = Math.max(0, (e - 0.6) / 0.4);
+      flyWhen.style.display = when.classList.contains('when') ? 'flex' : 'block';
+    } else flyWhen.style.display = 'none';
+    setHead('moving');
+  }
+  function midPiece(row, mode) {  // the middle shows "@" in the card and when condensed, the date or FINAL in the expanded bar
+    if (mode === 'card') return row.querySelector('.at');
+    var el = row.querySelector(wrap.hasAttribute('data-final') ? '.final-lbl' : '.when');
+    return shown(el) ? el : row.querySelector('.at');
+  }
+  function headShot() {  // where every header piece is right now, and which middle piece is showing
+    var mode = large() ? wrap.getAttribute('data-head') : 'cond';
+    var row = mode === 'card' ? heroRow : barRow;
+    if (mode === 'moving') {
+      var mv = flyAtoms.map(function (el) { return { rect: rectOf(el), size: sizeOf(el) * (el.tagName === 'IMG' ? 1 : 1) }; });
+      return { mode: mode, row: barRow, list: mv, midEl: shown(flyAt) ? flyAt : flyWhen, mid: rectOf(shown(flyAt) ? flyAt : flyWhen) };
+    }
+    var mid = midPiece(row, mode);
+    return {
+      mode: mode, row: row,
+      list: atoms(row).map(function (el) { return { rect: rectOf(el), size: sizeOf(el) }; }),
+      midEl: shown(mid) ? mid : null, mid: shown(mid) ? rectOf(mid) : null
+    };
+  }
+  function ghost(el, r) {  // a free copy of one piece, parked exactly on top of it
+    var box = document.createElement('div'), c = copyOf(el);
+    box.className = 'teams hf-box';
+    Object.assign(box.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px',
+      margin: '0', display: 'block', zIndex: '12', pointerEvents: 'none', transformOrigin: '0 0', fontSize: getComputedStyle(el).fontSize });
+    Object.assign(c.style, { position: 'absolute', left: '0', top: '0' });
+    box.appendChild(c);
+    wrap.appendChild(box);
+    return box;
+  }
+  function slide(g, from, to, scale, D, fade) {
+    var a = { transform: 'translate(' + (from.left + from.width / 2 - to.left - to.width * scale / 2) + 'px,' +
+                (from.top + from.height / 2 - to.top - to.height * scale / 2) + 'px) scale(' + scale + ')' },
+        b = { transform: 'none' };
+    if (fade) { a.opacity = fade[0]; b.opacity = fade[1]; }
+    return g.animate([a, b], { duration: D, easing: EASE, fill: 'forwards' });
+  }
+  function flipHead(from, D) {  // the pieces fly between two header layouts when the view changes
+    var to = headShot(), out = [];
+    if (!from || !to.list.length || from.mode === to.mode) return out;
+    atoms(to.row).forEach(function (el, k) {
+      var r = to.list[k], f = from.list[k];
+      if (!r || !f || !r.rect.width || !f.rect.width) return;
+      var g = ghost(el, r.rect);
+      el.style.visibility = 'hidden';
+      out.push({ el: el, g: g, anim: slide(g, f.rect, r.rect, f.size / r.size, D) });
+    });
+    var ratio = to.list[0].size / from.list[0].size;
+    if (to.midEl && to.mid) {   // the middle swaps content, so the new copy fades in on the way
+      var gIn = ghost(to.midEl, to.mid);
+      to.midEl.style.visibility = 'hidden';
+      out.push({ el: to.midEl, g: gIn, anim: slide(gIn, from.mid || to.mid, to.mid, 1 / ratio, D, [0, 1]) });
+    }
+    if (from.midEl && from.mid) {   // ...and the old one fades out
+      var gOut = ghost(from.midEl, from.mid);
+      gOut.style.left = from.mid.left + 'px'; gOut.style.top = from.mid.top + 'px';
+      var target = to.mid || from.mid;
+      out.push({ g: gOut, anim: gOut.animate([{ transform: 'none', opacity: 1 },
+        { transform: 'translate(' + (target.left + target.width / 2 - from.mid.left - from.mid.width * ratio / 2) + 'px,' +
+          (target.top + target.height / 2 - from.mid.top - from.mid.height * ratio / 2) + 'px) scale(' + ratio + ')', opacity: 0 }],
+        { duration: Math.round(D * 0.6), easing: EASE, fill: 'forwards' }) });
+    }
+    return out;
+  }
+  function endFlip(list) { list.forEach(function (o) { if (o.el) o.el.style.visibility = ''; o.g.remove(); }); }
+  function visibleHead() { return large() && flyBox ? (wrap.getAttribute('data-head') === 'card' ? heroRow : wrap.getAttribute('data-head') === 'moving' ? flyBox : barRow) : barRow; }
+
   var ticking = false;
-  on(deck, 'scroll', function () { if (!ticking && large() && !morphing) { ticking = true; requestAnimationFrame(function () { if (large()) setActive(current()); ticking = false; }); } }, { passive: true });
+  on(deck, 'scroll', function () { if (!ticking && large() && !morphing) { ticking = true; requestAnimationFrame(function () { if (large()) { setActive(current()); updateHead(); } ticking = false; }); } }, { passive: true });
   // Tapping a peeking card brings it in; tapping the active card will open Page 2 later.
   slots.forEach(function (s, k) { on(s.querySelector('a.card'), 'click', function (e) { e.preventDefault(); if (k !== active) go(k); }); });
   dots.forEach(function (d, k) { on(d, 'click', function () { go(k); }); });
@@ -488,7 +652,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
   function place(v, card) {
     wrap.setAttribute('data-view', v);
     labelToggle(v);
-    if (v === 'large') { active = -1; go(card, true); setActive(card); }
+    if (v === 'large') { active = -1; go(card, true); setActive(card); updateHead(); }
   }
   // A plain card-shaped box holding a frozen copy of a card, used to morph between the two views.
   function morphFrom(el) {
@@ -496,6 +660,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     box.className = 'morph';
     Object.assign(box.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
     copy.removeAttribute('tabindex');
+    var h = copy.querySelector('.hero .teams'); if (h) h.style.visibility = 'hidden';
     Object.assign(copy.style, { width: r.width + 'px', height: r.height + 'px' });
     box.appendChild(copy);
     wrap.appendChild(box);
@@ -510,6 +675,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     if (reduce || !Element.prototype.animate) { place(v, card); return; }
     morphing = true;
     var toLarge = v === 'large', D = 300;
+    var headFrom = headShot();
     var fromEl = toLarge ? condensedCards()[card] : slots[card].querySelector('a.card');
     var others = toLarge ? condensedCards().filter(function (_, k) { return k !== card; }) : [];
     var ghosts = others.map(function (el) { return morphFrom(el); });   // condensed neighbours zoom past and fade
@@ -518,7 +684,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     var toEl = toLarge ? slots[card].querySelector('a.card') : condensedCards()[card];
     var r1 = toEl.getBoundingClientRect();
     toEl.style.opacity = '0';
-    var anims = [];
+    var flips = flipHead(headFrom, D), anims = flips.map(function (o) { return o.anim; });
     anims.push(m.box.animate([geo(m.r), geo(r1)], { duration: D, easing: EASE, fill: 'forwards' }));
     m.copy.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: 'forwards' });
     ghosts.forEach(function (g) {
@@ -539,10 +705,12 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     }
     Promise.all(anims.map(fin)).then(function () {
       toEl.style.opacity = '';
-      toEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120, easing: 'ease-out' });
+      var inAnim = toEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120, easing: 'ease-out' });
       m.box.remove();
       ghosts.forEach(function (g) { g.box.remove(); });
       morphing = false;
+      // the header copies stay put until the card around them has faded in
+      fin(inAnim).then(function () { endFlip(flips); });
     });
   }
   on(toggle, 'click', function () { switchView(large() ? 'condensed' : 'large'); });
@@ -554,15 +722,16 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     if (e.key === 'ArrowDown' || e.key === 'PageDown') { e.preventDefault(); go(active + 1); }
     else if (e.key === 'ArrowUp' || e.key === 'PageUp') { e.preventDefault(); go(active - 1); }
   });
-  on(window, 'resize', function () { if (large()) go(active, true); });
+  on(window, 'resize', function () { if (large()) { go(active, true); updateHead(); } });
   // Opens expanded unless told otherwise; opts.card keeps the same card when swiping between games.
   var startView = opts.view === 'condensed' ? 'condensed' : 'large';
   wrap.setAttribute('data-view', startView);
   labelToggle(startView);
-  if (startView === 'large') requestAnimationFrame(function () { go(lastCard, true); setActive(lastCard); });
+  if (startView === 'large') { setHead(lastCard === 0 ? 'card' : 'bar'); requestAnimationFrame(function () { go(lastCard, true); setActive(lastCard); updateHead(); }); }
   return {
     view: function () { return wrap.getAttribute('data-view'); },
     card: function () { return lastCard; },
+    head: visibleHead,
     destroy: function () { bound.forEach(function (b) { b[0].removeEventListener(b[1], b[2], b[3]); }); bound = []; }
   };
 } };
@@ -595,10 +764,38 @@ a.card:focus-visible{outline:2px solid #000;outline-offset:2px}
 .week:hover{background:rgba(0,0,0,.05)}
 .week:focus-visible{outline:2px solid #000;outline-offset:2px}
 .week .chev{width:12px;height:12px}
-.teams{display:flex;align-items:center;gap:8px}
-.teams .abbr{font-size:20px}
-.teams .at{font-size:16px;padding:0 4px}
-.teams img{display:block}
+/* The header row is sized in em so the same row can be drawn at any size and scale cleanly between them:
+   20px in the condensed bar (44px helmets, unchanged), smaller in the expanded bar, larger in the Game Info card. */
+.teams{display:flex;align-items:center;gap:.4em;font-size:20px}
+.side,.mid{display:flex;align-items:center;gap:.4em}
+.teams .abbr{font-size:1em}
+.teams .at{font-size:.8em;padding:0 .25em}
+.teams img{display:block;width:2.2em;height:2.2em}
+.bar .teams{pointer-events:none}
+.when{display:none;flex-direction:column;align-items:center;font-size:11px;font-weight:700;letter-spacing:.1em;line-height:1.35;color:var(--text-2);white-space:nowrap}
+.final-lbl{display:none;font-size:16px;font-weight:700;letter-spacing:.04em;line-height:1.2;white-space:nowrap}   /* same as Page 0's FINAL */
+/* ===== Expanded view header (2026-09-17) =====
+   Game Info card: each team stacks — final score on top, then the helmet, then the abbreviation.
+   Top bar, game still to come: helmet + abbreviation (abbreviation on the inside) at opposite edges of
+   the screen, with the date and time in the middle.
+   Top bar, game final: one line — away helmet, abbreviation, score, then the home score, abbreviation,
+   helmet; the date and time aren't needed once a game is over. */
+.p1[data-view=large] .hero .side{flex-direction:column;gap:.08em}
+.p1[data-view=large] .hero .side img{order:2;width:2.6em;height:2.6em}
+.p1[data-view=large] .hero .side .hscore{order:1;font-size:1.6em;margin-bottom:.14em}   /* the score sits high above the helmet */
+.p1[data-view=large] .hero .side .abbr{order:3}
+.p1[data-view=large] .bar .teams{font-size:17px;width:100%;padding:0 16px;justify-content:space-between}
+.p1[data-view=large] .bar .side img{width:2.4em;height:2.4em}
+.p1[data-view=large] .bar .at{display:none}
+.p1[data-view=large]:not([data-final]) .bar .when{display:flex}
+.p1[data-view=large][data-final] .bar .final-lbl{display:block}
+/* which copy of the header shows in the expanded view: in the card (data-head=card), in the bar (bar),
+   or neither while the moving copies (.head-fly) travel between them (moving) */
+.p1[data-view=large][data-head=card] .bar .teams,.p1[data-view=large][data-head=card] .when{visibility:hidden}
+.p1[data-view=large][data-head=bar] .hero .teams,.p1[data-view=large][data-head=moving] .hero .teams,.p1[data-view=large][data-head=moving] .bar .teams{visibility:hidden}
+.head-fly{position:fixed;inset:0;display:block;margin:0;z-index:12;pointer-events:none}
+.head-fly .hf{position:fixed;margin:0;transform-origin:0 0;will-change:transform,opacity}
+.p1:not([data-view=large]) .head-fly,.p1[data-view=large]:not([data-head=moving]) .head-fly{display:none}
 .toggle{position:absolute;right:16px;top:10px;width:32px;height:32px;border-radius:50%;border:1px solid var(--tile-border);background:#fff;color:#000;
   display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .16s,background-color .16s,border-color .16s}
 .toggle:hover{transform:scale(1.03);background:rgba(0,0,0,.05);border-color:var(--tile-border-hover)}
@@ -689,7 +886,10 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .dot.on{height:18px;background:#000}
 @media (min-width:680px){.dots{right:calc(50% - 300px - 22px)}}
 
-.game .body{padding:44px 24px 32px;justify-content:space-between}
+.game .body{padding:44px 24px 32px;justify-content:space-between;container-type:inline-size}
+/* the header, big, in the middle of the Game Info card; sized to fit the card (a final-score row is ~15.5em wide) */
+.hero{display:flex;justify-content:center}
+.hero .teams{gap:.5em;font-size:min(38px,12cqi)}   /* the stacked row is ~7.5em wide, so it can fill the card */
 .game-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .time{white-space:nowrap;font-size:63px;font-weight:700;line-height:1;letter-spacing:-.01em}
 .time small{font-size:16px;font-weight:400;letter-spacing:0;margin-left:6px}
@@ -764,13 +964,13 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .ldr-n .pos{font-weight:200;flex:none;margin-left:.28em}   /* position never gets cut off */
 .cmp-lbl{font-size:12px;text-align:center;line-height:1.2}
 
-@media (max-width:400px){.view-l .time{font-size:54px}.view-l .date{font-size:29px}.team .record{font-size:62px}.team .record.rec-4{font-size:48px}.team .record.rec-5{font-size:42px}.team .record.rec-6{font-size:35px}
+@media (max-width:400px){.final-lbl{font-size:11px}.view-l .time{font-size:54px}.view-l .date{font-size:29px}.team .record{font-size:62px}.team .record.rec-4{font-size:48px}.team .record.rec-5{font-size:42px}.team .record.rec-6{font-size:35px}
   .game .body{padding-left:16px;padding-right:16px}.team .body>*{width:min(272px,calc(100% - 64px))}}
 @media (max-height:700px){.p1{--peek:28px}.l-id img{width:64px;height:64px}}
 /* no prefers-reduced-motion override: motion always plays (Jason, 2026-09-17) */
 /* ===== Production additions (not in the preview) ===== */
 /* Finished games: final score sits in the header next to each abbreviation */
-.teams .hscore{font-size:20px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.01em;padding:0 2px}
+.teams .hscore{font-size:1em;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.01em;padding:0 .1em}
 .teams .hscore.lose{opacity:.3}
 a.card{cursor:pointer}
 /* condensed cards: name at the top center, same type as the expanded slivers */

@@ -566,6 +566,7 @@ def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, w
                 "gameday": g["gameday"],
                 "gametime": g["gametime"],
                 "final": g["final"],
+                "overtime": g["final"] and str(g["raw"].get("overtime") or "").strip() in ("1", "1.0", "True", "true"),
                 "score": {"away": g["away_score"], "home": g["home_score"]} if g["final"] else None,
                 "networks": {"status": "pending"},
                 "venue": venue,

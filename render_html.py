@@ -592,6 +592,7 @@ PAGE1_OVERLAY_JS = r"""
       if (slots[i]) slots[i].classList.add('active');
       if (slots[i - 1]) slots[i - 1].classList.add('above');
       if (slots[i + 1]) slots[i + 1].classList.add('below');
+      root.querySelector('.p1').setAttribute('data-head', i === 0 ? 'card' : 'bar');
       var deck = root.querySelector('.deck');
       if (deck && slots[i] && opts.view !== 'condensed') deck.scrollTop = slots[i].offsetTop - (deck.clientHeight - slots[i].offsetHeight) / 2;
     } else {
@@ -610,12 +611,21 @@ PAGE1_OVERLAY_JS = r"""
     });
     return out;
   }
+  function headerRow(root) {  // the copy of Page 1's header row on screen: in the Game Info card, moving, or in the top bar
+    var p1 = root.querySelector('.p1'), mode = p1 && p1.getAttribute('data-view') === 'large' ? p1.getAttribute('data-head') : 'bar';
+    return root.querySelector(mode === 'card' ? '.hero .teams' : mode === 'moving' ? '.head-fly' : '.bar .teams');
+  }
   function headerParts(root) {
-    var out = {};
-    all(root.querySelectorAll('.bar .teams img')).forEach(function (e, i) { out['img' + i] = e; });
-    all(root.querySelectorAll('.bar .teams .abbr')).forEach(function (e, i) { out['abbr' + i] = e; });
-    all(root.querySelectorAll('.bar .teams .hscore')).forEach(function (e, i) { out['score' + i] = e; });
+    var out = {}, row = headerRow(root);
+    if (!row) return out;
+    all(row.querySelectorAll('img')).forEach(function (e, i) { out['img' + i] = e; });
+    all(row.querySelectorAll('.abbr')).forEach(function (e, i) { out['abbr' + i] = e; });
+    all(row.querySelectorAll('.hscore')).forEach(function (e, i) { out['score' + i] = e; });
     return out;
+  }
+  function drawnScale(el) {  // how much transforms enlarge/shrink an element on screen
+    var w = el.offsetWidth;
+    return w ? el.getBoundingClientRect().width / w : 1;
   }
   function flyer(src) {  // a free-floating copy of an element, sitting exactly on top of it
     var r = src.getBoundingClientRect(), cs = getComputedStyle(src), c = src.cloneNode(true);
@@ -624,15 +634,15 @@ PAGE1_OVERLAY_JS = r"""
       position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px',
       margin: '0', padding: '0', boxSizing: 'border-box', zIndex: '120', pointerEvents: 'none', transformOrigin: '0 0',
       display: 'block', textAlign: 'center', whiteSpace: 'nowrap', lineHeight: r.height + 'px',
-      fontFamily: cs.fontFamily, fontSize: cs.fontSize, fontWeight: cs.fontWeight, letterSpacing: cs.letterSpacing,
+      fontFamily: cs.fontFamily, fontSize: (parseFloat(cs.fontSize) * drawnScale(src)) + 'px', fontWeight: cs.fontWeight, letterSpacing: cs.letterSpacing,
       fontVariantNumeric: cs.fontVariantNumeric, color: cs.color, opacity: cs.opacity
     });
     document.body.appendChild(c);
-    return { el: c, r: r, fs: parseFloat(cs.fontSize) || 1, img: src.tagName === 'IMG' };
+    return { el: c, r: r, fs: (parseFloat(cs.fontSize) * drawnScale(src)) || 1, img: src.tagName === 'IMG' };
   }
   function flyTo(f, target, duration, delay) {
     var t = target.getBoundingClientRect();
-    var sc = f.img ? t.width / f.r.width : (parseFloat(getComputedStyle(target).fontSize) || f.fs) / f.fs;
+    var sc = f.img ? t.width / f.r.width : ((parseFloat(getComputedStyle(target).fontSize) * drawnScale(target)) || f.fs) / f.fs;
     var dx = (t.left + t.width / 2) - (f.r.left + f.r.width * sc / 2);
     var dy = (t.top + t.height / 2) - (f.r.top + f.r.height * sc / 2);
     return f.el.animate([{ transform: 'none' }, { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(' + sc + ')' }],
@@ -645,7 +655,8 @@ PAGE1_OVERLAY_JS = r"""
       el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, delay: 40, easing: 'ease-out', fill: 'backwards' });
     });
     var large = m.root.querySelector('.p1').getAttribute('data-view') === 'large';
-    all(m.root.querySelectorAll(large ? '.slot' : '.view-c > .card, .c-teams > .card')).forEach(function (el, i) {
+    // (large view: animate the cards, not their snap slots, so the deck's scroll-snap doesn't chase the motion)
+    all(m.root.querySelectorAll(large ? '.slot > a.card' : '.view-c > .card, .c-teams > .card')).forEach(function (el, i) {
       el.animate([{ opacity: 0, transform: 'translateY(56px) scale(.96)' }, { opacity: 1, transform: 'none' }],
                  { duration: 300, delay: 20 + i * 35, easing: EASE, fill: 'backwards' });
     });
@@ -692,6 +703,7 @@ PAGE1_OVERLAY_JS = r"""
       s.host = m.host; s.root = m.root; s.inst = m.inst;
       // 2 · helmets, abbreviations (and final scores) fly from the tile up into Page 1's top bar
       var targets = headerParts(m.root);
+      s.landInCard = !!(targets.img0 && targets.img0.closest('.hero'));
       var landed = flyers.map(function (f) {
         return targets[f.key] ? done(flyTo(f, targets[f.key], 320))
                               : done(f.el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, fill: 'forwards' }));
@@ -703,8 +715,19 @@ PAGE1_OVERLAY_JS = r"""
       overlay.classList.add('is-open');
       overlay.getAnimations().forEach(function (a) { a.cancel(); });
       reveal(m);  // 3 · cards come in
-      s.extras.forEach(function (el) { el.remove(); });
-      s.extras = [];
+      var extras = s.extras, row = s.landInCard && headerRow(m.root);
+      function clearExtras() { extras.forEach(function (el) { el.remove(); }); if (s.extras === extras) s.extras = []; }
+      if (row && extras.length) {
+        // the pieces landed in the middle of the Game Info card: hold them there while the card comes in around them
+        row.style.visibility = 'hidden';
+        var card = row.closest('a.card'), coming = card && card.getAnimations ? card.getAnimations() : [];
+        Promise.all(coming.map(done)).then(function () {
+          row.style.visibility = '';
+          clearExtras();
+          var mid = row.querySelector('.mid');   // the "@" has nothing to fly from, so it just fades in
+          if (mid && !reduce.matches) mid.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: 'ease-out' });
+        });
+      } else clearExtras();
       load(neighborId(id, 1)).catch(function () {});
       load(neighborId(id, -1)).catch(function () {});
     }).catch(function (e) {
