@@ -29,6 +29,7 @@ from divisions import get_division, normalize_abbr
 from stadiums import STADIUMS
 from weather import get_kickoff_weather
 from ranks import compute_ranks
+import page1_data
 
 OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "data", "matchups.json")
 
@@ -285,14 +286,16 @@ def main():
     for g in this_week_games:
         home_abbr = normalize_abbr(g.get("home_team"))
         away_abbr = normalize_abbr(g.get("away_team"))
-        stadium = STADIUMS.get(home_abbr, {})
+        stadium = page1_data.stadium_for(home_abbr)  # handles WAS (stadiums.py uses ESPN's WSH)
 
         roof = g.get("roof")  # nflverse: "outdoors" | "dome" | "closed" | "open" (best guess at values)
         is_indoor = roof in ("dome", "closed") if roof else stadium.get("indoor")
 
         weather = {"available": False, "reason": "indoor stadium"}
         if not is_indoor and stadium.get("lat") and g.get("gameday") and g.get("gametime"):
-            kickoff_iso = f"{g['gameday']}T{g['gametime']}:00Z"  # best-effort combine; verify TZ handling on first run
+            # nflverse gametime is US Eastern -- convert to UTC before asking NWS (fixed 2026-09-16)
+            ko = page1_data.kickoff_utc(g["gameday"], g["gametime"])
+            kickoff_iso = ko.strftime("%Y-%m-%dT%H:%M:00Z") if ko else f"{g['gameday']}T{g['gametime']}:00Z"
             weather = get_kickoff_weather(stadium["lat"], stadium["lon"], kickoff_iso)
 
         matchups.append({
@@ -317,6 +320,26 @@ def main():
     except Exception as e:
         warnings.append(f"build_season_weeks: {e}")
 
+    # Page 1 (matchup page) data for every game of the season. Wrapped so a
+    # problem here can never break Page 0's data above.
+    game_details = {}
+    try:
+        team_weekly, err = nflverse_client.get_team_stats_weekly(season)
+        if err:
+            warnings.append(f"get_team_stats_weekly: {err}")
+        player_weekly, err = nflverse_client.get_player_stats_weekly(season)
+        if err:
+            warnings.append(f"get_player_stats_weekly: {err}")
+        snaps, err = nflverse_client.get_snap_counts(season)
+        if err:
+            warnings.append(f"get_snap_counts: {err}")
+        depth, err = nflverse_client.get_depth_charts(season)
+        if err:
+            warnings.append(f"get_depth_charts: {err}")
+        game_details = page1_data.build_game_details(schedules, team_weekly, player_weekly, injury_rows, snaps, warnings, depth=depth)
+    except Exception as e:
+        warnings.append(f"build_game_details: {e}")
+
     output = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "season": season,
@@ -325,13 +348,14 @@ def main():
         "warnings": warnings,
         "matchups": matchups,
         "season_weeks": season_weeks,
+        "game_details": game_details,
     }
 
     os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
     with open(OUTPUT_PATH, "w") as f:
         json.dump(output, f, indent=2, default=str)
 
-    print(f"Wrote {len(matchups)} matchups to {OUTPUT_PATH}")
+    print(f"Wrote {len(matchups)} matchups and {len(game_details)} game pages' data to {OUTPUT_PATH}")
     if warnings:
         print(f"{len(warnings)} warning(s):")
         for w in warnings:

@@ -93,3 +93,48 @@ def get_rosters(season):
         return _to_dicts(df), None
     except Exception as e:
         return [], str(e)
+
+
+# ---------------------------------------------------------------- Page 1 (added 2026-09-16)
+# Week-by-week data so Page 1 can show each game "as of kickoff": ranks and
+# season leaders use only the weeks before that game. Same defensive pattern
+# as above -- every call returns (rows, error) and never raises.
+
+def get_team_stats_weekly(season):
+    """One row per team per game (columns match the season rows seen on the live site, plus week/opponent)."""
+    try:
+        df = nfl.load_team_stats(seasons=[season], summary_level="week")
+        return _to_dicts(df), None
+    except Exception as e:
+        return [], str(e)
+
+
+def get_player_stats_weekly(season):
+    """One row per player per game: passing/rushing/receiving yards, def_interceptions, def_sacks, ..."""
+    try:
+        df = nfl.load_player_stats(seasons=[season], summary_level="week")
+        return _to_dicts(df), None
+    except Exception as e:
+        try:
+            df = nfl.load_player_stats(seasons=[season])
+            return _to_dicts(df), f"used fallback call (no summary_level) after: {e}"
+        except Exception as e2:
+            return [], str(e2)
+
+
+def get_snap_counts(season):
+    """Snap share per player per game -- used to tell starters from backups on the injury report."""
+    try:
+        df = nfl.load_snap_counts(seasons=[season])
+        return _to_dicts(df), None
+    except Exception as e:
+        return [], str(e)
+
+
+def get_depth_charts(season):
+    """Team depth charts -- first-string players count as starters on Page 1's injury report."""
+    try:
+        df = nfl.load_depth_charts(seasons=[season])
+        return _to_dicts(df), None
+    except Exception as e:
+        return [], str(e)
