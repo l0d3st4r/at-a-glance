@@ -12,9 +12,12 @@ Run with: python render_html.py
 Page 0 design (revised 2026-09-16, layout modeled on Apple Sports' NFL
 "Upcoming" tab, using Jason's helmets, no betting lines):
   - white background and black text (as in the Framer design)
-  - "Week N" title at the top is a dropdown (native <select> under the hood)
-    listing every week of the season plus Wild Card, Divisional Round,
-    Conference Championships and Super Bowl; it stays pinned while scrolling
+  - "Week N" dropdown (native <select> under the hood) listing every week of
+    the season plus Wild Card, Divisional Round, Conference Championships and
+    Super Bowl; it sits in a bar pinned to the BOTTOM of the screen (2026-09-17)
+  - regular-season weeks with teams on bye end with a "Teams on Bye" section
+    (helmet over abbreviation); no section when nobody is on bye
+  - finished games that went to overtime read "FINAL/OT"
   - all weeks are rendered into one page side by side: swipe left/right on a
     phone (or trackpad), use the dropdown, or the arrow keys to move between
     weeks; the URL updates to #week-5 / #week-SB so a week can be linked
@@ -48,6 +51,7 @@ from datetime import date
 
 import helmets
 import render_page1
+from divisions import DIVISIONS
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA_PATH = os.path.join(ROOT, "data", "matchups.json")
@@ -139,7 +143,11 @@ html{background:var(--bg)}
    plus Inter Black 900 for the big final scores (the Framer type spec's "big numbers" weight). */
 body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-system,sans-serif;font-weight:400;
   -webkit-font-smoothing:antialiased;background:var(--bg)}
-.topbar{position:sticky;top:0;z-index:10;display:flex;justify-content:center;padding:14px 16px 6px;
+/* Week picker lives in a bar pinned to the bottom of the screen (Page 1 puts its "‹ Week N" back
+   button and +/− toggle in the same spot, same size). --bbar = bar height incl. the iPhone home-indicator area. */
+:root{--bbar:calc(52px + env(safe-area-inset-bottom))}
+.bottombar{position:fixed;left:0;right:0;bottom:0;z-index:10;height:var(--bbar);display:flex;justify-content:center;
+  align-items:flex-start;padding:10px 16px env(safe-area-inset-bottom);
   background:rgba(255,255,255,.94);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
 .week-picker{position:relative;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;
   font-size:16px;font-weight:400;line-height:19px;cursor:pointer;transition:background-color .16s ease}
@@ -154,7 +162,7 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
   overscroll-behavior-x:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .track::-webkit-scrollbar{display:none}
 .week-panel{flex:0 0 100%;min-width:0;scroll-snap-align:start;scroll-snap-stop:always}
-.week-inner{max-width:600px;margin:0 auto;padding:0 16px 64px}
+.week-inner{max-width:600px;margin:0 auto;padding:max(6px,env(safe-area-inset-top)) 16px calc(64px + var(--bbar))}
 .day{text-align:center;font-size:16px;font-weight:400;line-height:19px;padding:18px 0 12px}
 .games{list-style:none;display:flex;flex-direction:column;gap:10px}
 .game{display:grid;grid-template-columns:84px 1fr minmax(96px,auto) 1fr 84px;align-items:center;
@@ -170,7 +178,7 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
 .team{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
 .team img{width:48px;height:48px;display:block}
 .abbr{font-size:20px;font-weight:700;line-height:24px}
-.record{font-size:16px;font-weight:400;line-height:19px;color:var(--text-2);text-align:center;margin-bottom:28px}
+.record{font-size:16px;font-weight:400;line-height:19px;color:var(--text-2);text-align:center}  /* vertically centered in the tile */
 .center{display:flex;flex-direction:column;align-items:center;gap:4px;padding:0 8px}
 .time{font-size:20px;font-weight:700;line-height:24px;white-space:nowrap;margin-top:-6px}
 .tz{font-size:11px;font-weight:400;margin-left:3px;color:var(--text-2)}
@@ -180,13 +188,22 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
 .team-record{font-size:16px;font-weight:400;line-height:19px;color:var(--text-2)}
 .score{font-size:60px;font-weight:900;line-height:1;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 .score.lose{opacity:.3}
-.final-label{font-size:16px;font-weight:700;line-height:19px;letter-spacing:.04em}
+.final-label{font-size:16px;font-weight:700;line-height:19px;letter-spacing:.04em;white-space:nowrap}
+.game.final .center{min-width:100px}  /* same width for FINAL and FINAL/OT, so scores line up tile to tile */
 @media (max-width:420px){
   .game{grid-template-columns:72px 1fr auto 1fr 72px;padding:14px 4px}
   .team img{width:42px;height:42px}
   .center{padding:0 4px}
-  .score{font-size:46px}.final-label{font-size:11px;line-height:13px}
+  .score{font-size:42px}.final-label{font-size:11px;line-height:13px}
+  .game.final .center{min-width:68px}
 }
+/* Teams on bye: one outlined (not clickable) card under the week's last day */
+.bye-list{list-style:none;display:flex;flex-wrap:wrap;justify-content:center;gap:14px 18px;padding:16px 12px;
+  background:var(--tile);border:1px solid var(--tile-border);border-radius:20px}
+.bye-team{display:flex;flex-direction:column;align-items:center;gap:4px;width:56px}
+.bye-team img{width:48px;height:48px;display:block}
+@media (max-width:420px){.bye-list{display:grid;grid-template-columns:repeat(var(--bye-cols),56px);justify-content:center;gap:12px 14px;padding:14px 8px}
+  .bye-team img{width:42px;height:42px}}
 .error{background:#fee;color:#000;padding:8px;font-size:11px;white-space:pre-wrap;border-radius:8px}
 .empty{text-align:center;padding:40px 0;color:var(--text-2);font-size:16px}
 /* Page 1 opens on top of Page 0 (see PAGE1_OVERLAY_JS): tapping a tile zooms into it, its helmets,
@@ -293,7 +310,8 @@ def render_final_game(m):
 
     away_name = TEAM_NAMES.get(away.get("team"), away.get("team", "?"))
     home_name = TEAM_NAMES.get(home.get("team"), home.get("team", "?"))
-    label = f"Final: {away_name} {_score_text(a_score)}, {home_name} {_score_text(h_score)}"
+    final_text = "FINAL/OT" if m.get("overtime") else "FINAL"
+    label = f"{'Final in overtime' if m.get('overtime') else 'Final'}: {away_name} {_score_text(a_score)}, {home_name} {_score_text(h_score)}"
     return (
         f'<a class="game final" href="#game-{esc(m.get("game_id") or "")}" aria-label="{esc(label)}">'
         f"{team_block(away, mirrored=False)}"
@@ -301,7 +319,7 @@ def render_final_game(m):
         f'<span class="{a_cls}">{esc(_score_text(a_score))}</span>'
         f'<span class="team-record">{esc(format_record(away.get("record")))}</span>'
         "</div>"
-        '<div class="center"><span class="final-label">FINAL</span></div>'
+        f'<div class="center"><span class="final-label">{final_text}</span></div>'
         '<div class="result">'
         f'<span class="{h_cls}">{esc(_score_text(h_score))}</span>'
         f'<span class="team-record">{esc(format_record(home.get("record")))}</span>'
@@ -348,26 +366,40 @@ def placeholder_games(code, season):
     return games
 
 
+def bye_teams(games):
+    """Regular-season week -> every team (divisions.py's 32) with no game that week, alphabetical."""
+    playing = set()
+    for m in games:
+        for side in ("away", "home"):
+            team = (m.get(side) or {}).get("team")
+            if team:
+                playing.add(team)
+    return sorted(t for t in DIVISIONS if t not in playing)
+
+
 def weeks_for_page0(data):
     """
-    [(key, label, games), ...] for every week in the dropdown, plus the key of
-    the week to show first. Falls back to just the current week's matchups if
-    build_data.py didn't produce season_weeks (older data file or a failed run).
+    [(key, label, games, byes), ...] for every week in the dropdown, plus the
+    key of the week to show first. byes = teams on bye (regular-season weeks
+    only; empty list = no "Teams on Bye" section). Falls back to just the
+    current week's matchups if build_data.py didn't produce season_weeks
+    (older data file or a failed run).
     """
     season = data.get("season")
     weeks = []
     for w in data.get("season_weeks") or []:
         key, label = str(w.get("key")), w.get("label") or f"Week {w.get('key')}"
         games = w.get("games") or []
+        byes = bye_teams(games) if w.get("game_type") == "REG" and games else []
         if not games and w.get("game_type") in PLAYOFF_GAME_COUNTS:
             games = placeholder_games(w["game_type"], season)
-        weeks.append((key, label, games))
+        weeks.append((key, label, games, byes))
 
     if not weeks:
         wk = data.get("week")
-        weeks = [(str(wk), f"Week {wk}" if wk is not None else "This Week", data.get("matchups") or [])]
+        weeks = [(str(wk), f"Week {wk}" if wk is not None else "This Week", data.get("matchups") or [], [])]
 
-    keys = [k for k, _, _ in weeks]
+    keys = [w[0] for w in weeks]
     current = data.get("current_week_key")
     if current is None and data.get("week") is not None:
         current = str(data.get("week"))
@@ -376,7 +408,23 @@ def weeks_for_page0(data):
     return weeks, current
 
 
-def render_week_panel(key, label, games, is_current):
+def render_byes(byes):
+    """The "Teams on Bye" section under a week's last day: helmet over abbreviation for each team."""
+    if not byes:
+        return ""
+    teams = "".join(
+        '<li class="bye-team">'
+        f'<img src="helmets/{esc(helmets.helmet_filename(t))}" alt="" width="48" height="48" loading="lazy">'
+        f'<span class="abbr">{esc(t)}</span></li>'
+        for t in byes
+    )
+    # On phones the helmets wrap in even rows (6 teams -> 3 + 3, not 5 + 1); bye counts are always even.
+    phone_cols = len(byes) if len(byes) <= 4 else (len(byes) + 1) // 2
+    return (f'<section class="byes" aria-label="Teams on bye"><h2 class="day">Teams on Bye</h2>'
+            f'<ul class="bye-list" style="--bye-cols:{phone_cols}">{teams}</ul></section>')
+
+
+def render_week_panel(key, label, games, is_current, byes=None):
     sections = []
     for d, day_games in group_by_day(games):
         rows = []
@@ -391,6 +439,7 @@ def render_week_panel(key, label, games, is_current):
         )
     if not sections:
         sections.append('<p class="empty">No games this week.</p>')
+    sections.append(render_byes(byes))
     return (
         f'<div class="week-panel" id="week-{esc(key)}" data-key="{esc(key)}" data-label="{esc(label)}"'
         f' data-current="{"true" if is_current else "false"}" role="group" aria-label="{esc(label)}">'
@@ -403,7 +452,6 @@ PAGE0_JS = """
   var track = document.getElementById('track');
   var select = document.getElementById('week-select');
   var label = document.getElementById('week-label');
-  var topbar = document.querySelector('.topbar');
   if (!track || !select) return;
   var panels = Array.prototype.slice.call(track.querySelectorAll('.week-panel'));
   var idx = Math.max(0, panels.findIndex(function (p) { return p.dataset.current === 'true'; }));
@@ -434,7 +482,7 @@ PAGE0_JS = """
     sizeTrack();
     if (opts.updateHash !== false && !document.documentElement.classList.contains('p1-open')) history.replaceState(null, '', '#week-' + encodeURIComponent(p.dataset.key));
     if (changed) {
-      var top = track.getBoundingClientRect().top + window.scrollY - topbar.offsetHeight;
+      var top = track.getBoundingClientRect().top + window.scrollY;
       if (window.scrollY > top) window.scrollTo({ top: top });
     }
   }
@@ -594,7 +642,7 @@ PAGE1_OVERLAY_JS = r"""
   function reveal(m) {  // Page 1's cards come in after the header pieces land
     m.host.style.visibility = '';
     if (reduce.matches) return;
-    all(m.root.querySelectorAll('.bar .week, .bar .toggle, .bar .at, .dots')).forEach(function (el) {
+    all(m.root.querySelectorAll('.bbar .week, .bbar .toggle, .bar .at, .dots')).forEach(function (el) {
       el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 260, delay: 60, easing: 'ease-out', fill: 'backwards' });
     });
     var large = m.root.querySelector('.p1').getAttribute('data-view') === 'large';
@@ -926,16 +974,16 @@ PAGE1_OVERLAY_JS = r"""
 
 def render_page0(data):
     weeks, current = weeks_for_page0(data)
-    current_label = next(label for key, label, _ in weeks if key == current)
+    current_label = next(label for key, label, _g, _b in weeks if key == current)
     options = "".join(
         f'<option value="{esc(k)}"{" selected" if k == current else ""}>{esc(label)}</option>'
-        for k, label, _ in weeks
+        for k, label, _g, _b in weeks
     )
-    panels = "".join(render_week_panel(k, label, games, k == current) for k, label, games in weeks)
+    panels = "".join(render_week_panel(k, label, games, k == current, byes) for k, label, games, byes in weeks)
 
     return (
         "<!doctype html><html lang='en'><head><meta charset='utf-8'>"
-        "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+        "<meta name='viewport' content='width=device-width,initial-scale=1,viewport-fit=cover'>"
         "<meta name='theme-color' content='#ffffff'>"
         f"<title>{esc(current_label)} · At A Glance</title>"
         "<meta name='description' content='Pro Football Upcoming Game Information'>"
@@ -943,13 +991,13 @@ def render_page0(data):
         "<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>"
         "<link href='https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;700;900&display=swap' rel='stylesheet'>"
         f"<style>{PAGE0_CSS}</style></head><body>"
-        "<header class='topbar'>"
+        f"<main class='track' id='track'>{panels}</main>"
+        "<nav class='bottombar' aria-label='Week'>"
         "<label class='week-picker'>"
         f"<span id='week-label'>{esc(current_label)}</span>"
-        "<svg class='chevron' viewBox='0 0 12 12' aria-hidden='true'><path d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>"
+        "<svg class='chevron' viewBox='0 0 12 12' aria-hidden='true'><path d='M2.5 7.5 6 4l3.5 3.5' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>"
         f"<select id='week-select' aria-label='Choose week'>{options}</select>"
-        "</label></header>"
-        f"<main class='track' id='track'>{panels}</main>"
+        "</label></nav>"
         f"<script>{PAGE0_JS}</script>"
         f"<script>{render_page1.P1_JS}</script>"
         f"<script>{PAGE1_OVERLAY_JS}</script>"

@@ -112,6 +112,14 @@ def _score(value):
     return value if isinstance(value, (int, float)) else None
 
 
+def _overtime(value):
+    """nflverse schedules 'overtime' column: 1 = went to OT, 0 = didn't, missing for unplayed games."""
+    try:
+        return int(float(value)) == 1
+    except (TypeError, ValueError):
+        return False
+
+
 def build_season_weeks(schedules, current_week):
     """
     Every week of the season for the Page 0 week dropdown, built only from
@@ -128,7 +136,8 @@ def build_season_weeks(schedules, current_week):
         (so Week 1 keeps showing 1-0 / 0-1 all season)
       - game not played yet, or any playoff game -> each team's current
         regular-season record
-    A game counts as finished ("final": true) once nflverse has both scores.
+    A game counts as finished ("final": true) once nflverse has both scores;
+    "overtime": true when nflverse marks that finished game as going to OT.
     """
     blank = lambda: {"wins": 0, "losses": 0, "ties": 0}
 
@@ -166,6 +175,7 @@ def build_season_weeks(schedules, current_week):
             "gameday": g.get("gameday"),
             "gametime": g.get("gametime"),
             "final": is_final(g),
+            "overtime": is_final(g) and _overtime(g.get("overtime")),
             "networks": {"status": "pending"},
             "away": {"team": away, "record": record_for(g, away), "score": _score(g.get("away_score"))},
             "home": {"team": home, "record": record_for(g, home), "score": _score(g.get("home_score"))},

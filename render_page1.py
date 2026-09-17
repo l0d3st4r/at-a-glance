@@ -4,7 +4,8 @@ Page 1 -- the matchup page. One standalone file per game: site/game/<game_id>.ht
 Design = Jason's approved v8 preview (2026-09-16):
   - two views of the same page, switched with the +/− button in the top bar
       * expanded (default every time the page opens): pinned top bar with
-        "‹ Week N" over mini helmets + AWAY @ HOME; one card per screen that
+        mini helmets + AWAY @ HOME, and a pinned bottom bar with "‹ Week N"
+        and the +/− toggle (moved to the bottom 2026-09-17); one card per screen that
         snaps while scrolling, slivers of the cards above/below with a label,
         position dots on the right
       * condensed: every card on one screen, same top bar
@@ -288,11 +289,14 @@ def render_p1_block(d, prefix="../"):
 
     bar = (
         '<header class="bar"><div class="bar-in">'
-        f'<a class="week" href="{esc(week_href)}">{CHEV}<span>{esc(week_label)}</span></a>'
         f'<div class="teams" aria-label="{esc(TEAM_NAMES.get(a, a))} at {esc(TEAM_NAMES.get(h, h))}">'
         f'{img(a, 44)}<span class="abbr">{esc(a)}</span>{a_score}<span class="at">@</span>{h_score}<span class="abbr">{esc(h)}</span>{img(h, 44, True)}</div>'
-        f'<button class="toggle" type="button"><span class="i-plus">{PLUS}</span><span class="i-minus">{MINUS}</span></button>'
         "</div></header>"
+        # back button + view toggle live at the bottom of the screen (2026-09-17)
+        '<nav class="bbar" aria-label="Page controls"><div class="bbar-in">'
+        f'<a class="week" href="{esc(week_href)}">{CHEV}<span>{esc(week_label)}</span></a>'
+        f'<button class="toggle" type="button"><span class="i-plus">{PLUS}</span><span class="i-minus">{MINUS}</span></button>'
+        "</div></nav>"
     )
     condensed = (
         '<div class="view view-c" aria-label="Condensed matchup">'
@@ -417,7 +421,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
 P1_CSS = r"""
 :host{display:block}
 .p1{--ink:#000;--tile:#fff;--tile-border:rgba(0,0,0,.12);--tile-border-soft:rgba(0,0,0,.07);--tile-hover:rgba(0,0,0,.03);--tile-border-hover:rgba(0,0,0,.28);--text-2:rgba(0,0,0,.62);--text-3:rgba(0,0,0,.4);
-  --out:#A00000;--doubt:#A52800;--ques:#B58900;--win:#1E8A3C;--loss:#A00000;--tie:#B58900;--gold:#D4A20A;--silver:#A2A7AD;--bronze:#B5702F;--bar:96px;--peek:40px;--gap:12px;--col:600px}
+  --out:#A00000;--doubt:#A52800;--ques:#B58900;--win:#1E8A3C;--loss:#A00000;--tie:#B58900;--gold:#D4A20A;--silver:#A2A7AD;--bronze:#B5702F;--bar:64px;--bbar:calc(52px + env(safe-area-inset-bottom));--peek:40px;--gap:12px;--col:600px}
 *{box-sizing:border-box;margin:0;padding:0}
 .p1{min-height:100%;background:#fff;color:var(--ink);font-family:Inter,system-ui,-apple-system,sans-serif;font-weight:400;-webkit-font-smoothing:antialiased}
 .view{display:none}
@@ -431,6 +435,10 @@ a.card:focus-visible{outline:2px solid #000;outline-offset:2px}
 /* ===== Top bar ===== */
 .bar{position:fixed;inset:0 0 auto;height:var(--bar);z-index:10;background:rgba(255,255,255,.94);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
 .bar-in{position:relative;max-width:var(--col);height:100%;margin:0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+/* Bottom bar (2026-09-17): "‹ Week N" back button centered + the +/− toggle on the right, in the same
+   spot and size as Page 0's bottom week picker */
+.bbar{position:fixed;inset:auto 0 0;height:var(--bbar);padding-bottom:env(safe-area-inset-bottom);z-index:10;background:rgba(255,255,255,.94);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.bbar-in{position:relative;max-width:var(--col);height:52px;margin:0 auto;display:flex;align-items:flex-start;justify-content:center;padding-top:10px}
 .week{color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:6px;font-size:16px;font-weight:400;line-height:19px;padding:6px 12px;border-radius:999px;transition:background-color .16s}
 .week:hover{background:rgba(0,0,0,.05)}
 .week:focus-visible{outline:2px solid #000;outline-offset:2px}
@@ -447,7 +455,7 @@ a.card:focus-visible{outline:2px solid #000;outline-offset:2px}
 .p1[data-view=large] .toggle .i-minus{display:block}
 
 /* ===== Condensed view: everything on one screen ===== */
-.view-c{max-width:var(--col);margin:0 auto;height:100dvh;min-height:720px;padding:calc(var(--bar) + 12px) 16px 16px;gap:12px;
+.view-c{max-width:var(--col);margin:0 auto;height:100dvh;min-height:720px;padding:calc(var(--bar) + 12px) 16px calc(var(--bbar) + 12px);gap:12px;
   grid-template-rows:minmax(0,.74fr) minmax(0,1.3fr) minmax(0,1.38fr)}
 .view-c a.card:hover,.view-c a.card:focus-visible{transform:scale(1.03);background:var(--tile-hover);border-color:var(--tile-border-hover);z-index:1}
 
@@ -487,7 +495,7 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:clam
 .crown{position:absolute;left:100%;top:50%;transform:translate(4px,-62%);overflow:visible}
 
 /* ===== Large view: one card per screen ===== */
-.deck{position:fixed;inset:var(--bar) 0 0;overflow-y:auto;overscroll-behavior:contain;scroll-snap-type:y mandatory;scrollbar-width:none;padding:calc(var(--peek) + var(--gap)) 0}
+.deck{position:fixed;inset:var(--bar) 0 var(--bbar);overflow-y:auto;overscroll-behavior:contain;scroll-snap-type:y mandatory;scrollbar-width:none;padding:calc(var(--peek) + var(--gap)) 0}
 .deck::-webkit-scrollbar{display:none}
 .slot{height:100%;min-height:520px;max-width:var(--col);margin:0 auto var(--gap);padding:0 16px;scroll-snap-align:center;scroll-snap-stop:always}
 .slot:last-child{margin-bottom:0}
@@ -502,7 +510,7 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:clam
 .slot.below .peek-top,.slot.above .peek-bot{opacity:1}
 .slot.below a.card:hover,.slot.above a.card:hover{border-color:var(--tile-border-hover);background:var(--tile-hover)}
 .slot.below a.card:hover .peek,.slot.above a.card:hover .peek{color:#000}
-.dots{display:none;position:fixed;right:10px;top:calc(var(--bar) + (100% - var(--bar)) / 2);transform:translateY(-50%);z-index:10}
+.dots{display:none;position:fixed;right:10px;top:calc(var(--bar) + (100% - var(--bar) - var(--bbar)) / 2);transform:translateY(-50%);z-index:10}
 .dots{flex-direction:column;gap:8px}
 .p1[data-view=large] .dots{display:flex}
 .dot{width:6px;height:6px;border-radius:3px;border:0;background:#CFCFCF;cursor:pointer;padding:0;transition:height .25s,background-color .25s}
