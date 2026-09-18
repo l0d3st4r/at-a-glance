@@ -132,6 +132,11 @@ def format_network(networks):
     return "TV TBD"
 
 
+# Winner arrow on a finished tile (Jason, 2026-09-18): a small black triangle between the
+# score and the word FINAL, pointing at the team that won. Ties get none.
+WIN_TRI = ('<svg viewBox="0 0 8 10" aria-hidden="true"><path d="M8 0 0 5l8 5z" fill="currentColor"/></svg>')
+
+
 def format_record(record):
     record = record or {}
     w, l, t = record.get("wins", 0), record.get("losses", 0), record.get("ties", 0)
@@ -221,12 +226,20 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
   font-family:Teko,Inter,system-ui,sans-serif;font-weight:700}
 .score.lose{opacity:.3}
 .final-label{font-size:16px;font-weight:700;line-height:19px;letter-spacing:.04em;white-space:nowrap}
+/* Winner arrow: a slot sits on each side of FINAL and only the winner's shows, so the word stays
+   centred in the tile whoever won. A tie shows neither. */
+.final-row{display:flex;align-items:center;justify-content:center;gap:5px}
+.tri{display:flex;visibility:hidden;color:#000;flex:none}
+.tri svg{display:block;width:8px;height:10px}
+.tri-h svg{transform:scaleX(-1)}
+.game.final[data-win=away] .tri-a,.game.final[data-win=home] .tri-h{visibility:visible}
 .game.final .center{min-width:100px}  /* same width for FINAL and FINAL/OT, so scores line up tile to tile */
 @media (max-width:420px){
   .game{grid-template-columns:72px 1fr auto 1fr 72px;padding:14px 4px}
   .team img{width:42px;height:42px}
   .center{padding:0 4px}
   .score{font-size:42px}.final-label{font-size:11px;line-height:13px}
+  .final-row{gap:4px}.tri svg{width:6px;height:8px}
   .game.final .center{min-width:68px}
 }
 /* Teams on bye: one outlined (not clickable) card under the week's last day */
@@ -285,6 +298,8 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
 [data-view=condensed] .score{font-size:22px}
 [data-view=condensed] .team-record{font-size:10px;line-height:11px}
 [data-view=condensed] .final-label{font-size:9px;line-height:11px}
+[data-view=condensed] .final-row{gap:4px}
+[data-view=condensed] .tri svg{width:6px;height:8px}
 [data-view=condensed] .game.final .center{min-width:60px}
 /* narrow phones: a finished tile carries abbreviation + record + score per side, so it gets
    its own sizes rather than wrapping the record onto two lines */
@@ -294,6 +309,8 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
   [data-view=condensed] .result .abbr-c{min-width:2.5em;font-size:15px}
   [data-view=condensed] .result .team-record{font-size:10px}
   [data-view=condensed] .score{font-size:20px}
+  [data-view=condensed] .final-row{gap:3px}
+  [data-view=condensed] .tri svg{width:5px;height:7px}
 }
 /* very narrow phones (iPhone SE 1st gen and similar): a finished tile still has to hold
    abbreviation + record + score on each side without pushing the helmets past the edge */
@@ -304,6 +321,8 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
   [data-view=condensed] .result .abbr-c{min-width:2.3em;font-size:13px}
   [data-view=condensed] .result .team-record{font-size:9px}
   [data-view=condensed] .score{font-size:17px}
+  [data-view=condensed] .final-row{gap:2px}
+  [data-view=condensed] .tri svg{width:4px;height:6px}
   [data-view=condensed] .stack{gap:6px;padding-left:4px;padding-right:4px}
   [data-view=condensed] .abbr{font-size:14px}
 }
@@ -436,11 +455,14 @@ def render_final_game(m):
     away, home = m.get("away") or {}, m.get("home") or {}
     a_score, h_score = away.get("score"), home.get("score")
     a_cls = h_cls = "score"
+    win = ""   # "away" | "home" | "" (tie, or no score yet)
     try:
         if float(a_score) > float(h_score):
             h_cls += " lose"
+            win = "away"
         elif float(h_score) > float(a_score):
             a_cls += " lose"
+            win = "home"
     except (TypeError, ValueError):
         pass
 
@@ -459,14 +481,18 @@ def render_final_game(m):
     final_text = "FINAL/OT" if m.get("overtime") else "FINAL"
     label = f"{'Final in overtime' if m.get('overtime') else 'Final'}: {away_name} {_score_text(a_score)}, {home_name} {_score_text(h_score)}"
     return (
-        f'<a class="game final" href="#game-{esc(m.get("game_id") or "")}" aria-label="{esc(label)}">'
+        f'<a class="game final" data-win="{win}" href="#game-{esc(m.get("game_id") or "")}" aria-label="{esc(label)}">'
         f"{team_block(away, mirrored=False)}"
         '<div class="result away">'
         f'<span class="abbr abbr-c" aria-hidden="true">{esc(away.get("team") or "TBD")}</span>'
         f'<span class="{a_cls}">{esc(_score_text(a_score))}</span>'
         f'<span class="team-record">{esc(format_record(away.get("record")))}</span>'
         "</div>"
-        f'<div class="center"><span class="final-label">{final_text}</span></div>'
+        '<div class="center"><span class="final-row">'
+        f'<span class="tri tri-a">{WIN_TRI}</span>'
+        f'<span class="final-label">{final_text}</span>'
+        f'<span class="tri tri-h">{WIN_TRI}</span>'
+        "</span></div>"
         '<div class="result home">'
         f'<span class="abbr abbr-c" aria-hidden="true">{esc(home.get("team") or "TBD")}</span>'
         f'<span class="{h_cls}">{esc(_score_text(h_score))}</span>'
