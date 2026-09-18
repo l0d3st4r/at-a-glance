@@ -249,10 +249,17 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
   grid-template-columns:34px 1fr minmax(60px,auto) 1fr 34px}
 [data-view=condensed] .game:hover,[data-view=condensed] .game:focus-visible{transform:scale(1.02)}
 [data-view=condensed] .team img{width:30px;height:30px}
+/* A helmet can never be taller than the tile holding it. The tile is its own size container,
+   so when a long week squeezes the tiles the helmets scale down with them instead of poking
+   out of the rounded edges. The fixed 30px above stays as the fallback. */
+[data-view=condensed] .game{container-type:size}
+[data-view=condensed] .team img{width:auto;height:min(30px,80cqh)}
+[data-view=condensed] .team{overflow:hidden}
 [data-view=condensed] .team .abbr{display:none}
 [data-view=condensed] .abbr-c{display:block}
 /* (2026-09-17, Jason) the abbreviation sits on the same line as the helmet and the record,
    packed against its own helmet, and a size up from the record */
+[data-view=condensed] .stack,[data-view=condensed] .result{min-width:0}
 [data-view=condensed] .stack{flex-direction:row;align-items:center;gap:8px}
 [data-view=condensed] .stack.away{justify-content:flex-start;padding-left:6px}
 [data-view=condensed] .stack.home{flex-direction:row-reverse;justify-content:flex-start;padding-right:6px}
@@ -283,6 +290,18 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
   [data-view=condensed] .result .team-record{font-size:10px}
   [data-view=condensed] .score{font-size:20px}
 }
+/* very narrow phones (iPhone SE 1st gen and similar): a finished tile still has to hold
+   abbreviation + record + score on each side without pushing the helmets past the edge */
+@media (max-width:344px){
+  [data-view=condensed] .game{grid-template-columns:30px 1fr minmax(40px,auto) 1fr 30px;padding:2px 4px}
+  [data-view=condensed] .game.final .center{min-width:40px}
+  [data-view=condensed] .result{gap:4px}
+  [data-view=condensed] .result .abbr-c{min-width:2.3em;font-size:13px}
+  [data-view=condensed] .result .team-record{font-size:9px}
+  [data-view=condensed] .score{font-size:17px}
+  [data-view=condensed] .stack{gap:6px;padding-left:4px;padding-right:4px}
+  [data-view=condensed] .abbr{font-size:14px}
+}
 /* finished tiles: abbreviation over record, with the score on the inside next to FINAL */
 [data-view=condensed] .result{flex-direction:row;align-items:center;gap:7px}
 [data-view=condensed] .result.away{justify-content:flex-start;padding-left:6px}
@@ -299,6 +318,7 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
 @media (min-width:601px){
   [data-view=condensed] .game{padding:4px 10px;border-radius:14px;grid-template-columns:44px 1fr minmax(76px,auto) 1fr 44px}
   [data-view=condensed] .team img{width:38px;height:38px}
+  [data-view=condensed] .team img{width:auto;height:min(38px,80cqh)}
   [data-view=condensed] .abbr{font-size:19px;line-height:23px}
   [data-view=condensed] .record,[data-view=condensed] .team-record{font-size:12px;line-height:14px}
   [data-view=condensed] .stack{gap:10px}
@@ -683,8 +703,12 @@ PAGE1_OVERLAY_JS = r"""
   var TILE = 'a.game[href^="#game-"]';
   var PINCH_CLOSE = 0.8;     // let go of a pinch below 80% size and Page 1 closes
   var SWIPE_COMMIT = 0.22;   // drag a quarter of the screen (or flick) to change games
-  var PULL_CLOSE = 0.18;     // pull down a fifth of the screen (or flick down) and Page 1 closes
+  var PULL_CLOSE = 0.16;     // pull down a sixth of the screen (or flick down) and Page 1 closes
   var PULL_FULL = 0.55;      // how far a pull has to go for the page to reach its smallest size
+  var PULL_FLICK = 0.5;      // px/ms downward that counts as a flick (needs PULL_MIN travel too)
+  var PULL_MIN = 70;         // a flick still has to move this far, so a nudge never closes the page
+  var PULL_BOUNCE = 64;      // Safari rubber-bands the deck instead of firing a cancelable pull;
+                             // this many px of overscroll at the top of the deck closes the page
 
   // ------------------------------------------------------------ helpers
   function idFromHash(h) { var m = (h || '').match(/^#game-(.+)$/); return m ? decodeURIComponent(m[1]) : null; }
@@ -746,6 +770,40 @@ PAGE1_OVERLAY_JS = r"""
       if (m.title) document.title = m.title;
     }
     return m;
+  }
+
+  // touch-action on the overlay follows the view: the script owns vertical gestures in the
+  // condensed view (nothing there scrolls), and the browser keeps them in the expanded one,
+  // whose deck scrolls natively. Without this, Safari treats a downward drag as a pan it owns
+  // and our touchmove is never cancelable -- the pull just doesn't happen.
+  function syncTouchAction(s) {
+    if (!s || !s.overlay || !s.root) return;
+    var p1 = s.root.querySelector('.p1');
+    s.overlay.style.touchAction = p1 && p1.getAttribute('data-view') === 'large' ? '' : 'none';
+  }
+
+  // Wire the pull-to-close helpers onto whichever page is currently mounted: called on open and
+  // again after swiping to another game.
+  function armPull(s) {
+    if (!s || !s.root) return;
+    if (s.viewWatch) { s.viewWatch.disconnect(); s.viewWatch = null; }
+    syncTouchAction(s);
+    var p1 = s.root.querySelector('.p1');
+    if (p1 && window.MutationObserver) {   // the +/- toggle lives inside the shadow root
+      s.viewWatch = new MutationObserver(function () { syncTouchAction(s); });
+      s.viewWatch.observe(p1, { attributes: true, attributeFilter: ['data-view'] });
+    }
+    // Safari answers a downward drag at the top of the deck by rubber-banding it, which makes our
+    // touchmove non-cancelable. That overscroll shows up as a negative scrollTop, so a deep enough
+    // bounce counts as the same gesture. Chrome doesn't overscroll inner scrollers, so there the
+    // touch handler below is what runs.
+    var dk = s.root.querySelector('.deck');
+    if (dk) dk.addEventListener('scroll', function () {
+      if (state !== s || s.closing || !s.touching || dk.scrollTop > -PULL_BOUNCE) return;
+      s.pinchScale = 1;
+      s.pinchRect = s.host.getBoundingClientRect();
+      requestClose();
+    }, { passive: true });
   }
   function tileParts(tile) {  // pieces of a Page 0 tile that travel to Page 1's top bar
     var out = {}, teams = tile.querySelectorAll('.team'), scores = tile.querySelectorAll('.score');
@@ -850,6 +908,7 @@ PAGE1_OVERLAY_JS = r"""
       if (state !== s || s.closing) throw 0;
       var m = mount(s, text, { hidden: true });
       s.host = m.host; s.root = m.root; s.inst = m.inst;
+      armPull(s);
       // 2 · helmets, abbreviations (and final scores) fly from the tile up into Page 1's top bar
       var targets = headerParts(m.root);
       s.landInCard = !!(targets.img0 && targets.img0.closest('.hero'));
@@ -895,6 +954,7 @@ PAGE1_OVERLAY_JS = r"""
   function close() {
     if (!state || state.closing) return;
     var s = state; s.closing = true;
+    if (s.viewWatch) { s.viewWatch.disconnect(); s.viewWatch = null; }
     s.extras.forEach(function (el) { el.remove(); });
     if (s.inst) s.inst.destroy();
     var tile = tileFor(s.id);
@@ -1002,6 +1062,7 @@ PAGE1_OVERLAY_JS = r"""
         all(slots).forEach(function (el) { el.classList.remove('active', 'below', 'above'); });
         s.host = n.host; s.root = n.root; s.id = nid; s.swipeHost = null;
         s.inst = window.AAG_P1.init(n.root, { onBack: requestClose, view: view, card: card });
+        armPull(s);
         if (n.title) document.title = n.title;
         history.replaceState(s.pushed ? { p1: nid } : null, '', '#game-' + encodeURIComponent(nid));
         load(neighborId(nid, dir)).catch(function () {});
@@ -1056,6 +1117,7 @@ PAGE1_OVERLAY_JS = r"""
       } else if (e.touches.length === 1) {
         mode = 'pending'; x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0; dy = 0; t0 = Date.now();
         canPull = atScrollTop(e);
+        s.touching = true;   // a bounce only counts as a pull while a finger is down
       }
     }, { passive: true });
 
@@ -1103,6 +1165,7 @@ PAGE1_OVERLAY_JS = r"""
 
     function release(e) {
       var s = state;
+      if (s) s.touching = !!(e.touches && e.touches.length);
       if (!s || !mode) return;
       if (mode === 'pinch') {
         if (e.touches && e.touches.length >= 2) return;
@@ -1124,7 +1187,7 @@ PAGE1_OVERLAY_JS = r"""
         if (e.touches && e.touches.length) return;
         mode = null;
         var pv = dy / Math.max(1, Date.now() - t0);
-        if (!s.closing && (dy > innerHeight * PULL_CLOSE || pv > 0.5)) {
+        if (!s.closing && (dy > innerHeight * PULL_CLOSE || (pv > PULL_FLICK && dy > PULL_MIN))) {
           s.pinchScale = (s.host.getBoundingClientRect().width || innerWidth) / innerWidth;
           s.pinchRect = s.host.getBoundingClientRect();
           clearPinchLook(s);
