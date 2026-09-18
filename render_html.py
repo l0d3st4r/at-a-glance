@@ -194,10 +194,11 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
   padding:16px 8px;color:inherit;text-decoration:none;
   background:var(--tile);border:1px solid var(--tile-border);border-radius:20px;
   transition:transform .16s ease,background-color .16s ease,border-color .16s ease}
-.game:hover,.game:focus-visible{transform:scale(1.03);background:var(--tile-hover);border-color:var(--tile-border-hover)}
+/* (2026-09-17, Jason) hover/press scales the tile and brightens its outline -- no fill */
+.game:hover,.game:focus-visible{transform:scale(1.03);border-color:var(--tile-border-hover)}
 .game:focus-visible{outline:2px solid #000;outline-offset:2px}
 .game.placeholder{color:var(--text-2)}
-.game.placeholder:hover{transform:none;background:var(--tile);border-color:var(--tile-border)}
+.game.placeholder:hover{transform:none;border-color:var(--tile-border)}
 /* no prefers-reduced-motion override: motion always plays (Jason, 2026-09-17) */
 .team{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
 .team img{width:48px;height:48px;display:block}
@@ -312,12 +313,12 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
 .empty{text-align:center;padding:40px 0;color:var(--text-2);font-size:16px}
 /* Page 1 opens on top of Page 0 (see PAGE1_OVERLAY_JS): tapping a tile zooms into it, its helmets,
    abbreviations and scores fly up into Page 1's top bar, then Page 1's cards come in. Page 1's own
-   styles live inside a shadow root on .p1-host. Swipe sideways for the week's other games; pinch in
-   to minimize back into the tile. */
+   styles live inside a shadow root on .p1-host. Swipe sideways for the week's other games; swipe
+   down from the top, or pinch in, to minimize back into the tile. */
 .p1-overlay{position:fixed;z-index:100;box-sizing:border-box;background:var(--tile);
   border:1px solid var(--tile-border);border-radius:20px;overflow:hidden}
 .p1-overlay.is-open{inset:0;border-radius:0;border-color:transparent;
-  touch-action:pan-y}  /* sideways swipes and two-finger pinches are handled by the script */
+  touch-action:pan-y}  /* sideways swipes, pull-down-to-close and two-finger pinches are handled by the script */
 .p1-host{position:absolute;inset:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;background:#fff}
 .p1-shell{position:fixed;box-sizing:border-box;background:var(--tile);border:1px solid var(--tile-border);border-radius:20px;pointer-events:none}
 html.p1-open{overflow:hidden}
@@ -682,6 +683,8 @@ PAGE1_OVERLAY_JS = r"""
   var TILE = 'a.game[href^="#game-"]';
   var PINCH_CLOSE = 0.8;     // let go of a pinch below 80% size and Page 1 closes
   var SWIPE_COMMIT = 0.22;   // drag a quarter of the screen (or flick) to change games
+  var PULL_CLOSE = 0.18;     // pull down a fifth of the screen (or flick down) and Page 1 closes
+  var PULL_FULL = 0.55;      // how far a pull has to go for the page to reach its smallest size
 
   // ------------------------------------------------------------ helpers
   function idFromHash(h) { var m = (h || '').match(/^#game-(.+)$/); return m ? decodeURIComponent(m[1]) : null; }
@@ -951,12 +954,23 @@ PAGE1_OVERLAY_JS = r"""
     });
   }
 
-  // ------------------------------------------------------------ gestures: pinch in to close, swipe to change games
+  // ------------------------------------------------------------ gestures: pull down or pinch in to close, swipe sideways to change games
   function dist(t) { return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY); }
 
   function setPinch(s, scale) {
     var h = s.host;
     h.style.transform = 'scale(' + scale + ')';
+    h.style.borderRadius = (20 / scale) + 'px';
+    h.style.overflow = 'hidden';
+    h.style.boxShadow = '0 0 0 ' + (1 / scale) + 'px rgba(0,0,0,.12)';
+    s.overlay.style.background = 'transparent';
+  }
+  // Pull down to close: same shrinking-card look as a pinch, but travelling down the screen,
+  // so the release can hand straight over to minimize() through pinchScale/pinchRect.
+  function setPull(s, dy, scale) {
+    var h = s.host;
+    h.style.transformOrigin = '50% 50%';
+    h.style.transform = 'translateY(' + dy + 'px) scale(' + scale + ')';
     h.style.borderRadius = (20 / scale) + 'px';
     h.style.overflow = 'hidden';
     h.style.boxShadow = '0 0 0 ' + (1 / scale) + 'px rgba(0,0,0,.12)';
@@ -996,13 +1010,39 @@ PAGE1_OVERLAY_JS = r"""
     }).catch(function () { return false; }).then(function (ok) { s.busy = false; return ok; });
   }
 
+  // Is everything under the finger already scrolled to the top? Only then does a downward
+  // drag mean "close" rather than "scroll".
+  function scrolledDown(n) {
+    if (!n || n.nodeType !== 1 || n.scrollHeight <= n.clientHeight + 1) return false;
+    var oy = getComputedStyle(n).overflowY;
+    return (oy === 'auto' || oy === 'scroll') && n.scrollTop > 1;
+  }
+  function atScrollTop(e) {
+    var s = state;
+    // Page 1's own scrollers: the expanded card deck, and the condensed view on short phones
+    // (it has a min-height, so it can overflow). Checked directly, because a touch that starts
+    // on the host rather than a shadow node wouldn't show them in the path.
+    if (s && s.root) {
+      var scrollers = s.root.querySelectorAll('.deck, .view-c, .p1');
+      for (var j = 0; j < scrollers.length; j++) if (scrolledDown(scrollers[j])) return false;
+    }
+    if (s && s.host && scrolledDown(s.host)) return false;
+    var path = e.composedPath ? e.composedPath() : [];
+    for (var i = 0; i < path.length; i++) {
+      var n = path[i];
+      if (scrolledDown(n)) return false;
+      if (n === document.body) break;
+    }
+    return true;
+  }
+
   function attachGestures(overlay) {
-    var mode = null, x0 = 0, y0 = 0, dx = 0, t0 = 0, d0 = 0, scale = 1;
+    var mode = null, x0 = 0, y0 = 0, dx = 0, dy = 0, t0 = 0, d0 = 0, scale = 1, canPull = false;
     overlay.addEventListener('touchstart', function (e) {
       var s = state;
       if (!s || s.closing || s.busy || !s.inst) return;
       if (e.touches.length === 2) {
-        if (mode === 'swipe') return;
+        if (mode === 'swipe' || mode === 'pull') return;
         mode = 'pinch'; d0 = dist(e.touches); scale = 1;
         var tile = tileFor(s.id);
         if (tile && !visibleRect(tile)) {
@@ -1014,7 +1054,8 @@ PAGE1_OVERLAY_JS = r"""
         s.host.style.transformOrigin = tr ? (tr.left + tr.width / 2) + 'px ' + (tr.top + tr.height / 2) + 'px'
           : ((e.touches[0].clientX + e.touches[1].clientX) / 2) + 'px ' + ((e.touches[0].clientY + e.touches[1].clientY) / 2) + 'px';
       } else if (e.touches.length === 1) {
-        mode = 'pending'; x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0; t0 = Date.now();
+        mode = 'pending'; x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0; dy = 0; t0 = Date.now();
+        canPull = atScrollTop(e);
       }
     }, { passive: true });
 
@@ -1032,8 +1073,17 @@ PAGE1_OVERLAY_JS = r"""
       var mx = e.touches[0].clientX - x0, my = e.touches[0].clientY - y0;
       if (mode === 'pending') {
         if (Math.abs(mx) > 10 && Math.abs(mx) > Math.abs(my) * 1.2) mode = 'swipe';
+        // pulling down from the top closes the page; anything else vertical is a normal scroll
+        else if (my > 10 && my > Math.abs(mx) * 1.2 && canPull) { mode = 'pull'; t0 = Date.now(); }
         else if (Math.abs(my) > 10) { mode = null; return; }
         else return;
+      }
+      if (mode === 'pull') {
+        if (e.cancelable) e.preventDefault();   // if the browser already claimed the gesture, just follow it
+        dy = Math.max(0, my);
+        var pp = Math.min(1, dy / (innerHeight * PULL_FULL));
+        setPull(s, dy * 0.55, 1 - 0.25 * pp);
+        return;
       }
       e.preventDefault();
       var dir = mx < 0 ? 1 : -1, nid = neighborId(s.id, dir), w = innerWidth;
@@ -1067,6 +1117,23 @@ PAGE1_OVERLAY_JS = r"""
         var from = s.host.style.transform || 'none';
         var back = reduce.matches ? null : s.host.animate([{ transform: from }, { transform: 'none' }], { duration: 180, easing: EASE });
         done(back).then(function () { if (state === s && !s.closing) clearPinch(s); });
+        s.host.style.transform = '';
+        return;
+      }
+      if (mode === 'pull') {
+        if (e.touches && e.touches.length) return;
+        mode = null;
+        var pv = dy / Math.max(1, Date.now() - t0);
+        if (!s.closing && (dy > innerHeight * PULL_CLOSE || pv > 0.5)) {
+          s.pinchScale = (s.host.getBoundingClientRect().width || innerWidth) / innerWidth;
+          s.pinchRect = s.host.getBoundingClientRect();
+          clearPinchLook(s);
+          requestClose();
+          return;
+        }
+        var back0 = s.host.style.transform || 'none';
+        var springs = reduce.matches ? null : s.host.animate([{ transform: back0 }, { transform: 'none' }], { duration: 200, easing: EASE });
+        done(springs).then(function () { if (state === s && !s.closing) clearPinch(s); });
         s.host.style.transform = '';
         return;
       }

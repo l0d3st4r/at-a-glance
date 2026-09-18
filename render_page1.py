@@ -814,7 +814,7 @@ a.card:focus-visible{outline:2px solid #000;outline-offset:2px}
    height from the other two. Was .74 / 1.3 / 1.38. */
 .view-c{max-width:var(--col);margin:0 auto;height:100dvh;min-height:720px;padding:calc(var(--bar) + 12px) 16px calc(var(--bbar) + 12px);gap:12px;
   grid-template-rows:minmax(0,.62fr) minmax(0,1.18fr) minmax(0,1.62fr)}
-.view-c a.card:hover,.view-c a.card:focus-visible{transform:scale(1.03);background:var(--tile-hover);border-color:var(--tile-border-hover);z-index:1}
+.view-c a.card:hover,.view-c a.card:focus-visible{transform:scale(1.03);border-color:var(--tile-border-hover);z-index:1}
 
 /* Game info: content pulled in from the edges, centered vertically */
 a.card.c-game{padding:var(--ctitle) clamp(22px,7%,32px) 4px;display:flex;flex-direction:column;justify-content:center;gap:clamp(4px,1vh,14px);overflow:hidden}
@@ -846,8 +846,12 @@ a.card.c-team{padding:var(--ctitle) 10px clamp(8px,1.4vh,14px);display:flex;flex
 .trend{flex:none;display:block}
 .t-w{color:var(--win)} .t-l{color:var(--loss)} .t-t{color:var(--tie)}
 .rc-hit.t-w,.rc-hit.t-l,.rc-hit.t-t{font:inherit}
-.c-inj{font-size:12px;line-height:1.28;max-width:100%}
-.c-inj li{justify-content:center}
+/* (2026-09-17, Jason) the rows line up the same way as the expanded card's .l-inj:
+   name on the left, designation on the right, spread apart instead of centered together */
+.c-inj{font-size:12px;line-height:1.28;width:min(100%,220px)}
+.c-inj li{justify-content:space-between;align-items:baseline;gap:10px}
+.c-inj .inj-name{overflow:hidden;text-overflow:ellipsis}
+.c-inj .inj-none{justify-content:center}
 /* (2026-09-17, Jason) the names were 700 like the rank headings below them; Regular separates
    the two and buys back a few pixels of height */
 .c-inj .inj-name{font-weight:400}
@@ -884,7 +888,7 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .slot a.card{height:100%;overflow:hidden;transition:transform .2s cubic-bezier(.22,1,.36,1),border-color .15s,background-color .15s}
 .body{height:100%;display:flex;flex-direction:column;transition:opacity .15s}
 .slot.active a.card{transition:transform .16s,background-color .16s,border-color .16s}
-.slot.active a.card:hover,.slot.active a.card:focus-visible{transform:scale(1.03);background:var(--tile-hover);border-color:var(--tile-border-hover)}
+.slot.active a.card:hover,.slot.active a.card:focus-visible{transform:scale(1.03);border-color:var(--tile-border-hover)}
 .slot:not(.active) a.card{border-color:var(--tile-border-soft);transform:scale(.96)}
 .slot:not(.active) .body{opacity:0}
 .peek{position:absolute;left:0;right:0;height:calc(var(--peek) - 1px);display:flex;align-items:center;justify-content:center;gap:7px;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-2);opacity:0;transition:opacity .15s;pointer-events:none}
@@ -893,7 +897,7 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 /* the card in the middle keeps its name at the top, where its sliver showed it (no arrow) */
 .slot.active .peek-top{opacity:1}
 .slot.active .peek-top svg{display:none}
-.slot.below a.card:hover,.slot.above a.card:hover{border-color:var(--tile-border-hover);background:var(--tile-hover)}
+.slot.below a.card:hover,.slot.above a.card:hover{border-color:var(--tile-border-hover)}
 .slot.below a.card:hover .peek,.slot.above a.card:hover .peek{color:#000}
 .dots{display:none;position:fixed;right:calc(max(16px,(100vw - var(--col)) / 2 + 16px) / 2 - 3px);top:calc(var(--bar) + (100% - var(--bar) - var(--bbar)) / 2);transform:translateY(-50%);z-index:10}
 .dots{flex-direction:column;align-items:center;gap:8px}
