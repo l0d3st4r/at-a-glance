@@ -441,6 +441,7 @@ def render_standalone(d):
         f"<title>{esc(title)}</title>"
         "<link rel='preconnect' href='https://fonts.googleapis.com'><link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>"
         "<link href='https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;700;900&display=swap' rel='stylesheet'>"
+        "<link href='https://fonts.googleapis.com/css2?family=Saira:ital,wdth,wght@1,50..125,400..900&family=Teko:wght@400..700&display=swap' rel='stylesheet'>"
         f"<style id='p1-css'>{P1_CSS}</style><style>html,body{{margin:0;background:#fff}}</style></head><body>"
         f"{render_p1_block(d)}"
         f"<script>{P1_JS}</script><script>AAG_P1.init(document);</script>"
@@ -750,7 +751,10 @@ P1_CSS = r"""
 .view{display:none}
 .p1[data-view=condensed] .view-c{display:grid}
 .p1[data-view=large] .view-l,.p1[data-view=large] .dots{display:block}
-.abbr{font-weight:700;line-height:1}
+/* Team abbreviations: Saira italic, width 95, weight 800, 20 tracking (Jason, 2026-09-18) --
+   matches Page 0. The "‹ Week N" pill, records, times and every label stay Inter. */
+.abbr{line-height:1;font-family:Saira,Inter,system-ui,sans-serif;font-weight:800;font-style:italic;
+  font-variation-settings:'wdth' 95;letter-spacing:.02em}
 a.card{position:relative;display:block;color:inherit;text-decoration:none;background:var(--tile);border:1px solid var(--tile-border);border-radius:20px;
   transition:transform .16s,background-color .16s,border-color .16s}
 a.card:focus-visible{outline:2px solid #000;outline-offset:2px}
@@ -959,8 +963,10 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .rank-col{display:flex;flex-direction:column;align-items:center;gap:12px}
 .rank-col h3{font-size:24px;font-weight:700;line-height:1.2}
 .rank{display:grid;grid-template-columns:auto auto;grid-template-rows:auto auto;column-gap:3px;align-items:start;width:112px}
-.rank-n{grid-row:1/3;font-size:44px;font-weight:900;line-height:1;text-align:right;min-width:52px}
-.rank-sfx{font-size:16px;font-weight:900;line-height:1;padding-top:3px}
+/* Ranks are stats -> Teko (Jason, 2026-09-18); the PTS/YDS labels stay Inter. */
+.rank-n{grid-row:1/3;font-size:44px;line-height:1;text-align:right;min-width:52px;
+  font-family:Teko,Inter,system-ui,sans-serif;font-weight:700}
+.rank-sfx{font-size:16px;line-height:1;padding-top:3px;font-family:Teko,Inter,system-ui,sans-serif;font-weight:700}
 .rank-lbl{font-size:12px;font-weight:300;line-height:1;align-self:end;padding-bottom:4px;letter-spacing:.02em}
 
 .compare .body{padding:46px 0 20px;justify-content:space-evenly;align-items:center}
@@ -972,7 +978,8 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .c-cmp .pill{width:36px;height:9px}
 .c-cmp .cmp-head{padding-bottom:4px}
 .ldr{text-align:center;min-width:0}
-.ldr-v{font-size:20px;font-weight:700;line-height:1.2}
+/* Leader values are stats -> Teko; the player names under them stay Inter. */
+.ldr-v{font-size:20px;line-height:1.2;font-family:Teko,Inter,system-ui,sans-serif;font-weight:700}
 .compare .ldr-v{position:relative;display:inline-block;font-size:clamp(28px,8.2vw,36px);line-height:1.05}
 .compare .ldr-v .crown{width:20px;height:16px;transform:translate(5px,-64%)}
 /* home column: crown in front of the number, so crowns sit toward the middle of the chart */
@@ -990,7 +997,8 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 /* no prefers-reduced-motion override: motion always plays (Jason, 2026-09-17) */
 /* ===== Production additions (not in the preview) ===== */
 /* Finished games: final score sits in the header next to each abbreviation */
-.teams .hscore{font-size:1em;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.01em;padding:0 .1em}
+.teams .hscore{font-size:1em;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.01em;padding:0 .1em;
+  font-family:Teko,Inter,system-ui,sans-serif;font-weight:700}   /* final score in the header -> Teko */
 .teams .hscore.lose{opacity:.3}
 a.card{cursor:pointer}
 /* condensed cards: name at the top center, same type as the expanded slivers */

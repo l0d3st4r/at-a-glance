@@ -202,7 +202,10 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
 /* no prefers-reduced-motion override: motion always plays (Jason, 2026-09-17) */
 .team{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
 .team img{width:48px;height:48px;display:block}
-.abbr{font-size:20px;font-weight:700;line-height:24px}
+/* Team abbreviations: Saira italic, width 95, weight 800, 20 tracking (Jason, 2026-09-18).
+   Everything else on the page stays Inter -- records, kickoff times, the week picker, day headers. */
+.abbr{font-size:20px;line-height:24px;font-family:Saira,Inter,system-ui,sans-serif;font-weight:800;
+  font-style:italic;font-variation-settings:'wdth' 95;letter-spacing:.02em}
 .stack{display:flex;flex-direction:column;align-items:center;min-width:0}
 .abbr-c{display:none}   /* the condensed view's copy of the abbreviation, over the record */
 .record{font-size:16px;font-weight:400;line-height:19px;color:var(--text-2);text-align:center}  /* vertically centered in the tile */
@@ -213,7 +216,9 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
 /* Finished games */
 .result{display:flex;flex-direction:column;align-items:center;gap:4px}
 .team-record{font-size:16px;font-weight:400;line-height:19px;color:var(--text-2)}
-.score{font-size:60px;font-weight:900;line-height:1;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+/* Final scores: Teko (Jason, 2026-09-18). Records and kickoff times deliberately stay Inter. */
+.score{font-size:60px;line-height:1;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:-.02em;
+  font-family:Teko,Inter,system-ui,sans-serif;font-weight:700}
 .score.lose{opacity:.3}
 .final-label{font-size:16px;font-weight:700;line-height:19px;letter-spacing:.04em;white-space:nowrap}
 .game.final .center{min-width:100px}  /* same width for FINAL and FINAL/OT, so scores line up tile to tile */
@@ -1288,6 +1293,9 @@ def render_page0(data):
         "<link rel='preconnect' href='https://fonts.googleapis.com'>"
         "<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>"
         "<link href='https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;700;900&display=swap' rel='stylesheet'>"
+        # Saira (italic) for the team abbreviations, Teko for scores and stats. Kept on their
+        # own link so a bad request here can never take Inter down with it.
+        "<link href='https://fonts.googleapis.com/css2?family=Saira:ital,wdth,wght@1,50..125,400..900&family=Teko:wght@400..700&display=swap' rel='stylesheet'>"
         f"<style>{PAGE0_CSS}</style></head><body data-view='expanded'>"
         f"<main class='track' id='track'>{panels}</main>"
         "<nav class='bottombar' aria-label='Week'>"
