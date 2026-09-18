@@ -170,9 +170,10 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
 .toggle:hover{transform:scale(1.18)}
 .toggle:active{transform:scale(1.30)}
 .toggle:focus-visible{outline:2px solid #000;outline-offset:2px;border-radius:50%}
-.toggle .i-minus{display:none}
-[data-view=condensed] .toggle .i-plus{display:none}
-[data-view=condensed] .toggle .i-minus{display:block}
+.toggle .i-plus{display:none}
+.toggle .i-minus{display:block}
+[data-view=condensed] .toggle .i-minus{display:none}
+[data-view=condensed] .toggle .i-plus{display:block}
 .week-picker{position:relative;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;
   font-size:16px;font-weight:400;line-height:19px;cursor:pointer;transition:background-color .16s ease}
 .week-picker:hover{background:rgba(0,0,0,.05)}
@@ -249,8 +250,21 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
 [data-view=condensed] .team img{width:30px;height:30px}
 [data-view=condensed] .team .abbr{display:none}
 [data-view=condensed] .abbr-c{display:block}
-[data-view=condensed] .abbr{font-size:12px;line-height:14px}
-[data-view=condensed] .record{font-size:10px;line-height:11px}
+/* (2026-09-17, Jason) the abbreviation sits on the same line as the helmet and the record,
+   packed against its own helmet, and a size up from the record */
+[data-view=condensed] .stack{flex-direction:row;align-items:center;gap:8px}
+[data-view=condensed] .stack.away{justify-content:flex-start;padding-left:6px}
+[data-view=condensed] .stack.home{flex-direction:row-reverse;justify-content:flex-start;padding-right:6px}
+[data-view=condensed] .abbr{font-size:16px;line-height:19px}
+/* a fixed width for the abbreviation keeps it flush to its helmet while the records still
+   line up tile to tile, whether the abbreviation is 2 or 3 letters (GB vs WAS) */
+[data-view=condensed] .abbr-c{min-width:2.7em}
+[data-view=condensed] .stack.away .abbr-c{text-align:left}
+[data-view=condensed] .stack.home .abbr-c{text-align:right}
+[data-view=condensed] .result.away .abbr-c{text-align:left}
+[data-view=condensed] .result.home .abbr-c{text-align:right}
+[data-view=condensed] .record{font-size:11px;line-height:13px;white-space:nowrap}
+[data-view=condensed] .team-record{white-space:nowrap}
 [data-view=condensed] .time{font-size:13px;line-height:15px;margin-top:0}
 [data-view=condensed] .tz{font-size:8px;margin-left:2px}
 [data-view=condensed] .network{display:none}          /* coverage is cut */
@@ -259,13 +273,22 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
 [data-view=condensed] .team-record{font-size:10px;line-height:11px}
 [data-view=condensed] .final-label{font-size:9px;line-height:11px}
 [data-view=condensed] .game.final .center{min-width:60px}
+/* narrow phones: a finished tile carries abbreviation + record + score per side, so it gets
+   its own sizes rather than wrapping the record onto two lines */
+@media (max-width:400px){
+  [data-view=condensed] .game.final .center{min-width:48px}
+  [data-view=condensed] .result{gap:5px}
+  [data-view=condensed] .result .abbr-c{min-width:2.5em;font-size:15px}
+  [data-view=condensed] .result .team-record{font-size:10px}
+  [data-view=condensed] .score{font-size:20px}
+}
 /* finished tiles: abbreviation over record, with the score on the inside next to FINAL */
-[data-view=condensed] .result{display:grid;grid-template-columns:auto auto;align-items:center;justify-items:center;gap:0 6px}
-[data-view=condensed] .result.away{grid-template-areas:"abbr score" "rec score"}
-[data-view=condensed] .result.home{grid-template-areas:"score abbr" "score rec"}
-[data-view=condensed] .result .abbr-c{grid-area:abbr}
-[data-view=condensed] .result .team-record{grid-area:rec}
-[data-view=condensed] .result .score{grid-area:score}
+[data-view=condensed] .result{flex-direction:row;align-items:center;gap:7px}
+[data-view=condensed] .result.away{justify-content:flex-start;padding-left:6px}
+[data-view=condensed] .result.home{flex-direction:row-reverse;justify-content:flex-start;padding-right:6px}
+[data-view=condensed] .result .abbr-c{order:1}
+[data-view=condensed] .result .team-record{order:2}
+[data-view=condensed] .result .score{order:3}
 /* teams on bye: one compact row that keeps its own height */
 [data-view=condensed] .byes{display:contents}
 [data-view=condensed] .bye-list{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 10px;padding:6px 8px;border-radius:12px;flex:none}
@@ -275,8 +298,10 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
 @media (min-width:601px){
   [data-view=condensed] .game{padding:4px 10px;border-radius:14px;grid-template-columns:44px 1fr minmax(76px,auto) 1fr 44px}
   [data-view=condensed] .team img{width:38px;height:38px}
-  [data-view=condensed] .abbr{font-size:14px;line-height:17px}
-  [data-view=condensed] .record,[data-view=condensed] .team-record{font-size:11px;line-height:13px}
+  [data-view=condensed] .abbr{font-size:19px;line-height:23px}
+  [data-view=condensed] .record,[data-view=condensed] .team-record{font-size:12px;line-height:14px}
+  [data-view=condensed] .stack{gap:10px}
+  [data-view=condensed] .result{gap:9px}
   [data-view=condensed] .time{font-size:15px;line-height:18px}
   [data-view=condensed] .score{font-size:26px}
   [data-view=condensed] .final-label{font-size:11px;line-height:13px}
@@ -317,14 +342,16 @@ def render_team(snapshot, mirrored):
     )
 
 
-def render_stack(team, record):
+def render_stack(team, record, side):
     """
-    The record column. The condensed view sets the abbreviation over the record to save a
-    row of height, so both placements are in the markup and CSS shows one of them:
-    .team .abbr under the helmet (expanded), .abbr-c over the record (condensed).
+    The record column. The condensed view moves the abbreviation off the helmet and sets it
+    on the same line as the helmet and the record, packed against its own helmet, so both
+    placements are in the markup and CSS shows one of them: .team .abbr under the helmet
+    (expanded), .abbr-c beside the record (condensed). `side` is "away" or "home" -- it flips
+    the row so each abbreviation sits next to its own helmet.
     """
     return (
-        '<span class="stack">'
+        f'<span class="stack {side}">'
         f'<span class="abbr abbr-c" aria-hidden="true">{esc(team or "TBD")}</span>'
         f'<span class="record">{esc(record)}</span>'
         "</span>"
@@ -338,10 +365,10 @@ def render_game(m):
         return (
             '<div class="game placeholder" aria-label="Matchup to be determined">'
             f"{render_team(None, mirrored=False)}"
-            f"{render_stack(None, '')}"
+            f"{render_stack(None, '', 'away')}"
             '<div class="center"><span class="time">TBD</span>'
             f'<span class="network">{esc(format_network(None))}</span></div>'
-            f"{render_stack(None, '')}"
+            f"{render_stack(None, '', 'home')}"
             f"{render_team(None, mirrored=True)}"
             "</div>"
         )
@@ -356,12 +383,12 @@ def render_game(m):
     return (
         f'<a class="game" href="#game-{esc(m.get("game_id") or "")}" aria-label="{esc(label)}">'
         f"{render_team(away, mirrored=False)}"
-        f"{render_stack(away.get('team'), format_record(away.get('record')))}"
+        f"{render_stack(away.get('team'), format_record(away.get('record')), 'away')}"
         '<div class="center">'
         f'<span class="time">{time_html(time_text)}</span>'
         f'<span class="network">{esc(network)}</span>'
         "</div>"
-        f"{render_stack(home.get('team'), format_record(home.get('record')))}"
+        f"{render_stack(home.get('team'), format_record(home.get('record')), 'home')}"
         f"{render_team(home, mirrored=True)}"
         "</a>"
     )

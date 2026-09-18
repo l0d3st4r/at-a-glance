@@ -810,18 +810,20 @@ a.card:focus-visible{outline:2px solid #000;outline-offset:2px}
 .p1[data-view=large] .toggle .i-minus{display:block}
 
 /* ===== Condensed view: everything on one screen ===== */
+/* Row heights (2026-09-17, Jason): the comparison card is the one worth reading, so it takes
+   height from the other two. Was .74 / 1.3 / 1.38. */
 .view-c{max-width:var(--col);margin:0 auto;height:100dvh;min-height:720px;padding:calc(var(--bar) + 12px) 16px calc(var(--bbar) + 12px);gap:12px;
-  grid-template-rows:minmax(0,.74fr) minmax(0,1.3fr) minmax(0,1.38fr)}
+  grid-template-rows:minmax(0,.62fr) minmax(0,1.18fr) minmax(0,1.62fr)}
 .view-c a.card:hover,.view-c a.card:focus-visible{transform:scale(1.03);background:var(--tile-hover);border-color:var(--tile-border-hover);z-index:1}
 
 /* Game info: content pulled in from the edges, centered vertically */
-a.card.c-game{padding:var(--ctitle) clamp(22px,7%,32px) 6px;display:flex;flex-direction:column;justify-content:center;gap:clamp(10px,1.6vh,20px);overflow:hidden}
-.c-game .time{font-size:clamp(32px,4.6vh,46px)} .c-game .time small{font-size:13px}
-.c-game .date{font-size:clamp(18px,2.6vh,25px);margin-top:3px}
-.c-game .network{font-size:13px;margin-top:8px}
-.c-game .city{font-size:14px;padding-left:0}
-.c-game .temp{font-size:clamp(26px,3.8vh,32px)}
-.c-game .weather{gap:8px} .c-game .weather svg{width:36px;height:27px}
+a.card.c-game{padding:var(--ctitle) clamp(22px,7%,32px) 4px;display:flex;flex-direction:column;justify-content:center;gap:clamp(4px,1vh,14px);overflow:hidden}
+.c-game .time{font-size:clamp(25px,3.7vh,40px)} .c-game .time small{font-size:12px}
+.c-game .date{font-size:clamp(14px,2.1vh,22px);margin-top:2px}
+.c-game .network{font-size:12px;margin-top:6px}
+.c-game .city{font-size:13px;padding-left:0}
+.c-game .temp{font-size:clamp(20px,3vh,28px)}
+.c-game .weather{gap:7px} .c-game .weather svg{width:32px;height:24px}
 
 /* Team cards: centered column — trend + record, 3 injuries, spaced ranks */
 .c-teams{display:grid;grid-template-columns:1fr 1fr;gap:12px;min-height:0}
@@ -829,23 +831,26 @@ a.card.c-team{padding:var(--ctitle) 10px clamp(8px,1.4vh,14px);display:flex;flex
 /* helmet + abbreviation left, last-game arrow + record right -- same as the expanded card (2026-09-17) */
 .c-team .l-top{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:0 2px}
 .c-team .l-id{gap:1px}
-.c-team .l-id img{width:clamp(28px,4.2vh,40px);height:clamp(28px,4.2vh,40px);display:block}
+.c-team .l-id img{width:clamp(26px,3.7vh,36px);height:clamp(26px,3.7vh,36px);display:block}
 .c-team .l-id .abbr{font-size:12px}
 .c-team .l-rec{gap:6px;min-width:0}
 .c-team .streak{gap:1px}
 .c-team .streak b{font-size:clamp(12px,1.7vh,15px)}
 .c-team .streak .trend{width:12px;height:8px}
-.c-team .l-top{padding-top:10px;padding-bottom:8px}
+.c-team .l-top{padding-top:6px;padding-bottom:5px}
 .c-team .record{font-weight:900;line-height:1;letter-spacing:-.01em;white-space:nowrap;
-  font-size:clamp(28px,4.4vh,42px);font-size:min(clamp(28px,4.4vh,42px),calc((100cqi - 92px) / 1.8))}
-.c-team .record.rec-4{font-size:30px;font-size:min(clamp(24px,4vh,38px),calc((100cqi - 92px) / 2.4))}
-.c-team .record.rec-5{font-size:26px;font-size:min(clamp(22px,3.6vh,34px),calc((100cqi - 92px) / 2.85))}
-.c-team .record.rec-6{font-size:22px;font-size:min(clamp(20px,3.2vh,30px),calc((100cqi - 92px) / 3.5))}
+  font-size:clamp(26px,3.9vh,38px);font-size:min(clamp(26px,3.9vh,38px),calc((100cqi - 92px) / 1.8))}
+.c-team .record.rec-4{font-size:28px;font-size:min(clamp(22px,3.5vh,34px),calc((100cqi - 92px) / 2.4))}
+.c-team .record.rec-5{font-size:24px;font-size:min(clamp(20px,3.2vh,31px),calc((100cqi - 92px) / 2.85))}
+.c-team .record.rec-6{font-size:20px;font-size:min(clamp(18px,2.9vh,27px),calc((100cqi - 92px) / 3.5))}
 .trend{flex:none;display:block}
 .t-w{color:var(--win)} .t-l{color:var(--loss)} .t-t{color:var(--tie)}
 .rc-hit.t-w,.rc-hit.t-l,.rc-hit.t-t{font:inherit}
-.c-inj{font-size:12px;line-height:1.45;max-width:100%}
+.c-inj{font-size:12px;line-height:1.28;max-width:100%}
 .c-inj li{justify-content:center}
+/* (2026-09-17, Jason) the names were 700 like the rank headings below them; Regular separates
+   the two and buys back a few pixels of height */
+.c-inj .inj-name{font-weight:400}
 /* condensed ranks use the expanded layout: ordinal top-right of the number, PTS/YDS under it */
 .c-team .ranks{column-gap:clamp(12px,4cqi,26px)}
 .c-team .rank-col{gap:clamp(2px,.7vh,7px)}
@@ -856,8 +861,13 @@ a.card.c-team{padding:var(--ctitle) 10px clamp(8px,1.4vh,14px);display:flex;flex
 .c-team .rank-lbl{font-size:9px;padding-bottom:2px;letter-spacing:.05em}
 
 /* Leaders: bigger numbers, columns pulled toward the center, league-rank crowns */
-a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(--ctitle) 0 clamp(8px,1.4vh,14px);overflow:hidden}
-.c-cmp-in{width:84%;height:100%;display:flex;flex-direction:column;justify-content:space-evenly}
+/* (2026-09-17, Jason) taller card, and the extra height goes into the gaps between rows --
+   no new elements, same number sizes. Each row is its own flex item so space-between can
+   spread them; the name still hugs its own stat (v15). */
+a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(--ctitle) 0 clamp(10px,1.7vh,18px);overflow:hidden}
+.c-cmp-in{width:84%;height:100%;display:flex;flex-direction:column;justify-content:space-between;
+  padding:clamp(6px,1.1vh,12px) 0}
+.c-cmp-in>.cmp-row:not(.cmp-head){flex:0 0 auto}
 .c-cmp .cmp-row{grid-template-columns:1fr 76px 1fr}
 .c-cmp .ldr-v{position:relative;display:inline-block;font-size:clamp(18px,2.65vh,26px);font-weight:700;line-height:1}
 .c-cmp .ldr-n{font-size:11.5px;line-height:1.1;margin-top:-1px}   /* the name hugs its own stat; the gap to the next row stays larger */
