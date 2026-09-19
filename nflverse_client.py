@@ -138,3 +138,14 @@ def get_depth_charts(season):
         return _to_dicts(df), None
     except Exception as e:
         return [], str(e)
+
+
+# ---------------------------------------------------------------- Page 2 (added 2026-09-19)
+
+def get_schedules_all():
+    """Every season's schedule (1999 on) -- Page 2 looks up the last time two teams met."""
+    try:
+        df = nfl.load_schedules(seasons=True)
+        return _to_dicts(df), None
+    except Exception as e:
+        return [], str(e)

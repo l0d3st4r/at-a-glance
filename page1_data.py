@@ -48,8 +48,9 @@ except Exception:  # pragma: no cover
     EASTERN = None
 
 from divisions import normalize_abbr
-from stadiums import STADIUMS
+from stadiums import STADIUMS, STATE_NAMES, NEUTRAL_VENUES
 from weather import get_game_window_weather
+import weather as wx
 
 PLAYOFF_LABELS = {"WC": "Wild Card", "DIV": "Divisional Round", "CON": "Conference Championships", "SB": "Super Bowl"}
 INJURY_ORDER = {"Out": 0, "Doubtful": 1, "Questionable": 2}
@@ -473,12 +474,69 @@ def _injury_builder(injuries, snaps, depth, warnings):
 
 # ---------------------------------------------------------------- weather + venue
 
+SURFACE_NAMES = {
+    "grass": "Grass", "fieldturf": "FieldTurf", "a_turf": "A-Turf", "astroturf": "AstroTurf",
+    "sportturf": "SportTurf", "matrixturf": "Matrix Turf", "dessograss": "Hybrid Grass", "astroplay": "AstroPlay",
+}
+OM_FORECAST_DAYS = 16  # Open-Meteo's forecast reach, used for venues outside the US (NWS is US-only)
+
+
+def _name_key_venue(name):
+    return "".join(ch for ch in str(name or "").lower() if ch.isalnum())
+
+
+_VENUE_BY_NAME = {_name_key_venue(v["name"]): v for v in STADIUMS.values()}
+
+
+def venue_full(g):
+    """
+    Everything Page 2's stadium card needs (added 2026-09-19). Roof TYPE comes from stadiums.py;
+    nflverse only supplies a retractable roof's open/closed status, which it records after the
+    game (blank beforehand), so an upcoming retractable game reads as roof "TBD" and counts as
+    outdoors -- the weather card shows (Jason, 2026-09-19).
+    Returns {"name", "city", "region", "us", "roof_type", "roof_status", "indoor", "surface", "lat", "lon", "neutral"}.
+    """
+    raw = g["raw"]
+    neutral = str(raw.get("location") or "").lower() == "neutral"
+    if neutral:
+        v = NEUTRAL_VENUES.get(str(raw.get("stadium_id") or "")) or _VENUE_BY_NAME.get(_name_key_venue(raw.get("stadium"))) or {}
+    else:
+        v = stadium_for(g["home"])
+    nf = str(raw.get("roof") or "").strip().lower()
+    roof_type = v.get("roof") or {"dome": "dome", "outdoors": "outdoor", "open": "retractable", "closed": "retractable"}.get(nf)
+    status = None
+    if roof_type == "retractable" and g["final"]:
+        status = "closed" if nf in ("closed", "dome") else "open" if nf in ("open", "outdoors") else None
+    if roof_type == "dome":
+        indoor = True
+    elif roof_type == "retractable":
+        indoor = status == "closed"
+    elif roof_type == "outdoor":
+        indoor = False
+    else:
+        indoor = nf in ("dome", "closed")
+    surface_raw = str(raw.get("surface") or "").strip().lower()
+    surface = SURFACE_NAMES.get(surface_raw) or (surface_raw.replace("_", " ").title() if surface_raw else None)
+    return {
+        "name": v.get("name") or raw.get("stadium") or None,
+        "city": v.get("city") or None,
+        "region": STATE_NAMES.get(v.get("state"), v.get("state")) if v.get("state") else v.get("region"),
+        "us": bool(v.get("state")),
+        "roof_type": roof_type,
+        "roof_status": status,
+        "indoor": indoor,
+        "surface": surface,
+        "lat": v.get("lat"),
+        "lon": v.get("lon"),
+        "neutral": neutral,
+    }
+
+
 def _venue(g):
     raw = g["raw"]
-    roof = str(raw.get("roof") or "").lower()
     stadium = stadium_for(g["home"])
     neutral = str(raw.get("location") or "").lower() == "neutral"
-    indoor = roof in ("dome", "closed") if roof else bool(stadium.get("indoor"))
+    indoor = venue_full(g)["indoor"]  # same roof rules as Page 2 (2026-09-19)
     if neutral:
         city = raw.get("stadium") or "Neutral site"
         stadium = {}  # home team's stadium coordinates don't apply
@@ -510,6 +568,111 @@ def _weather(g, venue, stadium, now_utc):
     return w
 
 
+# ---------------------------------------------------------------- Page 2: Game Info deep dive (added 2026-09-19)
+
+def _meeting_index(history):
+    """frozenset({team, team}) -> finished games between them, oldest first: (sort key, row)."""
+    idx = defaultdict(list)
+    for r in history or []:
+        hs, as_ = _num(r.get("home_score")), _num(r.get("away_score"))
+        if hs is None or as_ is None:
+            continue
+        h, a = normalize_abbr(r.get("home_team")), normalize_abbr(r.get("away_team"))
+        if not h or not a or h == a:
+            continue
+        key = (str(r.get("gameday") or ""), str(r.get("gametime") or ""))
+        idx[frozenset((h, a))].append((key, {"date": str(r.get("gameday") or "")[:10], "season": r.get("season"),
+                                             "game_type": r.get("game_type"), "score": {h: hs, a: as_}}))
+    for v in idx.values():
+        v.sort(key=lambda kv: kv[0])
+    return idx
+
+
+def last_meeting(meetings, g):
+    """The most recent finished game between these two teams before this one kicked off, or None."""
+    here = (str(g["gameday"] or ""), str(g["gametime"] or ""))
+    best = None
+    for key, m in meetings.get(frozenset((g["home"], g["away"])), []):
+        if key < here:
+            best = m
+    return best
+
+
+def _needs_open_meteo(g, v, now_utc):
+    """Finished outdoor games (any venue) and upcoming games outside the US use Open-Meteo."""
+    if v["indoor"] or v["lat"] is None:
+        return False
+    ko = kickoff_utc(g["gameday"], g["gametime"])
+    if ko is None or ko > now_utc + timedelta(days=OM_FORECAST_DAYS):
+        return False
+    return g["final"] or not v["us"]
+
+
+def weather_detail(g, v, now_utc):
+    if v["indoor"]:
+        return {"indoor": True}
+    ko = kickoff_utc(g["gameday"], g["gametime"])
+    if ko is None or v["lat"] is None:
+        return {"available": False, "reason": "no kickoff time or venue location"}
+    raw = g["raw"]
+    if g["final"]:
+        w = wx.get_game_window_detail_om(v["lat"], v["lon"], ko)
+        temp, wind = _num(raw.get("temp")), _num(raw.get("wind"))
+        if not w.get("available"):
+            if temp is None:
+                return w
+            w = {"available": True, "source": "nflverse", "temp_f": None, "feels_f": None, "humidity_pct": None,
+                 "precip_pct": None, "precip_in": None, "wind_dir": None, "condition": None,
+                 "wind_min_mph": _round_or_none(wind), "wind_max_mph": _round_or_none(wind)}
+        if temp is not None:
+            w["temp_f"] = round(temp)  # the recorded kickoff temperature, same number Page 1 shows
+        w["precip_pct"] = None         # a chance of rain means nothing once the game is over
+        return w
+    if v["us"]:
+        if not (now_utc - timedelta(hours=4) <= ko <= now_utc + timedelta(days=NWS_WINDOW_DAYS)):
+            return {"available": False, "reason": "forecast_window", "window_days": NWS_WINDOW_DAYS}
+        return wx.get_game_window_detail_nws(v["lat"], v["lon"], ko)
+    if ko > now_utc + timedelta(days=OM_FORECAST_DAYS):
+        return {"available": False, "reason": "forecast_window", "window_days": OM_FORECAST_DAYS}
+    return wx.get_game_window_detail_om(v["lat"], v["lon"], ko)
+
+
+def _round_or_none(v):
+    return None if v is None else int(round(v))
+
+
+def game_info(g, meetings, now_utc):
+    v = venue_full(g)
+    ko = kickoff_utc(g["gameday"], g["gametime"])
+    ref = str(g["raw"].get("referee") or "").strip()
+    return {
+        "kickoff_utc": ko.strftime("%Y-%m-%dT%H:%M:00Z") if ko else None,
+        "referee": ref or None,   # nflverse fills this in once the game has been played
+        "last_meeting": last_meeting(meetings, g),
+        "networks": {"status": "pending"},
+        "broadcasters": [],       # no source yet -- TV stays "TV TBD" (Jason, 2026-09-19)
+        "stadium": {k: v[k] for k in ("name", "city", "region", "roof_type", "roof_status", "surface", "neutral")},
+        "weather": weather_detail(g, v, now_utc),
+    }
+
+
+def prefetch_page2_weather(games, now_utc, warnings):
+    """Group the games that need Open-Meteo by venue: at most two requests per venue per build."""
+    by_place = defaultdict(list)
+    for g in games:
+        try:
+            v = venue_full(g)
+            if _needs_open_meteo(g, v, now_utc):
+                by_place[(v["lat"], v["lon"])].append(kickoff_utc(g["gameday"], g["gametime"]))
+        except Exception:
+            continue
+    errors = []
+    for (lat, lon), kos in by_place.items():
+        errors += wx.prefetch_open_meteo(lat, lon, kos, now_utc)
+    if errors:
+        warnings.append(f"page2 weather: {len(errors)} Open-Meteo request(s) failed, first: {errors[0]}")
+
+
 # ---------------------------------------------------------------- main entry
 
 def week_key_and_label(game_type, week):
@@ -518,9 +681,15 @@ def week_key_and_label(game_type, week):
     return str(week), f"Week {week}"
 
 
-def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, warnings, now_utc=None, depth=None):
+def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, warnings, now_utc=None, depth=None, history=None):
+    """history: every season's schedule (for the last meeting on Page 2); falls back to this season's."""
     now_utc = now_utc or datetime.now(timezone.utc)
     games = _games(schedules)
+    meetings = _meeting_index(history or schedules)
+    try:
+        prefetch_page2_weather(games, now_utc, warnings)
+    except Exception as e:
+        warnings.append(f"page2 weather prefetch: {e}")
     records = _game_records(games)
     ranks_through = _rank_builder(games, team_weekly, warnings)
     leaders_through = _leader_builder(player_weekly, warnings)
@@ -580,6 +749,10 @@ def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, w
                     for k, lbl, _c in LEADER_STATS
                 ],
             }
+            try:  # Page 2 (Game Info deep dive); a problem here never costs the game its Page 1
+                details[gid]["info"] = game_info(g, meetings, now_utc)
+            except Exception as e:
+                warnings.append(f"page2 {gid}: {e}")
         except Exception as e:  # one bad game never breaks the rest
             warnings.append(f"page1 {gid}: {e}")
     return details

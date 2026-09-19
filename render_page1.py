@@ -36,6 +36,7 @@ import traceback
 from datetime import date
 
 import helmets
+import render_page2gameinfo
 
 MONTHS_UPPER = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -403,6 +404,8 @@ def render_p1_block(d, prefix="../"):
         # back button + view toggle live at the bottom of the screen (2026-09-17)
         '<nav class="bbar" aria-label="Page controls"><div class="bbar-in">'
         f'<a class="week" href="{esc(week_href)}">{CHEV}<span>{esc(week_label)}</span></a>'
+        # Page 2's back button takes the week pill's place while Game Info is open (2026-09-19)
+        f'<a class="week p2-back" href="#" aria-label="Back to {esc(a)} at {esc(h)}">{CHEV}<span>{esc(a)} @ {esc(h)}</span></a>'
         f'<button class="toggle" type="button"><span class="i-plus">{PLUS}</span><span class="i-minus">{MINUS}</span></button>'
         "</div></nav>"
     )
@@ -426,8 +429,14 @@ def render_p1_block(d, prefix="../"):
     )
     dots = "".join(f'<button class="dot" type="button" aria-label="{esc(name)}"></button>' for _c, name, _k, _b in cards)
     large = f'<div class="view view-l deck" aria-label="Expanded matchup">{slots}</div><nav class="dots" aria-label="Cards">{dots}</nav>'
-    return (f'<div class="p1" data-view="large" data-head="card"{" data-final" if final else ""} '
-            f'data-game="{esc(d.get("game_id"))}">{bar}{condensed}{large}</div>')
+    t, ampm = fmt_time(d.get("gametime"))
+    time_html = f'<div class="time">{esc(t)}{f"<small>{ampm}</small>" if ampm else ""}</div>'
+    try:
+        page2 = render_page2gameinfo.render_p2_block(d, time_html, WEATHER_ICONS)
+    except Exception:  # Page 2 trouble never costs the game its Page 1
+        page2 = ""
+    return (f'<div class="p1" data-view="large" data-head="card"{" data-final" if final else ""}{" data-has-detail" if page2 else ""} '
+            f'data-game="{esc(d.get("game_id"))}">{bar}{condensed}{large}{page2}</div>')
 
 
 def render_standalone(d):
@@ -442,7 +451,7 @@ def render_standalone(d):
         "<link rel='preconnect' href='https://fonts.googleapis.com'><link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>"
         "<link href='https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;700;900&display=swap' rel='stylesheet'>"
         "<link href='https://fonts.googleapis.com/css2?family=Saira:ital,wdth,wght@1,50..125,400..900&family=Teko:wght@400..700&display=swap' rel='stylesheet'>"
-        f"<style id='p1-css'>{P1_CSS}</style><style>html,body{{margin:0;background:#fff}}</style></head><body>"
+        f"<style id='p1-css'>{P1_CSS}{render_page2gameinfo.P2_CSS}</style><style>html,body{{margin:0;background:#fff}}</style></head><body>"
         f"{render_p1_block(d)}"
         f"<script>{P1_JS}</script><script>AAG_P1.init(document);</script>"
         "</body></html>"
@@ -543,7 +552,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
   }
   function setHead(mode) { if (wrap.getAttribute('data-head') !== mode) wrap.setAttribute('data-head', mode); }
   function updateHead() {
-    if (!flyBox || !large()) return;
+    if (!flyBox || !large() || wrap.hasAttribute('data-detail')) return;
     var p = headProgress(), e = 1 - (1 - p) * (1 - p);  // ease-out: the header settles before the next card does
     if (p <= 0.001) { setHead('card'); return; }
     if (p >= 0.999) { setHead('bar'); return; }
@@ -642,8 +651,19 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
 
   var ticking = false;
   on(deck, 'scroll', function () { if (!ticking && large() && !morphing) { ticking = true; requestAnimationFrame(function () { if (large()) { setActive(current()); updateHead(); } ticking = false; }); } }, { passive: true });
-  // Tapping a peeking card brings it in; tapping the active card will open Page 2 later.
-  slots.forEach(function (s, k) { on(s.querySelector('a.card'), 'click', function (e) { e.preventDefault(); if (k !== active) go(k); }); });
+  // Tapping a peeking card brings it in; tapping the active Game Info card opens Page 2 (2026-09-19).
+  // The team and leaders cards do nothing yet (their deep dives aren't designed).
+  function opensDetail(card) { return card && card.getAttribute('data-detail') === 'game-info' && wrap.hasAttribute('data-has-detail'); }
+  slots.forEach(function (s, k) {
+    var c = s.querySelector('a.card');
+    on(c, 'click', function (e) { e.preventDefault(); if (k !== active) go(k); else if (opensDetail(c)) openDetail(); });
+    on(c, 'keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && k === active && opensDetail(c)) { e.preventDefault(); openDetail(); } });
+  });
+  var cGame = root.querySelector('.c-game');
+  if (cGame) {
+    on(cGame, 'click', function (e) { e.preventDefault(); if (opensDetail(cGame)) openDetail(); });
+    on(cGame, 'keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && opensDetail(cGame)) { e.preventDefault(); openDetail(); } });
+  }
   dots.forEach(function (d, k) { on(d, 'click', function () { go(k); }); });
 
   // Condensed card for each expanded card: game info, away team, home team, leaders
@@ -717,25 +737,169 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     });
   }
   on(toggle, 'click', function () { switchView(large() ? 'condensed' : 'large'); });
+
+  // ---- Page 2: Game Info deep dive (2026-09-19) ----------------------------------------------
+  // Open  = the Game Info card grows to fill the space between the bars (the same zoom Page 0 ->
+  //         Page 1 uses), the header pieces move into the top bar if they were in the card, then
+  //         Page 2's cards rise in one after another.
+  // Close = "‹ AWAY @ HOME", Esc, browser back, or (in the Page 0 overlay) a pull down from the top:
+  //         Page 2 fades inside a card outline that shrinks back onto the Game Info card.
+  // URL: "/game-info" is added to the hash (#game-<id>/game-info, or #/game-info on the standalone
+  // page) and pushed to history, so back closes it and a shared link opens straight into it.
+  var p2 = root.querySelector('.p2'), p2Back = root.querySelector('.p2-back');
+  var detailBusy = false, headBefore = null, DETAIL_HASH = '/game-info', RISE = 'translateY(56px) scale(.96)';
+  function detailOpen() { return wrap.hasAttribute('data-detail'); }
+  function detailInHash() { return /\/game-info$/.test(location.hash || ''); }
+  function hashBase() { return (location.hash || '').replace(/\/game-info$/, ''); }
+  function sourceCard() { return large() ? slots[0] && slots[0].querySelector('a.card') : root.querySelector('.c-game'); }
+  function shellFrame(r, radius, border) { return Object.assign({ borderRadius: radius, borderColor: border }, geo(r)); }
+  function clearPull() {
+    if (!p2) return;
+    ['transform', 'borderRadius', 'boxShadow', 'overflow'].forEach(function (k) { p2.style[k] = ''; });
+    wrap.removeAttribute('data-pulling');
+  }
+  function openDetail(o) {
+    o = o || {};
+    if (!p2 || detailOpen() || detailBusy || morphing) return;
+    var src = sourceCard(), instant = o.instant || !Element.prototype.animate || !src;
+    var headFrom = large() ? headShot() : null, m = instant ? null : morphFrom(src);
+    headBefore = wrap.getAttribute('data-head');
+    wrap.setAttribute('data-detail', 'game-info');
+    if (large()) setHead('bar');
+    p2.scrollTop = 0;
+    if (o.push !== false) history.pushState(Object.assign({}, history.state, { p2: 'game-info' }), '', (hashBase() || '#') + DETAIL_HASH);
+    if (instant) return;
+    detailBusy = true;
+    var D = 300, area = p2.getBoundingClientRect(), flips = headFrom ? flipHead(headFrom, D) : [];
+    p2.style.opacity = '0';
+    m.copy.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: 'forwards' });
+    var grow = m.box.animate([shellFrame(m.r, '20px', 'rgba(0,0,0,.12)'), shellFrame(area, '0px', 'rgba(0,0,0,0)')],
+                             { duration: D, easing: EASE, fill: 'forwards' });
+    Promise.all([grow].concat(flips.map(function (f) { return f.anim; })).map(fin)).then(function () {
+      p2.style.opacity = '';
+      m.box.remove();
+      endFlip(flips);
+      [].slice.call(root.querySelectorAll('.p2-card')).forEach(function (el, i) {
+        el.animate([{ opacity: 0, transform: RISE }, { opacity: 1, transform: 'none' }], { duration: 300, delay: 20 + i * 35, easing: EASE, fill: 'backwards' });
+      });
+      if (p2Back) p2Back.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: 'ease-out' });
+      detailBusy = false;
+    });
+  }
+  function closeDetail(o) {
+    o = o || {};
+    if (!detailOpen() || detailBusy) return;
+    if (!o.fromHistory && history.state && history.state.p2 && detailInHash()) { history.back(); return; }  // popstate brings us back here
+    if (!o.fromHistory && detailInHash()) {   // opened from a shared link: nothing to go back to, just drop it from the URL
+      var st = Object.assign({}, history.state); delete st.p2;
+      history.replaceState(st, '', hashBase() || location.pathname + location.search);
+    }
+    var src = sourceCard(), instant = o.instant || !Element.prototype.animate || !src;
+    var from = p2.getBoundingClientRect(), headFrom = large() ? headShot() : null;
+    function finish() {
+      wrap.removeAttribute('data-detail');
+      clearPull();
+      if (large()) { setHead(headBefore === 'card' && active === 0 ? 'card' : 'bar'); updateHead(); }
+    }
+    if (instant) { finish(); return; }
+    detailBusy = true;
+    var D = 280, box = document.createElement('div'), col = p2.querySelector('.p2-col'), snap = col ? col.cloneNode(true) : null;
+    box.className = 'morph';
+    Object.assign(box.style, geo(from), { borderRadius: p2.style.borderRadius || '0px' });
+    if (snap) {   // a snapshot of Page 2, at its scroll position and pull scale, fades out inside the shrinking outline
+      var k = from.width / (p2.offsetWidth || from.width);
+      Object.assign(snap.style, { position: 'absolute', left: '0', top: '0', width: (p2.offsetWidth || from.width) + 'px',
+        transformOrigin: '0 0', transform: 'scale(' + k + ') translateY(' + (-p2.scrollTop) + 'px)' });
+      box.appendChild(snap);
+    }
+    wrap.appendChild(box);
+    finish();
+    var r1 = src.getBoundingClientRect();
+    src.style.opacity = '0';
+    var flips = headFrom ? flipHead(headFrom, D) : [];
+    if (snap) snap.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 140, fill: 'forwards' });
+    var shrink = box.animate([shellFrame(from, box.style.borderRadius, 'rgba(0,0,0,.12)'), shellFrame(r1, '20px', 'rgba(0,0,0,.12)')],
+                             { duration: D, easing: EASE, fill: 'forwards' });
+    Promise.all([shrink].concat(flips.map(function (f) { return f.anim; })).map(fin)).then(function () {
+      src.style.opacity = '';
+      var inAnim = src.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120, easing: 'ease-out' });
+      box.remove();
+      detailBusy = false;
+      fin(inAnim).then(function () { endFlip(flips); });
+    });
+  }
+  // Pull-to-close support for the Page 0 overlay's gesture code: follow the finger (dy px), or spring back.
+  function pullDetail(dy, spring) {
+    if (!p2 || !detailOpen()) return;
+    if (spring) {
+      var cur = p2.style.transform || 'none';
+      var a = p2.animate([{ transform: cur }, { transform: 'none' }], { duration: 200, easing: EASE });
+      p2.style.transform = '';
+      fin(a).then(function () { if (!p2.style.transform) clearPull(); });
+      return;
+    }
+    var pp = Math.min(1, dy / (innerHeight * 0.55)), sc = 1 - 0.25 * pp;
+    wrap.setAttribute('data-pulling', '');
+    Object.assign(p2.style, { transform: 'translateY(' + (dy * 0.55) + 'px) scale(' + sc + ')', borderRadius: (20 / sc) + 'px',
+      boxShadow: '0 0 0 ' + (1 / sc) + 'px rgba(0,0,0,.12)', overflow: 'hidden' });
+  }
+  if (p2Back) on(p2Back, 'click', function (e) { e.preventDefault(); closeDetail(); });
+  on(window, 'popstate', function () {
+    if (detailInHash() && !detailOpen()) openDetail({ push: false });
+    else if (!detailInHash() && detailOpen()) closeDetail({ fromHistory: true });
+  });
+
+  // Kickoff countdown on Page 2: ticks every second while the page is open. After kickoff it
+  // reads IN PROGRESS until the next data refresh marks the game final.
+  var cd = root.querySelector('.cd[data-kickoff]'), cdTimer = null;
+  function tick() {
+    var ko = Date.parse(cd.getAttribute('data-kickoff')), left = ko - Date.now();
+    if (isNaN(ko)) return;
+    var status = cd.querySelector('.cd-status');
+    if (left <= 0) {
+      [].slice.call(cd.querySelectorAll('.cd-row')).forEach(function (r) { r.hidden = true; });
+      status.hidden = false;
+      status.textContent = left > -5 * 3600e3 ? 'IN PROGRESS' : 'FINAL SOON';
+      return;
+    }
+    var mins = Math.floor(left / 60000), v = { d: Math.floor(mins / 1440), h: Math.floor(mins % 1440 / 60), m: mins % 60 };
+    [].slice.call(cd.querySelectorAll('.cd-row')).forEach(function (r) {
+      var n = r.querySelector('.cd-n'), u = r.querySelector('.cd-u'), val = v[n.getAttribute('data-u')];
+      if (n.textContent !== String(val)) n.textContent = val;
+      var w = u.getAttribute('data-w') + (val === 1 ? '' : 'S');
+      if (u.textContent !== w) u.textContent = w;
+    });
+  }
+  if (cd) { tick(); cdTimer = setInterval(tick, 1000); }
   function back() { if (opts.onBack) opts.onBack(); else location.href = week.href; }
   on(week, 'click', function (e) { if (opts.onBack) { e.preventDefault(); opts.onBack(); } });
   on(window, 'keydown', function (e) {
-    if (e.key === 'Escape') { back(); return; }
-    if (!large()) return;
+    if (e.key === 'Escape') { if (detailOpen()) closeDetail(); else back(); return; }
+    if (!large() || detailOpen()) return;
     if (e.key === 'ArrowDown' || e.key === 'PageDown') { e.preventDefault(); go(active + 1); }
     else if (e.key === 'ArrowUp' || e.key === 'PageUp') { e.preventDefault(); go(active - 1); }
   });
-  on(window, 'resize', function () { if (large()) { go(active, true); updateHead(); } });
+  on(window, 'resize', function () { if (large() && !wrap.hasAttribute('data-detail')) { go(active, true); updateHead(); } });
   // Opens expanded unless told otherwise; opts.card keeps the same card when swiping between games.
   var startView = opts.view === 'condensed' ? 'condensed' : 'large';
   wrap.setAttribute('data-view', startView);
   labelToggle(startView);
   if (startView === 'large') { setHead(lastCard === 0 ? 'card' : 'bar'); requestAnimationFrame(function () { go(lastCard, true); setActive(lastCard); updateHead(); }); }
+  if (opts.detail === undefined ? detailInHash() : opts.detail) {
+    if (large()) { headBefore = 'card'; }
+    openDetail({ instant: true, push: false });
+  }
   return {
     view: function () { return wrap.getAttribute('data-view'); },
     card: function () { return lastCard; },
     head: visibleHead,
-    destroy: function () { bound.forEach(function (b) { b[0].removeEventListener(b[1], b[2], b[3]); }); bound = []; }
+    detail: detailOpen,
+    closeDetail: closeDetail,
+    pullDetail: pullDetail,
+    destroy: function () {
+      if (cdTimer) clearInterval(cdTimer);
+      bound.forEach(function (b) { b[0].removeEventListener(b[1], b[2], b[3]); }); bound = [];
+    }
   };
 } };
 """

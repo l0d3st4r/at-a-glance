@@ -346,7 +346,11 @@ def main():
         depth, err = nflverse_client.get_depth_charts(season)
         if err:
             warnings.append(f"get_depth_charts: {err}")
-        game_details = page1_data.build_game_details(schedules, team_weekly, player_weekly, injury_rows, snaps, warnings, depth=depth)
+        history, err = nflverse_client.get_schedules_all()  # Page 2's "last matchup" (2026-09-19)
+        if err:
+            warnings.append(f"get_schedules_all: {err} -- last matchup limited to this season")
+        game_details = page1_data.build_game_details(schedules, team_weekly, player_weekly, injury_rows, snaps, warnings,
+                                                     depth=depth, history=history or None)
     except Exception as e:
         warnings.append(f"build_game_details: {e}")
 

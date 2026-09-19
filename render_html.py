@@ -742,7 +742,10 @@ PAGE1_OVERLAY_JS = r"""
                              // this many px of overscroll at the top of the deck closes the page
 
   // ------------------------------------------------------------ helpers
-  function idFromHash(h) { var m = (h || '').match(/^#game-(.+)$/); return m ? decodeURIComponent(m[1]) : null; }
+  // "#game-<id>" is Page 1; "#game-<id>/game-info" is that game's Page 2 (2026-09-19)
+  function idFromHash(h) { var m = (h || '').match(/^#game-([^\/]+)(?:\/.*)?$/); return m ? decodeURIComponent(m[1]) : null; }
+  function detailFromHash(h) { return /\/game-info$/.test(h || ''); }
+  function detailOn(s) { return !!(s && s.inst && s.inst.detail && s.inst.detail()); }
   function tileId(t) { return idFromHash(t.getAttribute('href')); }
   function tileFor(id) {
     var tiles = document.querySelectorAll(TILE);
@@ -797,7 +800,7 @@ PAGE1_OVERLAY_JS = r"""
       var deck = root.querySelector('.deck');
       if (deck && slots[i] && opts.view !== 'condensed') deck.scrollTop = slots[i].offsetTop - (deck.clientHeight - slots[i].offsetHeight) / 2;
     } else {
-      m.inst = window.AAG_P1.init(root, { onBack: requestClose, view: opts.view, card: opts.card });
+      m.inst = window.AAG_P1.init(root, { onBack: requestClose, view: opts.view, card: opts.card, detail: !!opts.detail });
       if (m.title) document.title = m.title;
     }
     return m;
@@ -810,7 +813,8 @@ PAGE1_OVERLAY_JS = r"""
   function syncTouchAction(s) {
     if (!s || !s.overlay || !s.root) return;
     var p1 = s.root.querySelector('.p1');
-    s.overlay.style.touchAction = p1 && p1.getAttribute('data-view') === 'large' ? '' : 'none';
+    // Page 2 scrolls natively in either view, so it hands vertical pans back to the browser too
+    s.overlay.style.touchAction = p1 && (p1.getAttribute('data-view') === 'large' || p1.hasAttribute('data-detail')) ? '' : 'none';
   }
 
   // Wire the pull-to-close helpers onto whichever page is currently mounted: called on open and
@@ -822,7 +826,7 @@ PAGE1_OVERLAY_JS = r"""
     var p1 = s.root.querySelector('.p1');
     if (p1 && window.MutationObserver) {   // the +/- toggle lives inside the shadow root
       s.viewWatch = new MutationObserver(function () { syncTouchAction(s); });
-      s.viewWatch.observe(p1, { attributes: true, attributeFilter: ['data-view'] });
+      s.viewWatch.observe(p1, { attributes: true, attributeFilter: ['data-view', 'data-detail'] });
     }
     // Safari answers a downward drag at the top of the deck by rubber-banding it, which makes our
     // touchmove non-cancelable. That overscroll shows up as a negative scrollTop, so a deep enough
@@ -830,10 +834,16 @@ PAGE1_OVERLAY_JS = r"""
     // touch handler below is what runs.
     var dk = s.root.querySelector('.deck');
     if (dk) dk.addEventListener('scroll', function () {
-      if (state !== s || s.closing || !s.touching || dk.scrollTop > -PULL_BOUNCE) return;
+      if (state !== s || s.closing || !s.touching || dk.scrollTop > -PULL_BOUNCE || detailOn(s)) return;
       s.pinchScale = 1;
       s.pinchRect = s.host.getBoundingClientRect();
       requestClose();
+    }, { passive: true });
+    // same Safari bounce, on Page 2: closes Page 2 back into its card (not Page 1)
+    var p2 = s.root.querySelector('.p2');
+    if (p2) p2.addEventListener('scroll', function () {
+      if (state !== s || s.closing || !s.touching || p2.scrollTop > -PULL_BOUNCE || !detailOn(s)) return;
+      s.inst.closeDetail();
     }, { passive: true });
   }
   function tileParts(tile) {  // pieces of a Page 0 tile that travel to Page 1's top bar
@@ -937,7 +947,7 @@ PAGE1_OVERLAY_JS = r"""
 
     load(id).then(function (text) {
       if (state !== s || s.closing) throw 0;
-      var m = mount(s, text, { hidden: true });
+      var m = mount(s, text, { hidden: true, detail: opts.detail });
       s.host = m.host; s.root = m.root; s.inst = m.inst;
       armPull(s);
       // 2 · helmets, abbreviations (and final scores) fly from the tile up into Page 1's top bar
@@ -1074,7 +1084,7 @@ PAGE1_OVERLAY_JS = r"""
 
   function goTo(s, dir, fromDx, velocityHint) {
     var nid = neighborId(s.id, dir), w = innerWidth;
-    if (!nid || s.busy) return Promise.resolve(false);
+    if (!nid || s.busy || detailOn(s)) return Promise.resolve(false);
     s.busy = true;
     var view = s.inst ? s.inst.view() : 'large', card = s.inst && s.inst.card ? s.inst.card() : 0;  // stay on the same card
     return load(nid).then(function (text) {
@@ -1115,7 +1125,7 @@ PAGE1_OVERLAY_JS = r"""
     // (it has a min-height, so it can overflow). Checked directly, because a touch that starts
     // on the host rather than a shadow node wouldn't show them in the path.
     if (s && s.root) {
-      var scrollers = s.root.querySelectorAll('.deck, .view-c, .p1');
+      var scrollers = s.root.querySelectorAll(detailOn(s) ? '.p2' : '.deck, .view-c, .p1');
       for (var j = 0; j < scrollers.length; j++) if (scrolledDown(scrollers[j])) return false;
     }
     if (s && s.host && scrolledDown(s.host)) return false;
@@ -1134,7 +1144,7 @@ PAGE1_OVERLAY_JS = r"""
       var s = state;
       if (!s || s.closing || s.busy || !s.inst) return;
       if (e.touches.length === 2) {
-        if (mode === 'swipe' || mode === 'pull') return;
+        if (mode === 'swipe' || mode === 'pull' || detailOn(s)) { if (detailOn(s)) mode = null; return; }   // no pinch on Page 2
         mode = 'pinch'; d0 = dist(e.touches); scale = 1;
         var tile = tileFor(s.id);
         if (tile && !visibleRect(tile)) {
@@ -1165,7 +1175,7 @@ PAGE1_OVERLAY_JS = r"""
       if (e.touches.length !== 1) return;
       var mx = e.touches[0].clientX - x0, my = e.touches[0].clientY - y0;
       if (mode === 'pending') {
-        if (Math.abs(mx) > 10 && Math.abs(mx) > Math.abs(my) * 1.2) mode = 'swipe';
+        if (Math.abs(mx) > 10 && Math.abs(mx) > Math.abs(my) * 1.2) { if (detailOn(s)) { mode = null; return; } mode = 'swipe'; }   // no game swipe on Page 2
         // pulling down from the top closes the page; anything else vertical is a normal scroll
         else if (my > 10 && my > Math.abs(mx) * 1.2 && canPull) { mode = 'pull'; t0 = Date.now(); }
         else if (Math.abs(my) > 10) { mode = null; return; }
@@ -1174,6 +1184,7 @@ PAGE1_OVERLAY_JS = r"""
       if (mode === 'pull') {
         if (e.cancelable) e.preventDefault();   // if the browser already claimed the gesture, just follow it
         dy = Math.max(0, my);
+        if (detailOn(s)) { s.inst.pullDetail(dy); return; }   // on Page 2 the pull closes Page 2
         var pp = Math.min(1, dy / (innerHeight * PULL_FULL));
         setPull(s, dy * 0.55, 1 - 0.25 * pp);
         return;
@@ -1218,6 +1229,11 @@ PAGE1_OVERLAY_JS = r"""
         if (e.touches && e.touches.length) return;
         mode = null;
         var pv = dy / Math.max(1, Date.now() - t0);
+        if (detailOn(s)) {
+          if (dy > innerHeight * PULL_CLOSE || (pv > PULL_FLICK && dy > PULL_MIN)) s.inst.closeDetail();
+          else s.inst.pullDetail(0, true);
+          return;
+        }
         if (!s.closing && (dy > innerHeight * PULL_CLOSE || (pv > PULL_FLICK && dy > PULL_MIN))) {
           s.pinchScale = (s.host.getBoundingClientRect().width || innerWidth) / innerWidth;
           s.pinchRect = s.host.getBoundingClientRect();
@@ -1286,7 +1302,7 @@ PAGE1_OVERLAY_JS = r"""
   window.addEventListener('popstate', function () {
     var id = idFromHash(location.hash);
     if (state && id !== state.id) close();
-    else if (!state && id) open(id, {});
+    else if (!state && id) open(id, { detail: detailFromHash(location.hash) });   // Page 1 itself handles Page 2 coming and going
   });
 
   // Shared link straight to a game (index.html#game-...): show its week underneath, open without the zoom.
@@ -1294,7 +1310,7 @@ PAGE1_OVERLAY_JS = r"""
   if (first) {
     var t = tileFor(first);
     if (t && window.AAG_P0) window.AAG_P0.showTile(t);
-    open(first, { animate: false });
+    open(first, { animate: false, detail: detailFromHash(location.hash) });
   }
 
 })();
