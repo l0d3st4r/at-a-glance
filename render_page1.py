@@ -484,8 +484,8 @@ P1_JS = r"""
 window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
   opts = opts || {};
   var wrap = root.querySelector('.p1'); if (!wrap) return { destroy: function () {} };
-  var deck = root.querySelector('.deck'), slots = [].slice.call(root.querySelectorAll('.slot')),
-      dots = [].slice.call(root.querySelectorAll('.dot')), toggle = root.querySelector('.toggle'),
+  var deck = root.querySelector('.view-l'), slots = [].slice.call(root.querySelectorAll('.view-l > .slot')),
+      dots = [].slice.call(root.querySelectorAll('.p1 > .dots .dot')), toggle = root.querySelector('.toggle'),
       week = root.querySelector('.week'), active = -1, bound = [], morphing = false;
   // Motion always plays, whatever the device's Reduce Motion setting (Jason, 2026-09-17).
   // Speed/easing taken from yeezy.com: 200-300ms moves on cubic-bezier(.22,1,.36,1), 150ms fades.
@@ -738,26 +738,114 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
       fin(inAnim).then(function () { endFlip(flips); });
     });
   }
-  on(toggle, 'click', function () { switchView(large() ? 'condensed' : 'large'); });
+  on(toggle, 'click', function () {
+    if (detailOpen()) detailView(large() ? 'condensed' : 'large');
+    else switchView(large() ? 'condensed' : 'large');
+  });
 
-  // ---- Page 2: Game Info deep dive (2026-09-19) ----------------------------------------------
+  // ---- Page 2: Game Info deep dive (2026-09-19; deck + condensed views v4) -------------------
+  // Page 2 has the same two views as Page 1 and shares its data-view attribute: it opens in
+  // whichever view Page 1 is in, and the +/− button flips both.
+  //   expanded  = a deck like Page 1's: one card per screen, slivers, dots, ↑/↓ keys
+  //   condensed = every card on one screen; tapping a card switches to the deck on that card
   // Open  = the Game Info card grows to fill the space between the bars (the same zoom Page 0 ->
   //         Page 1 uses), the header pieces move into the top bar if they were in the card, then
   //         Page 2's cards rise in one after another.
-  // Close = "‹ AWAY @ HOME", Esc, browser back, or (in the Page 0 overlay) a pull down from the top:
-  //         Page 2 fades inside a card outline that shrinks back onto the Game Info card.
+  // Close = "‹ AWAY @ HOME", Esc, browser back, or (in the Page 0 overlay) a pull down from the
+  //         first card: Page 2 fades while a card outline shrinks back onto the Game Info card.
   // URL: "/game-info" is added to the hash (#game-<id>/game-info, or #/game-info on the standalone
   // page) and pushed to history, so back closes it and a shared link opens straight into it.
   var p2 = root.querySelector('.p2'), p2Back = root.querySelector('.p2-back');
-  var detailBusy = false, headBefore = null, DETAIL_HASH = '/game-info', RISE = 'translateY(56px) scale(.96)';
+  var p2Deck = p2 && p2.querySelector('.p2-l'), p2Slots = p2 ? [].slice.call(p2.querySelectorAll('.p2-l > .slot')) : [],
+      p2Dots = p2 ? [].slice.call(p2.querySelectorAll('.p2-dots .dot')) : [], p2Cond = p2 ? [].slice.call(p2.querySelectorAll('.p2-c > .cc')) : [];
+  var p2Active = -1, detailBusy = false, headBefore = null, DETAIL_HASH = '/game-info', RISE = 'translateY(56px) scale(.96)';
   function detailOpen() { return wrap.hasAttribute('data-detail'); }
   function detailInHash() { return /\/game-info$/.test(location.hash || ''); }
   function hashBase() { return (location.hash || '').replace(/\/game-info$/, ''); }
   function sourceCard() { return large() ? slots[0] && slots[0].querySelector('a.card') : root.querySelector('.c-game'); }
   function shellFrame(r, radius, border) { return Object.assign({ borderRadius: radius, borderColor: border }, geo(r)); }
+  // Page 2's deck
+  function p2SetActive(i) {
+    if (i === p2Active) return; p2Active = i;
+    p2Slots.forEach(function (s, k) {
+      s.classList.toggle('active', k === i); s.classList.toggle('above', k === i - 1); s.classList.toggle('below', k === i + 1);
+      var c = s.querySelector('a.card'); c.tabIndex = k === i ? 0 : -1; c.setAttribute('aria-hidden', k === i ? 'false' : 'true');
+    });
+    p2Dots.forEach(function (d, k) { d.classList.toggle('on', k === i); });
+  }
+  function p2Current() {
+    var mid = p2Deck.scrollTop + p2Deck.clientHeight / 2, best = 0, bd = 1e9;
+    p2Slots.forEach(function (s, k) { var d = Math.abs(s.offsetTop + s.offsetHeight / 2 - mid); if (d < bd) { bd = d; best = k; } });
+    return best;
+  }
+  function p2Go(i, instant) {
+    if (!p2Slots.length) return;
+    i = Math.max(0, Math.min(p2Slots.length - 1, i)); var s = p2Slots[i];
+    p2Deck.scrollTo({ top: s.offsetTop - (p2Deck.clientHeight - s.offsetHeight) / 2, behavior: instant ? 'auto' : smooth });
+  }
+  function p2Place(i) { p2Active = -1; p2Go(i, true); p2SetActive(i); }
+  if (p2Deck) {
+    var p2Tick = false;
+    on(p2Deck, 'scroll', function () {
+      if (!p2Tick && detailOpen() && large()) { p2Tick = true; requestAnimationFrame(function () { p2SetActive(p2Current()); p2Tick = false; }); }
+    }, { passive: true });
+    p2Slots.forEach(function (s, k) { on(s.querySelector('a.card'), 'click', function (e) { e.preventDefault(); if (k !== p2Active) p2Go(k); }); });
+    p2Dots.forEach(function (d, k) { on(d, 'click', function () { p2Go(k); }); });
+    p2Cond.forEach(function (c, k) {
+      on(c, 'click', function (e) { e.preventDefault(); detailView('large', k); });
+      on(c, 'keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); detailView('large', k); } });
+    });
+  }
+  function p2Cards() { return large() ? p2Slots.map(function (s) { return s.querySelector('a.card'); }) : p2Cond; }
+  function riseIn(list) {
+    list.forEach(function (el, i) {
+      el.animate([{ opacity: 0, transform: RISE }, { opacity: 1, transform: 'none' }], { duration: 300, delay: 20 + i * 35, easing: EASE, fill: 'backwards' });
+    });
+  }
+  // +/− while Page 2 is open: the same card morphs between the two views (like Page 1's switchView)
+  function detailView(v, card) {
+    if (!detailOpen() || detailBusy || morphing || v === wrap.getAttribute('data-view')) return;
+    var k = card != null ? card : Math.max(0, p2Active), toLarge = v === 'large';
+    var instant = !Element.prototype.animate;
+    var headFrom = headShot(), fromEl = toLarge ? p2Cond[k] : p2Slots[k] && p2Slots[k].querySelector('a.card');
+    var m = !instant && fromEl ? morphFrom(fromEl) : null;
+    var others = !instant && toLarge ? p2Cond.filter(function (_, j) { return j !== k; }).map(morphFrom) : [];
+    wrap.setAttribute('data-view', v);
+    labelToggle(v);
+    lastCard = 0;   // Page 1 underneath follows along, parked on its Game Info card for the way back
+    if (toLarge) { active = -1; go(0, true); setActive(0); setHead('bar'); p2Place(k); }
+    if (!m) return;
+    detailBusy = true;
+    var D = 300, toEl = toLarge ? p2Slots[k].querySelector('a.card') : p2Cond[k], r1 = toEl.getBoundingClientRect();
+    toEl.style.opacity = '0';
+    var flips = flipHead(headFrom, D), anims = flips.map(function (o) { return o.anim; });
+    anims.push(m.box.animate([geo(m.r), geo(r1)], { duration: D, easing: EASE, fill: 'forwards' }));
+    m.copy.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: 'forwards' });
+    others.forEach(function (g) {
+      g.box.animate([{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(1.12)', opacity: 0 }], { duration: 160, easing: EASE, fill: 'forwards' });
+    });
+    if (toLarge) {
+      [p2Slots[k - 1], p2Slots[k + 1]].forEach(function (s) {
+        if (s) s.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, delay: D - 90, easing: 'ease-out', fill: 'backwards' });
+      });
+      p2Dots.forEach(function (d) { d.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, delay: D - 90, fill: 'backwards' }); });
+    } else {
+      p2Cond.forEach(function (el, j) {
+        if (j !== k) el.animate([{ transform: 'scale(1.08)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 240, delay: 50, easing: EASE, fill: 'backwards' });
+      });
+    }
+    Promise.all(anims.map(fin)).then(function () {
+      toEl.style.opacity = '';
+      var inAnim = toEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120, easing: 'ease-out' });
+      m.box.remove();
+      others.forEach(function (g) { g.box.remove(); });
+      detailBusy = false;
+      fin(inAnim).then(function () { endFlip(flips); });
+    });
+  }
   function clearPull() {
     if (!p2) return;
-    ['transform', 'borderRadius', 'boxShadow', 'overflow'].forEach(function (k) { p2.style[k] = ''; });
+    ['transform', 'borderRadius', 'boxShadow', 'overflow', 'opacity'].forEach(function (k) { p2.style[k] = ''; });
     wrap.removeAttribute('data-pulling');
   }
   function openDetail(o) {
@@ -767,8 +855,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     var headFrom = large() ? headShot() : null, m = instant ? null : morphFrom(src);
     headBefore = wrap.getAttribute('data-head');
     wrap.setAttribute('data-detail', 'game-info');
-    if (large()) setHead('bar');
-    p2.scrollTop = 0;
+    if (large()) { setHead('bar'); p2Place(0); }
     if (o.push !== false) history.pushState(Object.assign({}, history.state, { p2: 'game-info' }), '', (hashBase() || '#') + DETAIL_HASH);
     if (instant) return;
     detailBusy = true;
@@ -781,9 +868,8 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
       p2.style.opacity = '';
       m.box.remove();
       endFlip(flips);
-      [].slice.call(root.querySelectorAll('.p2-card')).forEach(function (el, i) {
-        el.animate([{ opacity: 0, transform: RISE }, { opacity: 1, transform: 'none' }], { duration: 300, delay: 20 + i * 35, easing: EASE, fill: 'backwards' });
-      });
+      riseIn(p2Cards());
+      if (large()) p2Dots.forEach(function (d) { d.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, delay: 40, fill: 'backwards' }); });
       if (p2Back) p2Back.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: 'ease-out' });
       detailBusy = false;
     });
@@ -797,36 +883,38 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
       history.replaceState(st, '', hashBase() || location.pathname + location.search);
     }
     var src = sourceCard(), instant = o.instant || !Element.prototype.animate || !src;
-    var from = p2.getBoundingClientRect(), headFrom = large() ? headShot() : null;
     function finish() {
       wrap.removeAttribute('data-detail');
+      wrap.removeAttribute('data-closing');
       clearPull();
-      if (large()) { setHead(headBefore === 'card' && active === 0 ? 'card' : 'bar'); updateHead(); }
+      p2Active = -1;
     }
-    if (instant) { finish(); return; }
+    function restoreHead() { if (large()) { setHead(headBefore === 'card' && active === 0 ? 'card' : 'bar'); } }
+    if (instant) { finish(); restoreHead(); updateHead(); return; }
     detailBusy = true;
-    var D = 280, box = document.createElement('div'), col = p2.querySelector('.p2-col'), snap = col ? col.cloneNode(true) : null;
+    var D = 280, from = p2.getBoundingClientRect(), radius = p2.style.borderRadius || '0px', headFrom = large() ? headShot() : null;
+    // Page 1 shows again underneath; an outline shrinks from Page 2's frame onto the Game Info card
+    // while Page 2 (on top of it) fades out
+    wrap.setAttribute('data-closing', '');
+    var box = document.createElement('div');
     box.className = 'morph';
-    Object.assign(box.style, geo(from), { borderRadius: p2.style.borderRadius || '0px' });
-    if (snap) {   // a snapshot of Page 2, at its scroll position and pull scale, fades out inside the shrinking outline
-      var k = from.width / (p2.offsetWidth || from.width);
-      Object.assign(snap.style, { position: 'absolute', left: '0', top: '0', width: (p2.offsetWidth || from.width) + 'px',
-        transformOrigin: '0 0', transform: 'scale(' + k + ') translateY(' + (-p2.scrollTop) + 'px)' });
-      box.appendChild(snap);
-    }
-    wrap.appendChild(box);
-    finish();
+    Object.assign(box.style, geo(from), { borderRadius: radius });
+    wrap.insertBefore(box, p2);
+    restoreHead();
     var r1 = src.getBoundingClientRect();
     src.style.opacity = '0';
     var flips = headFrom ? flipHead(headFrom, D) : [];
-    if (snap) snap.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 140, fill: 'forwards' });
-    var shrink = box.animate([shellFrame(from, box.style.borderRadius, 'rgba(0,0,0,.12)'), shellFrame(r1, '20px', 'rgba(0,0,0,.12)')],
+    var fade = p2.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 140, fill: 'forwards' });
+    var shrink = box.animate([shellFrame(from, radius, 'rgba(0,0,0,.12)'), shellFrame(r1, '20px', 'rgba(0,0,0,.12)')],
                              { duration: D, easing: EASE, fill: 'forwards' });
-    Promise.all([shrink].concat(flips.map(function (f) { return f.anim; })).map(fin)).then(function () {
+    Promise.all([shrink, fade].concat(flips.map(function (f) { return f.anim; })).map(fin)).then(function () {
+      fade.cancel();
+      finish();
       src.style.opacity = '';
       var inAnim = src.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120, easing: 'ease-out' });
       box.remove();
       detailBusy = false;
+      updateHead();
       fin(inAnim).then(function () { endFlip(flips); });
     });
   }
@@ -851,37 +939,48 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     else if (!detailInHash() && detailOpen()) closeDetail({ fromHistory: true });
   });
 
-  // Kickoff countdown on Page 2: ticks every second while the page is open. After kickoff it
-  // reads IN PROGRESS until the next data refresh marks the game final.
-  var cd = root.querySelector('.cd[data-kickoff]'), cdTimer = null;
+  // Kickoff countdowns on Page 2 (one per view): tick every second while the page is open. After
+  // kickoff they read IN PROGRESS until the next data refresh marks the game final.
+  var cds = [].slice.call(root.querySelectorAll('[data-kickoff]')), cdTimer = null;
   function tick() {
-    var ko = Date.parse(cd.getAttribute('data-kickoff')), left = ko - Date.now();
-    if (isNaN(ko)) return;
-    var status = cd.querySelector('.cd-status');
-    if (left <= 0) {
-      [].slice.call(cd.querySelectorAll('.cd-row')).forEach(function (r) { r.hidden = true; });
-      status.hidden = false;
-      status.textContent = left > -5 * 3600e3 ? 'IN PROGRESS' : 'FINAL SOON';
-      return;
-    }
-    var mins = Math.floor(left / 60000), v = { d: Math.floor(mins / 1440), h: Math.floor(mins % 1440 / 60), m: mins % 60 };
-    [].slice.call(cd.querySelectorAll('.cd-row')).forEach(function (r) {
-      var n = r.querySelector('.cd-n'), u = r.querySelector('.cd-u'), val = v[n.getAttribute('data-u')];
-      if (n.textContent !== String(val)) n.textContent = val;
-      var w = u.getAttribute('data-w') + (val === 1 ? '' : 'S');
-      if (u.textContent !== w) u.textContent = w;
+    cds.forEach(function (cd) {
+      var ko = Date.parse(cd.getAttribute('data-kickoff')), left = ko - Date.now();
+      if (isNaN(ko)) return;
+      var status = cd.querySelector('.cd-status'), rows = [].slice.call(cd.querySelectorAll('.cd-row'));
+      if (left <= 0) {
+        rows.forEach(function (r) { r.hidden = true; });
+        status.hidden = false;
+        status.textContent = left > -5 * 3600e3 ? 'IN PROGRESS' : 'FINAL SOON';
+        return;
+      }
+      var mins = Math.floor(left / 60000), v = { d: Math.floor(mins / 1440), h: Math.floor(mins % 1440 / 60), m: mins % 60 };
+      rows.forEach(function (r) {
+        var n = r.querySelector('.cd-n'), u = r.querySelector('.cd-u'), val = v[n.getAttribute('data-u')];
+        if (n.textContent !== String(val)) n.textContent = val;
+        var w = u.getAttribute('data-w') + (val === 1 ? '' : 'S');
+        if (u.textContent !== w) u.textContent = w;
+      });
     });
   }
-  if (cd) { tick(); cdTimer = setInterval(tick, 1000); }
+  if (cds.length) { tick(); cdTimer = setInterval(tick, 1000); }
   function back() { if (opts.onBack) opts.onBack(); else location.href = week.href; }
   on(week, 'click', function (e) { if (opts.onBack) { e.preventDefault(); opts.onBack(); } });
   on(window, 'keydown', function (e) {
     if (e.key === 'Escape') { if (detailOpen()) closeDetail(); else back(); return; }
-    if (!large() || detailOpen()) return;
+    if (!large()) return;
+    if (detailOpen()) {
+      if (e.key === 'ArrowDown' || e.key === 'PageDown') { e.preventDefault(); p2Go(p2Active + 1); }
+      else if (e.key === 'ArrowUp' || e.key === 'PageUp') { e.preventDefault(); p2Go(p2Active - 1); }
+      return;
+    }
     if (e.key === 'ArrowDown' || e.key === 'PageDown') { e.preventDefault(); go(active + 1); }
     else if (e.key === 'ArrowUp' || e.key === 'PageUp') { e.preventDefault(); go(active - 1); }
   });
-  on(window, 'resize', function () { if (large() && !wrap.hasAttribute('data-detail')) { go(active, true); updateHead(); } });
+  on(window, 'resize', function () {
+    if (!large()) return;
+    if (wrap.hasAttribute('data-detail')) { var k = Math.max(0, p2Active); p2Active = -1; p2Go(k, true); p2SetActive(k); }
+    else { go(active, true); updateHead(); }
+  });
   // Opens expanded unless told otherwise; opts.card keeps the same card when swiping between games.
   var startView = opts.view === 'condensed' ? 'condensed' : 'large';
   wrap.setAttribute('data-view', startView);
@@ -896,6 +995,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     card: function () { return lastCard; },
     head: visibleHead,
     detail: detailOpen,
+    detailAtTop: function () { return !large() || !p2Deck || p2Deck.scrollTop <= 1; },
     closeDetail: closeDetail,
     pullDetail: pullDetail,
     destroy: function () {

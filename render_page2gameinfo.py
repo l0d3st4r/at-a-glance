@@ -1,6 +1,11 @@
 """
 Page 2 -- Game Info deep dive (Jason's Framer page "page2gameinfo", 2026-09-19).
 
+Two views, like Page 1 (Jason, 2026-09-19, v4): the expanded view is a deck with one card per
+screen (Page 1's .deck / .slot / .peek / .dots), and the condensed view puts every card on one
+screen, each as a headline plus a strip of small labelled facts. Both views share Page 1's
+data-view attribute, so Page 2 opens in whichever view Page 1 is in and the +/− button flips both.
+
 Opened by tapping the Game Info card on Page 1 (either view). It is not a separate file:
 the markup lives inside each game's Page 1 block (site/game/<game_id>.html) as a hidden
 layer, so it opens instantly and works the same in the Page 0 overlay and on the standalone
@@ -99,60 +104,107 @@ def _unit(n, word):
     return word if n == 1 else word + "S"
 
 
-# ---------------------------------------------------------------- cards
+# ---------------------------------------------------------------- shared pieces
 
-def kickoff_card(d, info, time_html):
-    try:
-        day = date.fromisoformat(str(d.get("gameday"))[:10])
-        date_line, weekday = f"{MONTHS_UPPER[day.month - 1]} {day.day}", DAY_NAMES[day.weekday()]
-    except (TypeError, ValueError):
-        date_line, weekday = "Date TBD", ""
-
-    if d.get("final"):
-        clock = f'<div class="cd cd-done"><span class="cd-status">{"FINAL/OT" if d.get("overtime") else "FINAL"}</span></div>'
-    else:
-        parts = countdown_parts(info.get("kickoff_utc"))
-        rows = []
-        for key, word, n in zip(("d", "h", "m"), ("DAY", "HOUR", "MINUTE"), parts or (None, None, None)):
-            rows.append(f'<div class="cd-row"><b class="cd-n" data-u="{key}">{DASH if n is None else n}</b>'
-                        f'<span class="cd-u" data-w="{word}">{_unit(n, word)}</span></div>')
-        clock = (f'<div class="cd" data-kickoff="{esc(info.get("kickoff_utc") or "")}" role="timer" aria-label="Time until kickoff">'
-                 f'{"".join(rows)}<span class="cd-status" hidden></span></div>')
-
-    ref = info.get("referee")
-    ref_html = f'<span>{esc(ref)}</span>' if ref else '<span class="na">TBA</span>'
-
+def _meeting(d, info):
+    """(away, home, meeting dict or None, away score, home score)."""
     a = (d.get("away") or {}).get("team") or "TBD"
     h = (d.get("home") or {}).get("team") or "TBD"
     m = info.get("last_meeting")
-    if m and isinstance(m.get("score"), dict):
-        sa, sh = _num(m["score"].get(a)), _num(m["score"].get(h))
-        ca = "sc" + (" lose" if sa is not None and sh is not None and sa < sh else "")
-        ch = "sc" + (" lose" if sa is not None and sh is not None and sh < sa else "")
+    if not (m and isinstance(m.get("score"), dict)):
+        return a, h, None, None, None
+    return a, h, m, _num(m["score"].get(a)), _num(m["score"].get(h))
+
+
+def _lose(mine, theirs):
+    return " lose" if mine is not None and theirs is not None and mine < theirs else ""
+
+
+def _countdown(d, info, cls):
+    if d.get("final"):
+        return f'<div class="{cls} cd-done"><span class="cd-status">{"FINAL/OT" if d.get("overtime") else "FINAL"}</span></div>'
+    parts = countdown_parts(info.get("kickoff_utc"))
+    rows = "".join(
+        f'<div class="cd-row"><b class="cd-n" data-u="{key}">{DASH if n is None else n}</b>'
+        f'<span class="cd-u" data-w="{word}">{_unit(n, word)}</span></div>'
+        for key, word, n in zip(("d", "h", "m"), ("DAY", "HOUR", "MINUTE"), parts or (None, None, None)))
+    return (f'<div class="{cls}" data-kickoff="{esc(info.get("kickoff_utc") or "")}" role="timer" aria-label="Time until kickoff">'
+            f'{rows}<span class="cd-status" hidden></span></div>')
+
+
+def _date_parts(d):
+    try:
+        day = date.fromisoformat(str(d.get("gameday"))[:10])
+        return f"{MONTHS_UPPER[day.month - 1]} {day.day}", DAY_NAMES[day.weekday()]
+    except (TypeError, ValueError):
+        return "Date TBD", ""
+
+
+def _weather_values(d, w):
+    """Formatted weather numbers shared by both views; every value may be None."""
+    ok = bool(w.get("available"))
+    g = (lambda k: w.get(k)) if ok else (lambda k: None)
+    lo, hi = g("wind_min_mph"), g("wind_max_mph")
+    if lo is None and hi is None:
+        speed = None
+    elif lo is None or hi is None or int(lo) == int(hi):
+        speed = fmt_int(hi if hi is not None else lo)
+    else:
+        speed = f"{fmt_int(lo)}-{fmt_int(hi)}"
+    pct, hum = g("precip_pct"), g("humidity_pct")
+    return {
+        "ok": ok, "temp": g("temp_f"), "feels": g("feels_f"), "condition": g("condition"),
+        "pct": None if d.get("final") or pct is None else fmt_int(pct),   # a chance of rain means nothing after the game
+        "inches": fmt_inches(g("precip_in")), "speed": speed, "dir": g("wind_dir"),
+        "humidity": None if hum is None else fmt_int(hum),
+    }
+
+
+def _temp(v):
+    return f'{esc(fmt_int(v))}°' if v is not None else f'<span class="na">{DASH}°</span>'
+
+
+def _roof(st):
+    """'Open' / 'Closed' / 'TBD' for retractable roofs only (Jason), else None."""
+    if st.get("roof_type") != "retractable":
+        return None
+    return {"open": "Open", "closed": "Closed"}.get(st.get("roof_status"), "TBD")
+
+
+def _place(st):
+    city, region = st.get("city"), st.get("region")
+    if city and region:
+        return f'<span class="nb">{esc(city)},</span> <span class="nb">{esc(region)}</span>'
+    return f'<span class="nb">{esc(city or region)}</span>' if (city or region) else ""
+
+
+# ---------------------------------------------------------------- expanded view: one card per screen
+
+def kickoff_body(d, info, time_html):
+    date_line, weekday = _date_parts(d)
+    ref = info.get("referee")
+    ref_html = f'<span>{esc(ref)}</span>' if ref else '<span class="na">TBA</span>'
+    a, h, m, sa, sh = _meeting(d, info)
+    if m:
         meeting = (
             f'<p class="ko-line">Last matchup <span class="ko-date-sm">{esc(fmt_meeting_date(m.get("date")))}</span></p>'
             f'<div class="ko-meet" aria-label="{esc(a)} {fmt_int(sa)}, {esc(h)} {fmt_int(sh)}">'
-            f'<span class="abbr">{esc(a)}</span><span class="{ca}">{fmt_int(sa)}</span>'
-            f'<span class="{ch}">{fmt_int(sh)}</span><span class="abbr">{esc(h)}</span></div>'
+            f'<span class="abbr">{esc(a)}</span><span class="sc{_lose(sa, sh)}">{fmt_int(sa)}</span>'
+            f'<span class="sc{_lose(sh, sa)}">{fmt_int(sh)}</span><span class="abbr">{esc(h)}</span></div>'
         )
     else:
         meeting = '<p class="ko-line na">First meeting</p>'
-
     names = info.get("broadcasters") or []
     network = d.get("networks")
     net = network.strip() if isinstance(network, str) and network.strip() else "TV TBD"
     crew = "".join(f"<span>{esc(n)}</span>" for n in names)
     tv = (f'<div class="ko-tv{" has-crew" if crew else ""}"><span class="ko-net">{esc(net)}</span>'
           f'{f"<span class=ko-crew>{crew}</span>" if crew else ""}</div>')
-
     return (
-        '<section class="p2-card ko" aria-label="Kickoff">'
-        '<span class="card-title">Kickoff</span>'
         '<div class="ko-top">'
         f'<div class="ko-when">{time_html}<div class="ko-date">{esc(date_line)}</div><div class="ko-date">{esc(weekday)}</div></div>'
-        f"{clock}</div>"
-        f'<div class="ko-lines"><p class="ko-line">Head Referee: {ref_html}</p>{meeting}</div>'
-        f"{tv}</section>"
+        f'{_countdown(d, info, "cd")}</div>'
+        f'<div class="ko-lines"><p class="ko-line">Head Referee: {ref_html}</p>{meeting}</div>{tv}'
     )
 
 
@@ -167,103 +219,156 @@ def _val(n, unit=""):
     return f"{esc(n)}<small>{esc(unit)}</small>" if unit else esc(n)
 
 
-def weather_card(d, w, icons):
+def weather_body(d, w, icons):
     """None for indoor games -- the card is left out entirely (Jason, 2026-09-19)."""
     if w.get("indoor"):
         return None
-    ok = w.get("available")
-    g = (lambda k: w.get(k)) if ok else (lambda k: None)
-    temp, feels = g("temp_f"), g("feels_f")
-    icon = icons.get(g("condition"), "") if ok else ""
-
-    precip_pct, precip_in = g("precip_pct"), fmt_inches(g("precip_in"))
+    v = _weather_values(d, w)
     if d.get("final"):   # after the game: how much actually fell
-        precip = _wx_row(_val(precip_in, "IN") if precip_in is not None else _val(None), "Precip")
+        precip = _wx_row(_val(v["inches"], "IN"), "Precip")
     else:
-        precip = _wx_row(_val(fmt_int(precip_pct) if precip_pct is not None else None, "%"), "Precip",
-                         f"{esc(precip_in)}&quot;" if precip_in is not None else "")
-    lo, hi = g("wind_min_mph"), g("wind_max_mph")
-    if lo is None and hi is None:
-        speed = None
-    elif lo is None or hi is None or int(lo) == int(hi):
-        speed = fmt_int(hi if hi is not None else lo)
-    else:
-        speed = f"{fmt_int(lo)}-{fmt_int(hi)}"
-    wind = _wx_row(_val(speed, "MPH"), "Wind", esc(g("wind_dir") or ""))
-    hum = g("humidity_pct")
-    humidity = _wx_row(_val(fmt_int(hum) if hum is not None else None, "%"), "Humidity")
-
+        precip = _wx_row(_val(v["pct"], "%"), "Precip", f'{esc(v["inches"])}&quot;' if v["inches"] is not None else "")
     note = ""
-    if not ok:
-        days = w.get("window_days")
-        note = (f'<p class="wx-note">Forecast posts {esc(days)} days before kickoff</p>' if w.get("reason") == "forecast_window"
-                else '<p class="wx-note">Weather not available</p>')
-    t = lambda v: f'{esc(fmt_int(v))}°' if v is not None else f'<span class="na">{DASH}°</span>'
+    if not v["ok"]:
+        note = (f'<p class="wx-note">Forecast posts {esc(w.get("window_days"))} days before kickoff</p>'
+                if w.get("reason") == "forecast_window" else '<p class="wx-note">Weather not available</p>')
     return (
-        '<section class="p2-card wxc" aria-label="Weather">'
-        '<span class="card-title">Weather</span>'
         '<div class="wx-top">'
-        f'<div class="wx-t"><b>{t(temp)}</b><span>Actual</span></div>'
-        f'<div class="wx-t"><b>{t(feels)}</b><span>Feels Like</span></div>'
-        f'<div class="wx-ic">{icon}</div></div>'
-        f'<div class="wx-rows">{precip}{wind}{humidity}</div>{note}</section>'
+        f'<div class="wx-t"><b>{_temp(v["temp"])}</b><span>Actual</span></div>'
+        f'<div class="wx-t"><b>{_temp(v["feels"])}</b><span>Feels Like</span></div>'
+        f'<div class="wx-ic">{icons.get(v["condition"], "")}</div></div>'
+        f'<div class="wx-rows">{precip}{_wx_row(_val(v["speed"], "MPH"), "Wind", esc(v["dir"] or ""))}'
+        f'{_wx_row(_val(v["humidity"], "%"), "Humidity")}</div>{note}'
     )
 
 
-def stadium_card(st):
-    name = st.get("name") or "Stadium TBD"
-    city, region = st.get("city"), st.get("region")
-    place = ""
-    if city and region:
-        place = f'<span class="nb">{esc(city)},</span> <span class="nb">{esc(region)}</span>'
-    elif city or region:
-        place = f'<span class="nb">{esc(city or region)}</span>'
+def stadium_body(st):
     facts = [f'<div class="fact"><b>{esc(st.get("surface") or DASH)}</b><span>Playing Surface</span></div>']
-    if st.get("roof_type") == "retractable":   # only stadiums that can open or close show it (Jason)
-        status = {"open": "Open", "closed": "Closed"}.get(st.get("roof_status"), "TBD")
-        facts.append(f'<div class="fact"><b{" class=na" if status == "TBD" else ""}>{status}</b><span>Roof</span></div>')
+    roof = _roof(st)
+    if roof:
+        facts.append(f'<div class="fact"><b{" class=na" if roof == "TBD" else ""}>{roof}</b><span>Roof</span></div>')
+    place = _place(st)
     return (
-        '<section class="p2-card st" aria-label="Stadium">'
-        '<span class="card-title">Stadium</span>'
-        f'<div class="st-head"><h2 class="st-name">{esc(name)}</h2>{STADIUM_ICON}</div>'
+        f'<div class="st-head"><h2 class="st-name">{esc(st.get("name") or "Stadium TBD")}</h2>{STADIUM_ICON}</div>'
         f'{f"<div class=st-city>{place}</div>" if place else ""}'
-        f'<div class="st-facts{" one" if len(facts) == 1 else ""}">{"".join(facts)}</div></section>'
+        f'<div class="st-facts{" one" if len(facts) == 1 else ""}">{"".join(facts)}</div>'
     )
 
+
+# ---------------------------------------------------------------- condensed view: everything on one screen
+
+def _fact(label, value_html, sub=""):
+    return f'<div class="sf"><span>{esc(label)}</span><b>{value_html}</b>{f"<i>{sub}</i>" if sub else ""}</div>'
+
+
+def _na(text=DASH):
+    return f'<span class="na">{esc(text)}</span>'
+
+
+def kickoff_condensed(d, info, time_html):
+    date_line, weekday = _date_parts(d)
+    a, h, m, sa, sh = _meeting(d, info)
+    if m:
+        meet = (f'<span class="mm"><span class="abbr">{esc(a)}</span><span class="sc{_lose(sa, sh)}">{fmt_int(sa)}</span>'
+                f'<span class="sc{_lose(sh, sa)}">{fmt_int(sh)}</span><span class="abbr">{esc(h)}</span></span>')
+        meet_sub = esc(fmt_meeting_date(m.get("date")))
+    else:
+        meet, meet_sub = _na("First meeting"), ""
+    network = d.get("networks")
+    tv = esc(network.strip()) if isinstance(network, str) and network.strip() else "TBD"
+    ref = info.get("referee")
+    return (
+        f'<div class="cc-top"><div>{time_html}<div class="cc-date">{esc(date_line)} {esc(weekday)}</div></div>'
+        f'{_countdown(d, info, "cd-c")}</div>'
+        f'<div class="strip">{_fact("Head Referee", esc(ref) if ref else _na("TBA"))}'
+        f'{_fact("Last Matchup", meet, meet_sub)}{_fact("TV", tv)}</div>'
+    )
+
+
+def weather_condensed(d, w, icons):
+    if w.get("indoor"):
+        return None
+    v = _weather_values(d, w)
+    if d.get("final"):
+        precip = f'{esc(v["inches"])}<small>IN</small>' if v["inches"] is not None else _na()
+    elif v["pct"] is not None:
+        precip = f'{esc(v["pct"])}<small>%</small>' + (f' <em>{esc(v["inches"])}&quot;</em>' if v["inches"] is not None else "")
+    else:
+        precip = _na()
+    wind = (f'{esc(v["speed"])}<small>MPH</small>' + (f' <em>{esc(v["dir"])}</em>' if v["dir"] else "")) if v["speed"] is not None else _na()
+    hum = f'{esc(v["humidity"])}<small>%</small>' if v["humidity"] is not None else _na()
+    return (
+        f'<div class="cc-top"><div class="cc-temps"><div class="wx-t"><b>{_temp(v["temp"])}</b><span>Actual</span></div>'
+        f'<div class="wx-t"><b>{_temp(v["feels"])}</b><span>Feels Like</span></div></div>'
+        f'<div class="wx-ic">{icons.get(v["condition"], "")}</div></div>'
+        f'<div class="strip">{_fact("Precip", precip)}{_fact("Wind", wind)}{_fact("Humidity", hum)}</div>'
+    )
+
+
+def stadium_condensed(st):
+    facts = _fact("Surface", esc(st.get("surface")) if st.get("surface") else _na())
+    roof = _roof(st)
+    if roof:
+        facts += _fact("Roof", _na("TBD") if roof == "TBD" else roof)
+    place = _place(st)
+    return (
+        f'<div class="cc-top"><div class="cc-stn"><div class="st-name">{esc(st.get("name") or "Stadium TBD")}</div>'
+        f'{f"<div class=cc-city>{place}</div>" if place else ""}</div>{STADIUM_ICON}</div>'
+        f'<div class="strip">{facts}</div>'
+    )
+
+
+# ---------------------------------------------------------------- the layer
 
 def render_p2_block(d, time_html, icons):
     """The hidden Page 2 layer inside Page 1's .p1 block. Empty string if the game has no info."""
     info = d.get("info")
     if not isinstance(info, dict):
         return ""
-    cards = [kickoff_card(d, info, time_html), weather_card(d, info.get("weather") or {}, icons),
-             stadium_card(info.get("stadium") or {})]
+    w, st = info.get("weather") or {}, info.get("stadium") or {}
+    cards = [("kickoff", "Kickoff", kickoff_body(d, info, time_html), kickoff_condensed(d, info, time_html)),
+             ("weather", "Weather", weather_body(d, w, icons), weather_condensed(d, w, icons)),
+             ("stadium", "Stadium", stadium_body(st), stadium_condensed(st))]
+    cards = [c for c in cards if c[2]]
+    from render_page1 import UP, DOWN
+    slots = "".join(
+        f'<section class="slot"><a class="card p2k p2k-{cid}" tabindex="-1" aria-label="{name}">'
+        f'<span class="peek peek-top">{DOWN}<span>{name}</span></span><div class="body">{body}</div>'
+        f'<span class="peek peek-bot">{UP}<span>{name}</span></span></a></section>'
+        for cid, name, body, _c in cards)
+    dots = "".join(f'<button class="dot" type="button" aria-label="{name}"></button>' for _i, name, _b, _c in cards)
+    condensed = "".join(
+        f'<a class="card cc cc-{cid}" tabindex="0" aria-label="{name}"><span class="card-title">{name}</span>{c}</a>'
+        for cid, name, _b, c in cards)
     return ('<div class="p2" data-page="game-info" aria-label="Game info" role="region">'
-            f'<div class="p2-col">{"".join(c for c in cards if c)}</div></div>')
+            f'<div class="p2-view p2-l deck">{slots}</div><nav class="dots p2-dots" aria-label="Cards">{dots}</nav>'
+            f'<div class="p2-view p2-c n{len(cards)}">{condensed}</div></div>')
 
 
 # ---------------------------------------------------------------- styles
 # Appended to Page 1's stylesheet (same <style id="p1-css">), so it also lands in the Page 0
-# overlay's shadow root. Everything below .p2-col is scoped by its own class names (not by the
-# .p2 parent) so the close animation can carry a snapshot of the column in a plain box.
+# overlay's shadow root. The deck reuses Page 1's .deck / .slot / .peek / .dots rules as they are.
 
 P2_CSS = r"""
-/* ===== Page 2: Game Info deep dive (2026-09-19) ===== */
-.p2{display:none;position:fixed;inset:var(--bar) 0 var(--bbar);z-index:9;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;
-  background:#fff;scrollbar-width:none;transform-origin:50% 50%}
-.p2::-webkit-scrollbar{display:none}
+/* ===== Page 2: Game Info deep dive (2026-09-19; deck + condensed views v4) ===== */
+.p2{display:none;position:fixed;inset:var(--bar) 0 var(--bbar);z-index:9;overflow:hidden;background:#fff;transform-origin:50% 50%}
 .p1[data-detail] .p2{display:block}
-.p1[data-detail] .view,.p1[data-detail] .dots{visibility:hidden}
-.p1[data-detail][data-pulling] .view{visibility:visible}   /* pulling Page 2 down shows Page 1 behind it */
-.p1[data-detail] .bbar .week:not(.p2-back),.p1[data-detail] .toggle{display:none}
+.p1[data-detail]>.view,.p1[data-detail]>.dots{visibility:hidden}
+.p1[data-detail][data-pulling]>.view,.p1[data-detail][data-closing]>.view{visibility:visible}   /* Page 1 shows behind a pull / the close */
+.p1[data-detail] .bbar .week:not(.p2-back){display:none}
 .p2-back{display:none}
 .p1[data-detail] .p2-back{display:inline-flex}
-.p2-col{max-width:var(--col);margin:0 auto;padding:12px 16px 28px;display:flex;flex-direction:column;gap:12px}
-.p2-card{position:relative;background:var(--tile);border:1px solid var(--tile-border);border-radius:20px;
-  padding:calc(var(--ctitle) + 18px) 24px 30px;color:var(--ink)}
-.p2-card .na{color:var(--text-3)}
+.p2-view{display:none}
+.p1[data-view=large] .p2-l{display:block}
+.p1[data-view=large] .p2-dots{display:flex}
+.p1[data-view=condensed] .p2-c{display:grid}
+.p2 .na{color:var(--text-3)}
 
-/* Kickoff */
+/* ---- expanded: Page 1's deck, one Page 2 card per screen ---- */
+/* positioned inside .p2 rather than fixed to the screen, so the deck moves with Page 2 when it is pulled down */
+.p2 .deck{position:absolute;inset:0}
+.p2 .dots{position:absolute;top:50%}
+.p2 .slot .body{padding:46px 26px 30px;justify-content:space-evenly}
 .ko-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .ko-when .time{font-size:58px}
 .ko-date{font-size:30px;font-weight:700;line-height:1.12;white-space:nowrap}
@@ -274,57 +379,97 @@ P2_CSS = r"""
 .cd-u{font-size:13px;font-weight:700;letter-spacing:.04em}
 .cd-status{font-size:16px;font-weight:700;letter-spacing:.04em;line-height:1.2;white-space:nowrap}   /* same as Page 0's FINAL */
 .cd-done{padding-top:10px}
-.ko-lines{margin-top:30px;text-align:center}
+.ko-lines{text-align:center}
 .ko-line{font-size:15px;line-height:1.5}
 .ko-line+.ko-line{margin-top:2px}
-.ko-meet{display:flex;justify-content:center;align-items:center;gap:.45em;font-size:28px;margin-top:10px}
-.ko-meet .sc{font-family:Teko,Inter,system-ui,sans-serif;font-weight:700;font-size:1.25em;line-height:1;min-width:1.2em;text-align:center;
-  font-variant-numeric:tabular-nums}
-.ko-meet .sc.lose{opacity:.3}
+.ko-meet{display:flex;justify-content:center;align-items:center;gap:.45em;font-size:32px;margin-top:10px}
+.sc{font-family:Teko,Inter,system-ui,sans-serif;font-weight:700;font-size:1.25em;line-height:1;min-width:1.2em;text-align:center;font-variant-numeric:tabular-nums}
+.sc.lose{opacity:.3}
 .ko-meet .sc+.sc{margin-left:.4em}
-.ko-tv{margin-top:26px;display:flex;justify-content:center;align-items:center;gap:24px;font-size:16px}
+.ko-tv{display:flex;justify-content:center;align-items:center;gap:24px;font-size:16px}
 .ko-tv.has-crew{justify-content:space-between}
 .ko-crew{display:flex;flex-direction:column;text-align:right;line-height:1.25}
-
-/* Weather */
 .wx-top{display:flex;align-items:flex-end;gap:24px}
-.wx-t b{display:block;font-size:52px;font-weight:700;line-height:1;letter-spacing:-.01em;white-space:nowrap}
+.wx-t b{display:block;font-size:58px;font-weight:700;line-height:1;letter-spacing:-.01em;white-space:nowrap}
 .wx-t>span{display:block;font-size:14px;color:var(--text-2);margin-top:6px}
 .wx-ic{margin-left:auto;align-self:center}
 .wx-ic svg{width:68px;height:51px;display:block}
-.wx-rows{margin-top:30px;display:flex;flex-direction:column;gap:20px}
+.wx-rows{display:flex;flex-direction:column;gap:20px}
 .wx-row{display:grid;grid-template-columns:minmax(104px,auto) 1fr auto;align-items:baseline;gap:14px}
-.wx-v{font-size:40px;font-weight:700;line-height:1;white-space:nowrap;letter-spacing:-.01em}
+.wx-v{font-size:44px;font-weight:700;line-height:1;white-space:nowrap;letter-spacing:-.01em}
 .wx-v small{font-size:14px;font-weight:700;letter-spacing:.04em;margin-left:3px}
 .wx-l{font-size:15px;color:var(--text-2)}
 .wx-x{font-size:30px;font-weight:700;line-height:1;white-space:nowrap}
-.wx-note{margin-top:22px;font-size:13px;color:var(--text-2);text-align:center}
-
-/* Stadium */
+.wx-note{font-size:13px;color:var(--text-2);text-align:center}
 .st-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:12px 20px;text-align:center}
-.st-name{font-size:34px;font-weight:700;line-height:1.1;letter-spacing:-.01em}
+.st-name{font-size:38px;font-weight:700;line-height:1.1;letter-spacing:-.01em}
 .st-icon{display:block;flex:none}
-.st-city{margin-top:24px;font-size:28px;font-weight:700;line-height:1.15;text-align:center}
-.st-city .nb{display:inline-block}
-.st-facts{margin-top:30px;display:grid;grid-template-columns:1fr 1fr;gap:16px;text-align:center}
+.p2-l .st-icon{width:104px;height:78px}
+.st-city{font-size:30px;font-weight:700;line-height:1.15;text-align:center}
+.nb{display:inline-block}
+.st-facts{display:grid;grid-template-columns:1fr 1fr;gap:16px;text-align:center}
 .st-facts.one{grid-template-columns:1fr}
-.fact b{display:block;font-size:34px;font-weight:700;line-height:1.05}
+.fact b{display:block;font-size:38px;font-weight:700;line-height:1.05}
 .fact span{display:block;font-size:14px;color:var(--text-2);margin-top:6px}
 
+/* ---- condensed: every card on one screen; a headline, then a strip of small labelled facts ---- */
+.p2-c{max-width:var(--col);margin:0 auto;height:100%;padding:12px 16px;gap:12px}
+.p2-c.n3{grid-template-rows:minmax(0,1.12fr) minmax(0,1fr) minmax(0,.92fr)}
+.p2-c.n2{grid-template-rows:minmax(0,1.15fr) minmax(0,1fr)}
+a.card.cc{display:flex;flex-direction:column;justify-content:space-evenly;gap:6px;padding:var(--ctitle) 20px clamp(8px,1.4vh,14px);overflow:hidden;min-height:0}
+.p2-c a.card.cc:hover,.p2-c a.card.cc:focus-visible{transform:scale(1.03);border-color:var(--tile-border-hover);z-index:1}
+.cc-top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.cc .time{font-size:clamp(30px,5.2vh,46px)}
+.cc .time small{font-size:13px}
+.cc-date{font-size:clamp(15px,2.2vh,19px);font-weight:700;margin-top:4px;white-space:nowrap}
+.cd-c{display:flex;flex-direction:column;gap:clamp(0px,.4vh,3px)}
+.cd-c .cd-n{font-size:clamp(17px,2.8vh,26px)}
+.cd-c .cd-u{font-size:10px}
+.cd-c.cd-done{padding-top:0}
+.strip{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:10px;text-align:center;align-items:start}
+.sf>span{display:block;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-2);margin-bottom:4px}
+.sf b{display:block;font-size:clamp(14px,2vh,17px);font-weight:700;line-height:1.2}
+.sf b small{font-size:.6em;letter-spacing:.04em;margin-left:1px}
+.sf b em{font-style:normal;font-weight:400}
+.sf i{display:block;font-style:normal;font-size:11px;color:var(--text-2);margin-top:2px}
+.mm{display:inline-flex;align-items:center;gap:.3em;white-space:nowrap}
+.mm .sc{min-width:0}
+.cc-temps{display:flex;gap:20px}
+.cc .wx-t b{font-size:clamp(34px,5.6vh,48px)}
+.cc .wx-t>span{font-size:12px;margin-top:3px}
+.cc .wx-ic svg{width:54px;height:40px}
+.cc-stn{min-width:0}
+.cc .st-name{font-size:clamp(20px,3vh,26px);line-height:1.1}
+.cc-city{font-size:14px;margin-top:4px}
+.cc .st-icon{width:64px;height:48px}
+
 @media (max-width:400px){
-  .p2-card{padding-left:18px;padding-right:18px}
+  .p2 .slot .body{padding-left:18px;padding-right:18px}
   .ko-when .time{font-size:50px}.ko-date{font-size:26px}
   .cd-n{font-size:31px}.cd-u{font-size:12px}
-  .wx-t b{font-size:46px}.wx-top{gap:18px}
-  .wx-v{font-size:36px}.wx-x{font-size:27px}.wx-row{grid-template-columns:minmax(92px,auto) 1fr auto;gap:12px}
-  .st-name{font-size:30px}.st-city{font-size:25px}.fact b{font-size:30px}
+  .wx-t b{font-size:50px}.wx-top{gap:18px}
+  .wx-v{font-size:38px}.wx-x{font-size:27px}.wx-row{grid-template-columns:minmax(92px,auto) 1fr auto;gap:12px}
+  .st-name{font-size:33px}.st-city{font-size:26px}.fact b{font-size:32px}
+  a.card.cc{padding-left:16px;padding-right:16px}
 }
 @media (max-width:344px){
-  .p2-card{padding-left:14px;padding-right:14px}
   .ko-when .time{font-size:40px}.ko-date{font-size:22px}.cd-n{font-size:25px}.cd-u{font-size:10px;letter-spacing:.02em}
   .wx-t b{font-size:40px}.wx-v{font-size:31px}.wx-x{font-size:23px}
+  .sf>span{font-size:9px;letter-spacing:.06em}
+}
+@media (max-width:344px){.fact b{font-size:26px}.p2 .st-facts{gap:8px}}
+/* short screens (iPhone SE size): tighter condensed cards so all of them still fit without scrolling */
+@media (max-height:620px){
+  .p2-c{gap:8px;padding-top:8px;padding-bottom:8px}
+  a.card.cc{gap:2px;padding-bottom:5px;--ctitle:22px}
+  .cc .time{font-size:28px}.cc-date{font-size:14px;margin-top:2px}.cd-c .cd-n{font-size:16px}
+  .cc .wx-t b{font-size:30px}.cc .wx-ic svg{width:44px;height:33px}
+  .cc .st-name{font-size:18px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .cc-city{font-size:12px;margin-top:2px}.cc .st-icon{width:48px;height:36px}
+  .sf b{font-size:13px}.sf>span{margin-bottom:2px}
 }
 @media (min-width:601px){
   .ko-when .time{font-size:63px}.ko-date{font-size:34px}.cd-n{font-size:40px}.cd-u{font-size:14px}
+  .cc-date,.cd-c .cd-n{white-space:nowrap}
 }
 """

@@ -792,12 +792,12 @@ PAGE1_OVERLAY_JS = r"""
     s.overlay.appendChild(host);
     var m = { host: host, root: root, title: page.title };
     if (opts.preview) {  // a neighbour shown while swiping: same card as the current game, no listeners yet
-      var slots = root.querySelectorAll('.slot'), i = Math.max(0, Math.min(slots.length - 1, opts.card || 0));
+      var slots = root.querySelectorAll('.view-l > .slot'), i = Math.max(0, Math.min(slots.length - 1, opts.card || 0));
       if (slots[i]) slots[i].classList.add('active');
       if (slots[i - 1]) slots[i - 1].classList.add('above');
       if (slots[i + 1]) slots[i + 1].classList.add('below');
       root.querySelector('.p1').setAttribute('data-head', i === 0 ? 'card' : 'bar');
-      var deck = root.querySelector('.deck');
+      var deck = root.querySelector('.view-l');
       if (deck && slots[i] && opts.view !== 'condensed') deck.scrollTop = slots[i].offsetTop - (deck.clientHeight - slots[i].offsetHeight) / 2;
     } else {
       m.inst = window.AAG_P1.init(root, { onBack: requestClose, view: opts.view, card: opts.card, detail: !!opts.detail });
@@ -813,8 +813,7 @@ PAGE1_OVERLAY_JS = r"""
   function syncTouchAction(s) {
     if (!s || !s.overlay || !s.root) return;
     var p1 = s.root.querySelector('.p1');
-    // Page 2 scrolls natively in either view, so it hands vertical pans back to the browser too
-    s.overlay.style.touchAction = p1 && (p1.getAttribute('data-view') === 'large' || p1.hasAttribute('data-detail')) ? '' : 'none';
+    s.overlay.style.touchAction = p1 && p1.getAttribute('data-view') === 'large' ? '' : 'none';   // Page 2 follows the same views
   }
 
   // Wire the pull-to-close helpers onto whichever page is currently mounted: called on open and
@@ -832,15 +831,15 @@ PAGE1_OVERLAY_JS = r"""
     // touchmove non-cancelable. That overscroll shows up as a negative scrollTop, so a deep enough
     // bounce counts as the same gesture. Chrome doesn't overscroll inner scrollers, so there the
     // touch handler below is what runs.
-    var dk = s.root.querySelector('.deck');
+    var dk = s.root.querySelector('.view-l');
     if (dk) dk.addEventListener('scroll', function () {
       if (state !== s || s.closing || !s.touching || dk.scrollTop > -PULL_BOUNCE || detailOn(s)) return;
       s.pinchScale = 1;
       s.pinchRect = s.host.getBoundingClientRect();
       requestClose();
     }, { passive: true });
-    // same Safari bounce, on Page 2: closes Page 2 back into its card (not Page 1)
-    var p2 = s.root.querySelector('.p2');
+    // same Safari bounce on Page 2's deck: closes Page 2 back into its card (not Page 1)
+    var p2 = s.root.querySelector('.p2-l');
     if (p2) p2.addEventListener('scroll', function () {
       if (state !== s || s.closing || !s.touching || p2.scrollTop > -PULL_BOUNCE || !detailOn(s)) return;
       s.inst.closeDetail();
@@ -904,7 +903,7 @@ PAGE1_OVERLAY_JS = r"""
     });
     var large = m.root.querySelector('.p1').getAttribute('data-view') === 'large';
     // (large view: animate the cards, not their snap slots, so the deck's scroll-snap doesn't chase the motion)
-    all(m.root.querySelectorAll(large ? '.slot > a.card' : '.view-c > .card, .c-teams > .card')).forEach(function (el, i) {
+    all(m.root.querySelectorAll(large ? '.view-l > .slot > a.card' : '.view-c > .card, .c-teams > .card')).forEach(function (el, i) {
       el.animate([{ opacity: 0, transform: 'translateY(56px) scale(.96)' }, { opacity: 1, transform: 'none' }],
                  { duration: 300, delay: 20 + i * 35, easing: EASE, fill: 'backwards' });
     });
@@ -1099,7 +1098,7 @@ PAGE1_OVERLAY_JS = r"""
         oldHost.remove();
         n.host.style.transform = '';
         n.host.getAnimations().forEach(function (a) { a.cancel(); });
-        var slots = n.root.querySelectorAll('.slot');
+        var slots = n.root.querySelectorAll('.view-l > .slot');
         all(slots).forEach(function (el) { el.classList.remove('active', 'below', 'above'); });
         s.host = n.host; s.root = n.root; s.id = nid; s.swipeHost = null;
         s.inst = window.AAG_P1.init(n.root, { onBack: requestClose, view: view, card: card });
@@ -1125,7 +1124,7 @@ PAGE1_OVERLAY_JS = r"""
     // (it has a min-height, so it can overflow). Checked directly, because a touch that starts
     // on the host rather than a shadow node wouldn't show them in the path.
     if (s && s.root) {
-      var scrollers = s.root.querySelectorAll(detailOn(s) ? '.p2' : '.deck, .view-c, .p1');
+      var scrollers = s.root.querySelectorAll(detailOn(s) ? '.p2-l' : '.view-l, .view-c, .p1');
       for (var j = 0; j < scrollers.length; j++) if (scrolledDown(scrollers[j])) return false;
     }
     if (s && s.host && scrolledDown(s.host)) return false;
@@ -1157,7 +1156,7 @@ PAGE1_OVERLAY_JS = r"""
           : ((e.touches[0].clientX + e.touches[1].clientX) / 2) + 'px ' + ((e.touches[0].clientY + e.touches[1].clientY) / 2) + 'px';
       } else if (e.touches.length === 1) {
         mode = 'pending'; x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0; dy = 0; t0 = Date.now();
-        canPull = atScrollTop(e);
+        canPull = detailOn(s) ? s.inst.detailAtTop() : atScrollTop(e);   // Page 2: first card, or condensed
         s.touching = true;   // a bounce only counts as a pull while a finger is down
       }
     }, { passive: true });
