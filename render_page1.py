@@ -391,7 +391,9 @@ def render_p1_block(d, prefix="../"):
     # stacked and pushed to the edges of the screen in the expanded view (2026-09-17).
     row = (
         f'<div class="side away">{img(a, 44)}<span class="abbr">{esc(a)}</span>{a_score}</div>'
-        f'<div class="mid"><span class="at">@</span>'
+        # finished games say FINAL / FINAL/OT where the "@" was (Jason, 2026-09-19) -- same element, so every
+        # header animation that moves the "@" carries the label instead
+        f'<div class="mid"><span class="at{" at-final" if final else ""}">{("FINAL/OT" if d.get("overtime") else "FINAL") if final else "@"}</span>'
         f'<span class="when"><span>{esc(when_day)}</span><span>{esc(when_time)}</span></span>'
         f'<span class="final-lbl">{"FINAL/OT" if d.get("overtime") else "FINAL"}</span></div>'
         f'<div class="side home">{h_score}<span class="abbr">{esc(h)}</span>{img(h, 44, True)}</div>'
@@ -940,6 +942,10 @@ a.card:focus-visible{outline:2px solid #000;outline-offset:2px}
 .side,.mid{display:flex;align-items:center;gap:.4em}
 .teams .abbr{font-size:1em}
 .teams .at{font-size:.8em;padding:0 .25em}
+.teams .at-final{font-weight:700;letter-spacing:.04em;white-space:nowrap;padding:0 .3em}   /* 16px in the 20px bar = Page 0's FINAL */
+.hero .teams .at-final{font-size:.44em;padding:0 .35em}   /* in the Game Info card: label-sized (~16px), so the teams keep their room */
+@media (max-width:400px){.bar .teams .at-final{font-size:.58em;padding:0 .2em}}   /* Page 0 drops FINAL to 11px here too */
+@media (max-width:344px){.p1:not([data-view=large]) .bar .teams{font-size:17px}}
 .teams img{display:block;width:2.2em;height:2.2em}
 .bar .teams{pointer-events:none}
 .when{display:none;flex-direction:column;align-items:center;font-size:11px;font-weight:700;letter-spacing:.1em;line-height:1.35;color:var(--text-2);white-space:nowrap}
