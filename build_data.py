@@ -366,7 +366,7 @@ def main():
     }
 
     os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
-    with open(OUTPUT_PATH, "w") as f:
+    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
         json.dump(output, f, indent=2, default=str)
 
     print(f"Wrote {len(matchups)} matchups and {len(game_details)} game pages' data to {OUTPUT_PATH}")

@@ -37,6 +37,7 @@ from datetime import date
 
 import helmets
 import render_page2gameinfo
+import theme
 
 MONTHS_UPPER = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -469,7 +470,7 @@ def write_all(data, site_dir, warnings=None):
     for gid, d in details.items():
         try:
             safe = "".join(ch for ch in str(gid) if ch.isalnum() or ch in "_-")
-            with open(os.path.join(out_dir, f"{safe}.html"), "w") as f:
+            with open(os.path.join(out_dir, f"{safe}.html"), "w", encoding="utf-8") as f:
                 f.write(render_standalone(d))
             count += 1
         except Exception:
@@ -1008,10 +1009,12 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
 
 # ---------------------------------------------------------------- styles (ported 1:1 from the approved v8 preview)
 
-P1_CSS = r"""
-:host{display:block}
-.p1{--ink:#000;--tile:#fff;--tile-border:rgba(0,0,0,.12);--tile-border-soft:rgba(0,0,0,.07);--tile-hover:rgba(0,0,0,.03);--tile-border-hover:rgba(0,0,0,.28);--text-2:rgba(0,0,0,.62);--text-3:rgba(0,0,0,.4);
-  --out:#A00000;--doubt:#A52800;--ques:#B58900;--win:#1E8A3C;--loss:#A00000;--tie:#B58900;--gold:#D4A20A;--silver:#A2A7AD;--bronze:#B5702F;--bar:64px;--bbar:calc(52px + env(safe-area-inset-bottom));--peek:40px;--gap:12px;--col:600px;--ctitle:clamp(22px,3.2vh,30px)}
+P1_CSS = "\n:host{display:block}\n" + (
+    f".p1{{--ink:{theme.TEXT};--tile:{theme.TILE};--tile-border:{theme.TILE_BORDER};--tile-border-soft:rgba(0,0,0,.07);"
+    f"--tile-hover:{theme.TILE_HOVER};--tile-border-hover:{theme.TILE_BORDER_HOVER};--text-2:{theme.TEXT_2};--text-3:{theme.TEXT_3};\n"
+    "  --out:#A00000;--doubt:#A52800;--ques:#B58900;--win:#1E8A3C;--loss:#A00000;--tie:#B58900;--gold:#D4A20A;--silver:#A2A7AD;"
+    f"--bronze:#B5702F;--bar:64px;--bbar:{theme.BBAR_HEIGHT};--peek:40px;--gap:12px;--col:600px;--ctitle:clamp(22px,3.2vh,30px)}}"
+) + r"""
 *{box-sizing:border-box;margin:0;padding:0}
 .p1{min-height:100%;background:#fff;color:var(--ink);font-family:Inter,system-ui,-apple-system,sans-serif;font-weight:400;-webkit-font-smoothing:antialiased}
 .view{display:none}

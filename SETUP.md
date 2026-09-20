@@ -60,3 +60,29 @@ sign anything is fundamentally wrong.
 The workflow is already set to re-run automatically twice a day (8am and
 4pm UTC) with no further action from you. You can also trigger it manually
 anytime from the Actions tab the same way as step 7.
+
+## Previewing changes before they go live
+
+Pushing to `main` does **not** immediately redeploy the site -- the workflow
+only runs on its twice-daily schedule or when someone clicks "Run workflow."
+Even so, new page work happens on its own branch (that's automatic when
+working with Claude Code) and should be previewed locally before it's
+merged into `main`, so nothing untested ends up in the next scheduled run.
+
+To preview locally:
+
+1. One-time setup: `pip install -r requirements.txt`
+2. Build the data and pages: `python build_data.py` then `python render_html.py`
+   (this writes into local `data/` and `site/` folders -- both are
+   git-ignored, so this never affects what's committed)
+3. Serve the result and open it in a browser (opening `site/index.html`
+   directly as a `file://` URL won't work -- the site needs a real server
+   for images and page navigation to load): `python -m http.server 8765 --directory site`,
+   then visit `http://localhost:8765`
+
+Ask Claude to do all of this and open the result for you -- that's now the
+standard step before merging any page change into `main`.
+
+`check_build.py` (added to the workflow, see `.github/workflows/refresh.yml`)
+double-checks the build isn't broken or empty right before it publishes, as
+a last line of defense.

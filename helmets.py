@@ -182,12 +182,12 @@ def write_all(out_dir):
     for team in TEAM_COLORS:
         for mirrored in (False, True):
             name = f"{team}-mirrored.svg" if mirrored else f"{team}.svg"
-            with open(os.path.join(out_dir, name), "w") as f:
+            with open(os.path.join(out_dir, name), "w", encoding="utf-8") as f:
                 f.write(helmet_svg(team, mirrored=mirrored))
     # Gray Framer-style fallback for any abbreviation not in TEAM_COLORS
     for mirrored in (False, True):
         name = "_unknown-mirrored.svg" if mirrored else "_unknown.svg"
-        with open(os.path.join(out_dir, name), "w") as f:
+        with open(os.path.join(out_dir, name), "w", encoding="utf-8") as f:
             f.write(helmet_svg("_unknown", mirrored=mirrored))
     return out_dir
 

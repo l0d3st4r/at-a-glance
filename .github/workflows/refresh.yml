@@ -35,6 +35,9 @@ jobs:
       - name: Render v0 page
         run: python render_html.py
 
+      - name: Verify build before publishing
+        run: python check_build.py
+
       - name: Upload site as Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:

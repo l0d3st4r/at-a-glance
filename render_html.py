@@ -62,6 +62,7 @@ from datetime import date
 
 import helmets
 import render_page1
+import theme
 from divisions import DIVISIONS
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -145,15 +146,15 @@ def format_record(record):
 
 # ---------------------------------------------------------------- page 0
 
-PAGE0_CSS = """
-*{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#fff;
-  --tile:#fff; --tile-border:rgba(0,0,0,.12);
-  --tile-hover:rgba(0,0,0,.03); --tile-border-hover:rgba(0,0,0,.28);
-  --text:#000; --text-2:rgba(0,0,0,.62); --text-3:rgba(0,0,0,.4);
-}
-html{background:var(--bg)}
+PAGE0_CSS = f"""
+*{{box-sizing:border-box;margin:0;padding:0}}
+:root{{
+  --bg:{theme.BG};
+  --tile:{theme.TILE}; --tile-border:{theme.TILE_BORDER};
+  --tile-hover:{theme.TILE_HOVER}; --tile-border-hover:{theme.TILE_BORDER_HOVER};
+  --text:{theme.TEXT}; --text-2:{theme.TEXT_2}; --text-3:{theme.TEXT_3};
+}}
+html{{background:var(--bg)}}""" + r"""
 /* Type follows the Framer design: Inter only, Regular 400 / Bold 700,
    sizes 11px (date/time labels), 16px (week label, records), 20px (team abbreviations),
    plus Inter Black 900 for the big final scores (the Framer type spec's "big numbers" weight). */
@@ -161,7 +162,7 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
   -webkit-font-smoothing:antialiased;background:var(--bg)}
 /* Week picker lives in a bar pinned to the bottom of the screen (Page 1 puts its "‹ Week N" back
    button and +/− toggle in the same spot, same size). --bbar = bar height incl. the iPhone home-indicator area. */
-:root{--bbar:calc(52px + env(safe-area-inset-bottom))}
+""" + f":root{{--bbar:{theme.BBAR_HEIGHT}}}" + r"""
 .bottombar{position:fixed;left:0;right:0;bottom:0;z-index:10;height:var(--bbar);padding-bottom:env(safe-area-inset-bottom);
   background:rgba(255,255,255,.94);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
 /* Same inner column as Page 1's .bbar-in, so the week pill and the +/- toggle sit in the same
@@ -1396,15 +1397,15 @@ def render_raw(data):
 # ---------------------------------------------------------------- main
 
 def main():
-    with open(DATA_PATH) as f:
+    with open(DATA_PATH, encoding="utf-8") as f:
         data = json.load(f)
 
     os.makedirs(SITE_DIR, exist_ok=True)
     helmets.write_all(HELMET_DIR)
 
-    with open(INDEX_PATH, "w") as f:
+    with open(INDEX_PATH, "w", encoding="utf-8") as f:
         f.write(render_page0(data))
-    with open(RAW_PATH, "w") as f:
+    with open(RAW_PATH, "w", encoding="utf-8") as f:
         f.write(render_raw(data))
 
     warnings = []
