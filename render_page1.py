@@ -37,6 +37,7 @@ from datetime import date
 
 import helmets
 import render_page2gameinfo
+import render_page2team
 import theme
 
 MONTHS_UPPER = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
@@ -199,6 +200,11 @@ def game_body(d, hero=""):
 
 
 def injuries_html(side, full):
+    """
+    Status reads as a colored dot + neutral-colored text (Jason, 2026-09-20 -- was colored
+    text alone); the expanded card also shows nflverse's injury designation (Knee, Ankle, ...)
+    next to the status where there's room for it.
+    """
     rows = side.get("injuries") or []
     if not rows:
         text = "No injuries reported" if side.get("injury_report_out") else "Injury report not available"
@@ -209,7 +215,12 @@ def injuries_html(side, full):
         cls = {"Out": "out", "Doubtful": "doubt", "Questionable": "ques"}.get(status, "ques")
         name = r.get("name") if full else r.get("short")
         label = status if full else r.get("status_short") or status
-        out.append(f'<li><span class="inj-name">{esc(name or "")}</span><span class="inj-s inj-{cls}">{esc(label)}</span></li>')
+        if full and r.get("designation"):
+            label = f"{label} · {r['designation']}"
+        out.append(
+            f'<li><span class="inj-name">{esc(name or "")}</span>'
+            f'<span class="inj-s"><i class="inj-dot inj-{cls}"></i>{esc(label)}</span></li>'
+        )
     return "".join(out)
 
 
@@ -296,9 +307,11 @@ def pill_row(a, h):
     return f'<div class="cmp-row cmp-head">{team_pill(a)}<div></div>{team_pill(h)}</div>'
 
 
-def card_title(name):
-    """The card's name at the top center of the card -- the same label its peeking sliver shows."""
-    return f'<span class="card-title">{esc(name)}</span>'
+def card_title(name, abbr=False):
+    """The card's name at the top center of the card -- the same label its peeking sliver shows.
+    abbr=True for a team-code title (Saira, matching every other abbreviation on the site)."""
+    cls = "card-title abbr" if abbr else "card-title"
+    return f'<span class="{cls}">{esc(name)}</span>'
 
 
 def c_team(side, label, final=False):
@@ -307,7 +320,7 @@ def c_team(side, label, final=False):
     rec = fmt_record(side.get("record"))
     return (
         f'<a class="card c-team" tabindex="0" data-detail="{label}-team" aria-label="{esc(team)} team">'
-        f'{card_title(team)}'
+        f'{card_title(team, abbr=True)}'
         '<div class="l-top">'
         f'<div class="l-id">{helmet_img(team, 40)}</div>'
         f'<div class="l-rec">{record_block(side, final)}</div>'
@@ -408,7 +421,8 @@ def render_p1_block(d, prefix="../"):
         '<nav class="bbar" aria-label="Page controls"><div class="bbar-in">'
         f'<a class="week" href="{esc(week_href)}">{CHEV}<span>{esc(week_label)}</span></a>'
         # Page 2's back button takes the week pill's place while Game Info is open (2026-09-19)
-        f'<a class="week p2-back" href="#" aria-label="Back to {esc(a)} at {esc(h)}">{CHEV}<span>{esc(a)} @ {esc(h)}</span></a>'
+        f'<a class="week p2-back" href="#" aria-label="Back to {esc(a)} at {esc(h)}">{CHEV}'
+        f'<span><span class="abbr">{esc(a)}</span> @ <span class="abbr">{esc(h)}</span></span></a>'
         f'<button class="toggle" type="button"><span class="i-plus">{PLUS}</span><span class="i-minus">{MINUS}</span></button>'
         "</div></nav>"
     )
@@ -426,8 +440,9 @@ def render_p1_block(d, prefix="../"):
              ("leaders", leaders_name, "compare", cmp_head + rows)]
     slots = "".join(
         f'<section class="slot"><a class="card {kind}" tabindex="-1" data-detail="{cid}" aria-label="{esc(name)}">'
-        f'<span class="peek peek-top">{DOWN}<span>{esc(name)}</span></span><div class="body">{body}</div>'
-        f'<span class="peek peek-bot">{UP}<span>{esc(name)}</span></span></a></section>'
+        f'<span class="peek peek-top">{DOWN}<span class="{"abbr" if kind == "team" else ""}">{esc(name)}</span></span>'
+        f'<div class="body">{body}</div>'
+        f'<span class="peek peek-bot">{UP}<span class="{"abbr" if kind == "team" else ""}">{esc(name)}</span></span></a></section>'
         for cid, name, kind, body in cards
     )
     dots = "".join(f'<button class="dot" type="button" aria-label="{esc(name)}"></button>' for _c, name, _k, _b in cards)
@@ -438,8 +453,19 @@ def render_p1_block(d, prefix="../"):
         page2 = render_page2gameinfo.render_p2_block(d, time_html, WEATHER_ICONS)
     except Exception:  # Page 2 trouble never costs the game its Page 1
         page2 = ""
-    return (f'<div class="p1" data-view="large" data-head="card"{" data-final" if final else ""}{" data-has-detail" if page2 else ""} '
-            f'data-game="{esc(d.get("game_id"))}">{bar}{condensed}{large}{page2}</div>')
+    try:
+        away_page = render_page2team.render_team_block(away, "away", prefix)
+    except Exception:
+        away_page = ""
+    try:
+        home_page = render_page2team.render_team_block(home, "home", prefix)
+    except Exception:
+        home_page = ""
+    has_detail = " ".join(k for k, block in
+                           (("game-info", page2), ("away-team", away_page), ("home-team", home_page)) if block)
+    has_detail_attr = f' data-has-detail="{esc(has_detail)}"' if has_detail else ""
+    return (f'<div class="p1" data-view="large" data-head="card"{" data-final" if final else ""}{has_detail_attr} '
+            f'data-game="{esc(d.get("game_id"))}">{bar}{condensed}{large}{page2}{away_page}{home_page}</div>')
 
 
 def render_standalone(d):
@@ -454,7 +480,8 @@ def render_standalone(d):
         "<link rel='preconnect' href='https://fonts.googleapis.com'><link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>"
         "<link href='https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;700;900&display=swap' rel='stylesheet'>"
         "<link href='https://fonts.googleapis.com/css2?family=Saira:ital,wdth,wght@1,50..125,400..900&family=Teko:wght@400..700&display=swap' rel='stylesheet'>"
-        f"<style id='p1-css'>{P1_CSS}{render_page2gameinfo.P2_CSS}</style><style>html,body{{margin:0;background:#fff}}</style></head><body>"
+        f"<style id='p1-css'>{P1_CSS}{render_page2gameinfo.P2_CSS}{render_page2team.P3_CSS}</style>"
+        "<style>html,body{margin:0;background:#fff}</style></head><body>"
         f"{render_p1_block(d)}"
         f"<script>{P1_JS}</script><script>AAG_P1.init(document);</script>"
         "</body></html>"
@@ -654,19 +681,24 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
 
   var ticking = false;
   on(deck, 'scroll', function () { if (!ticking && large() && !morphing) { ticking = true; requestAnimationFrame(function () { if (large()) { setActive(current()); updateHead(); } ticking = false; }); } }, { passive: true });
-  // Tapping a peeking card brings it in; tapping the active Game Info card opens Page 2 (2026-09-19).
-  // The team and leaders cards do nothing yet (their deep dives aren't designed).
-  function opensDetail(card) { return card && card.getAttribute('data-detail') === 'game-info' && wrap.hasAttribute('data-has-detail'); }
+  // Tapping a peeking card brings it in; tapping the active card opens its deep dive, if it
+  // has one -- Game Info, away team and home team each do; Leaders doesn't yet (2026-09-20).
+  function availableKeys() { return (wrap.getAttribute('data-has-detail') || '').split(' ').filter(Boolean); }
+  function opensDetail(card) {
+    var key = card && card.getAttribute('data-detail');
+    return !!(key && availableKeys().indexOf(key) > -1);
+  }
   slots.forEach(function (s, k) {
     var c = s.querySelector('a.card');
-    on(c, 'click', function (e) { e.preventDefault(); if (k !== active) go(k); else if (opensDetail(c)) openDetail(); });
-    on(c, 'keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && k === active && opensDetail(c)) { e.preventDefault(); openDetail(); } });
+    on(c, 'click', function (e) { e.preventDefault(); if (k !== active) go(k); else if (opensDetail(c)) openDetail(c.getAttribute('data-detail')); });
+    on(c, 'keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && k === active && opensDetail(c)) { e.preventDefault(); openDetail(c.getAttribute('data-detail')); } });
   });
-  var cGame = root.querySelector('.c-game');
-  if (cGame) {
-    on(cGame, 'click', function (e) { e.preventDefault(); if (opensDetail(cGame)) openDetail(); });
-    on(cGame, 'keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && opensDetail(cGame)) { e.preventDefault(); openDetail(); } });
-  }
+  // Condensed view: any card carrying data-detail can open its deep dive the same way (c-game,
+  // and now the two c-team cards; c-cmp/leaders has no data-has-detail entry so opensDetail stays false for it).
+  [].slice.call(root.querySelectorAll('.view-c [data-detail]')).forEach(function (c) {
+    on(c, 'click', function (e) { e.preventDefault(); if (opensDetail(c)) openDetail(c.getAttribute('data-detail')); });
+    on(c, 'keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && opensDetail(c)) { e.preventDefault(); openDetail(c.getAttribute('data-detail')); } });
+  });
   dots.forEach(function (d, k) { on(d, 'click', function () { go(k); }); });
 
   // Condensed card for each expanded card: game info, away team, home team, leaders
@@ -756,48 +788,87 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
   //         first card: Page 2 fades while a card outline shrinks back onto the Game Info card.
   // URL: "/game-info" is added to the hash (#game-<id>/game-info, or #/game-info on the standalone
   // page) and pushed to history, so back closes it and a shared link opens straight into it.
-  var p2 = root.querySelector('.p2'), p2Back = root.querySelector('.p2-back');
-  var p2Deck = p2 && p2.querySelector('.p2-l'), p2Slots = p2 ? [].slice.call(p2.querySelectorAll('.p2-l > .slot')) : [],
-      p2Dots = p2 ? [].slice.call(p2.querySelectorAll('.p2-dots .dot')) : [], p2Cond = p2 ? [].slice.call(p2.querySelectorAll('.p2-c > .cc')) : [];
-  var p2Active = -1, detailBusy = false, headBefore = null, DETAIL_HASH = '/game-info', RISE = 'translateY(56px) scale(.96)';
+  // Detail registry: up to three nested deep-dives can live inside this .p1 (Game Info,
+  // away team, home team -- render_page2gameinfo.py / render_page2team.py), each its own
+  // .p2[data-page=<key>] with its own deck/slots/dots (and, Game Info only, a condensed
+  // layer). Only one is ever open at a time (wrap's data-detail names which), so the
+  // functions below all look it up fresh via curDetail() rather than closing over a single
+  // fixed set of elements the way this used to when Game Info was the only one (2026-09-20).
+  var DETAIL_KEYS = ['game-info', 'away-team', 'home-team'];
+  var p2Back = root.querySelector('.p2-back');
+  var details = {};
+  DETAIL_KEYS.forEach(function (key) {
+    var el = root.querySelector('.p2[data-page="' + key + '"]');
+    if (!el) return;
+    details[key] = {
+      key: key, hash: '/' + key, el: el,
+      deck: el.querySelector('.p2-l'),
+      slots: [].slice.call(el.querySelectorAll('.p2-l > .slot')),
+      dots: [].slice.call(el.querySelectorAll('.p2-dots .dot')),
+      cond: [].slice.call(el.querySelectorAll('.p2-c > .cc')),
+      active: -1
+    };
+  });
+  var detailBusy = false, headBefore = null, RISE = 'translateY(56px) scale(.96)';
   function detailOpen() { return wrap.hasAttribute('data-detail'); }
-  function detailInHash() { return /\/game-info$/.test(location.hash || ''); }
-  function hashBase() { return (location.hash || '').replace(/\/game-info$/, ''); }
-  function sourceCard() { return large() ? slots[0] && slots[0].querySelector('a.card') : root.querySelector('.c-game'); }
+  function curDetail() { return details[wrap.getAttribute('data-detail')]; }
+  function keyFromHash() {
+    var h = location.hash || '';
+    for (var i = 0; i < DETAIL_KEYS.length; i++) {
+      var d = details[DETAIL_KEYS[i]];
+      if (d && h.slice(h.length - d.hash.length) === d.hash) return d.key;
+    }
+    return null;
+  }
+  function detailInHash() { return !!keyFromHash(); }
+  function hashBase() {
+    var key = keyFromHash();
+    return key ? location.hash.slice(0, location.hash.length - details[key].hash.length) : (location.hash || '');
+  }
+  function sourceCard(key) {
+    if (large()) {
+      var found = null;
+      slots.forEach(function (s) { var c = s.querySelector('a.card'); if (c && c.getAttribute('data-detail') === key) found = c; });
+      return found;
+    }
+    return root.querySelector('.view-c [data-detail="' + key + '"]');
+  }
   function shellFrame(r, radius, border) { return Object.assign({ borderRadius: radius, borderColor: border }, geo(r)); }
-  // Page 2's deck
-  function p2SetActive(i) {
-    if (i === p2Active) return; p2Active = i;
-    p2Slots.forEach(function (s, k) {
+  // One detail's deck (generalized from the single Game-Info-only version this used to be)
+  function detailSetActive(d, i) {
+    if (i === d.active) return; d.active = i;
+    d.slots.forEach(function (s, k) {
       s.classList.toggle('active', k === i); s.classList.toggle('above', k === i - 1); s.classList.toggle('below', k === i + 1);
       var c = s.querySelector('a.card'); c.tabIndex = k === i ? 0 : -1; c.setAttribute('aria-hidden', k === i ? 'false' : 'true');
     });
-    p2Dots.forEach(function (d, k) { d.classList.toggle('on', k === i); });
+    d.dots.forEach(function (dot, k) { dot.classList.toggle('on', k === i); });
   }
-  function p2Current() {
-    var mid = p2Deck.scrollTop + p2Deck.clientHeight / 2, best = 0, bd = 1e9;
-    p2Slots.forEach(function (s, k) { var d = Math.abs(s.offsetTop + s.offsetHeight / 2 - mid); if (d < bd) { bd = d; best = k; } });
+  function detailCurrent(d) {
+    var mid = d.deck.scrollTop + d.deck.clientHeight / 2, best = 0, bd = 1e9;
+    d.slots.forEach(function (s, k) { var dist = Math.abs(s.offsetTop + s.offsetHeight / 2 - mid); if (dist < bd) { bd = dist; best = k; } });
     return best;
   }
-  function p2Go(i, instant) {
-    if (!p2Slots.length) return;
-    i = Math.max(0, Math.min(p2Slots.length - 1, i)); var s = p2Slots[i];
-    p2Deck.scrollTo({ top: s.offsetTop - (p2Deck.clientHeight - s.offsetHeight) / 2, behavior: instant ? 'auto' : smooth });
+  function detailGo(d, i, instant) {
+    if (!d.slots.length) return;
+    i = Math.max(0, Math.min(d.slots.length - 1, i)); var s = d.slots[i];
+    d.deck.scrollTo({ top: s.offsetTop - (d.deck.clientHeight - s.offsetHeight) / 2, behavior: instant ? 'auto' : smooth });
   }
-  function p2Place(i) { p2Active = -1; p2Go(i, true); p2SetActive(i); }
-  if (p2Deck) {
-    var p2Tick = false;
-    on(p2Deck, 'scroll', function () {
-      if (!p2Tick && detailOpen() && large()) { p2Tick = true; requestAnimationFrame(function () { p2SetActive(p2Current()); p2Tick = false; }); }
+  function detailPlace(d, i) { d.active = -1; detailGo(d, i, true); detailSetActive(d, i); }
+  Object.keys(details).forEach(function (key) {
+    var d = details[key];
+    if (!d.deck) return;
+    var tick = false;
+    on(d.deck, 'scroll', function () {
+      if (!tick && detailOpen() && curDetail() === d && large()) { tick = true; requestAnimationFrame(function () { detailSetActive(d, detailCurrent(d)); tick = false; }); }
     }, { passive: true });
-    p2Slots.forEach(function (s, k) { on(s.querySelector('a.card'), 'click', function (e) { e.preventDefault(); if (k !== p2Active) p2Go(k); }); });
-    p2Dots.forEach(function (d, k) { on(d, 'click', function () { p2Go(k); }); });
-    p2Cond.forEach(function (c, k) {
+    d.slots.forEach(function (s, k) { on(s.querySelector('a.card'), 'click', function (e) { e.preventDefault(); if (k !== d.active) detailGo(d, k); }); });
+    d.dots.forEach(function (dot, k) { on(dot, 'click', function () { detailGo(d, k); }); });
+    d.cond.forEach(function (c, k) {
       on(c, 'click', function (e) { e.preventDefault(); detailView('large', k); });
       on(c, 'keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); detailView('large', k); } });
     });
-  }
-  function p2Cards() { return large() ? p2Slots.map(function (s) { return s.querySelector('a.card'); }) : p2Cond; }
+  });
+  function detailCards(d) { return large() ? d.slots.map(function (s) { return s.querySelector('a.card'); }) : d.cond; }
   function riseIn(list) {
     list.forEach(function (el, i) {
       el.animate([{ opacity: 0, transform: RISE }, { opacity: 1, transform: 'none' }], { duration: 300, delay: 20 + i * 35, easing: EASE, fill: 'backwards' });
@@ -805,19 +876,21 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
   }
   // +/− while Page 2 is open: the same card morphs between the two views (like Page 1's switchView)
   function detailView(v, card) {
-    if (!detailOpen() || detailBusy || morphing || v === wrap.getAttribute('data-view')) return;
-    var k = card != null ? card : Math.max(0, p2Active), toLarge = v === 'large';
+    var d = curDetail();
+    if (!d || !detailOpen() || detailBusy || morphing || v === wrap.getAttribute('data-view')) return;
+    if (v === 'condensed' && !d.cond.length) return;   // no condensed layer for the team pages
+    var k = card != null ? card : Math.max(0, d.active), toLarge = v === 'large';
     var instant = !Element.prototype.animate;
-    var headFrom = headShot(), fromEl = toLarge ? p2Cond[k] : p2Slots[k] && p2Slots[k].querySelector('a.card');
+    var headFrom = headShot(), fromEl = toLarge ? d.cond[k] : d.slots[k] && d.slots[k].querySelector('a.card');
     var m = !instant && fromEl ? morphFrom(fromEl) : null;
-    var others = !instant && toLarge ? p2Cond.filter(function (_, j) { return j !== k; }).map(morphFrom) : [];
+    var others = !instant && toLarge ? d.cond.filter(function (_, j) { return j !== k; }).map(morphFrom) : [];
     wrap.setAttribute('data-view', v);
     labelToggle(v);
-    lastCard = 0;   // Page 1 underneath follows along, parked on its Game Info card for the way back
-    if (toLarge) { active = -1; go(0, true); setActive(0); setHead('bar'); p2Place(k); }
+    lastCard = 0;   // Page 1 underneath follows along, parked on its first card for the way back
+    if (toLarge) { active = -1; go(0, true); setActive(0); setHead('bar'); detailPlace(d, k); }
     if (!m) return;
     detailBusy = true;
-    var D = 300, toEl = toLarge ? p2Slots[k].querySelector('a.card') : p2Cond[k], r1 = toEl.getBoundingClientRect();
+    var D = 300, toEl = toLarge ? d.slots[k].querySelector('a.card') : d.cond[k], r1 = toEl.getBoundingClientRect();
     toEl.style.opacity = '0';
     var flips = flipHead(headFrom, D), anims = flips.map(function (o) { return o.anim; });
     anims.push(m.box.animate([geo(m.r), geo(r1)], { duration: D, easing: EASE, fill: 'forwards' }));
@@ -826,12 +899,12 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
       g.box.animate([{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(1.12)', opacity: 0 }], { duration: 160, easing: EASE, fill: 'forwards' });
     });
     if (toLarge) {
-      [p2Slots[k - 1], p2Slots[k + 1]].forEach(function (s) {
+      [d.slots[k - 1], d.slots[k + 1]].forEach(function (s) {
         if (s) s.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, delay: D - 90, easing: 'ease-out', fill: 'backwards' });
       });
-      p2Dots.forEach(function (d) { d.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, delay: D - 90, fill: 'backwards' }); });
+      d.dots.forEach(function (dot) { dot.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, delay: D - 90, fill: 'backwards' }); });
     } else {
-      p2Cond.forEach(function (el, j) {
+      d.cond.forEach(function (el, j) {
         if (j !== k) el.animate([{ transform: 'scale(1.08)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 240, delay: 50, easing: EASE, fill: 'backwards' });
       });
     }
@@ -845,67 +918,74 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     });
   }
   function clearPull() {
-    if (!p2) return;
-    ['transform', 'borderRadius', 'boxShadow', 'overflow', 'opacity'].forEach(function (k) { p2.style[k] = ''; });
+    var d = curDetail();
+    if (!d) return;
+    ['transform', 'borderRadius', 'boxShadow', 'overflow', 'opacity'].forEach(function (k) { d.el.style[k] = ''; });
     wrap.removeAttribute('data-pulling');
   }
-  function openDetail(o) {
+  function openDetail(key, o) {
+    if (typeof key === 'object') { o = key; key = keyFromHash() || availableKeys()[0]; }   // reopening without knowing which (shared link, popstate)
     o = o || {};
-    if (!p2 || detailOpen() || detailBusy || morphing) return;
-    var src = sourceCard(), instant = o.instant || !Element.prototype.animate || !src;
+    var d = details[key];
+    if (!d || detailOpen() || detailBusy || morphing) return;
+    // The team pages have no condensed layer -- opening one from the condensed view would
+    // otherwise show nothing at all, so force Page 1 (and it) into the expanded view first.
+    if (!d.cond.length && !large()) { wrap.setAttribute('data-view', 'large'); labelToggle('large'); go(lastCard, true); setActive(lastCard); }
+    var src = sourceCard(key), instant = o.instant || !Element.prototype.animate || !src;
     var headFrom = large() ? headShot() : null, m = instant ? null : morphFrom(src);
     headBefore = wrap.getAttribute('data-head');
-    wrap.setAttribute('data-detail', 'game-info');
-    if (large()) { setHead('bar'); p2Place(0); }
-    if (o.push !== false) history.pushState(Object.assign({}, history.state, { p2: 'game-info' }), '', (hashBase() || '#') + DETAIL_HASH);
+    wrap.setAttribute('data-detail', key);
+    if (large()) { setHead('bar'); detailPlace(d, 0); }
+    if (o.push !== false) history.pushState(Object.assign({}, history.state, { p2: key }), '', (hashBase() || '#') + d.hash);
     if (instant) return;
     detailBusy = true;
-    var D = 300, area = p2.getBoundingClientRect(), flips = headFrom ? flipHead(headFrom, D) : [];
-    p2.style.opacity = '0';
+    var D = 300, area = d.el.getBoundingClientRect(), flips = headFrom ? flipHead(headFrom, D) : [];
+    d.el.style.opacity = '0';
     m.copy.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: 'forwards' });
     var grow = m.box.animate([shellFrame(m.r, '20px', 'rgba(0,0,0,.12)'), shellFrame(area, '0px', 'rgba(0,0,0,0)')],
                              { duration: D, easing: EASE, fill: 'forwards' });
     Promise.all([grow].concat(flips.map(function (f) { return f.anim; })).map(fin)).then(function () {
-      p2.style.opacity = '';
+      d.el.style.opacity = '';
       m.box.remove();
       endFlip(flips);
-      riseIn(p2Cards());
-      if (large()) p2Dots.forEach(function (d) { d.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, delay: 40, fill: 'backwards' }); });
+      riseIn(detailCards(d));
+      if (large()) d.dots.forEach(function (dot) { dot.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, delay: 40, fill: 'backwards' }); });
       if (p2Back) p2Back.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: 'ease-out' });
       detailBusy = false;
     });
   }
   function closeDetail(o) {
     o = o || {};
-    if (!detailOpen() || detailBusy) return;
+    var d = curDetail();
+    if (!d || !detailOpen() || detailBusy) return;
     if (!o.fromHistory && history.state && history.state.p2 && detailInHash()) { history.back(); return; }  // popstate brings us back here
     if (!o.fromHistory && detailInHash()) {   // opened from a shared link: nothing to go back to, just drop it from the URL
       var st = Object.assign({}, history.state); delete st.p2;
       history.replaceState(st, '', hashBase() || location.pathname + location.search);
     }
-    var src = sourceCard(), instant = o.instant || !Element.prototype.animate || !src;
+    var src = sourceCard(d.key), instant = o.instant || !Element.prototype.animate || !src;
     function finish() {
       wrap.removeAttribute('data-detail');
       wrap.removeAttribute('data-closing');
       clearPull();
-      p2Active = -1;
+      d.active = -1;
     }
     function restoreHead() { if (large()) { setHead(headBefore === 'card' && active === 0 ? 'card' : 'bar'); } }
     if (instant) { finish(); restoreHead(); updateHead(); return; }
     detailBusy = true;
-    var D = 280, from = p2.getBoundingClientRect(), radius = p2.style.borderRadius || '0px', headFrom = large() ? headShot() : null;
-    // Page 1 shows again underneath; an outline shrinks from Page 2's frame onto the Game Info card
-    // while Page 2 (on top of it) fades out
+    var D = 280, from = d.el.getBoundingClientRect(), radius = d.el.style.borderRadius || '0px', headFrom = large() ? headShot() : null;
+    // Page 1 shows again underneath; an outline shrinks from the detail's frame onto its source card
+    // while the detail (on top of it) fades out
     wrap.setAttribute('data-closing', '');
     var box = document.createElement('div');
     box.className = 'morph';
     Object.assign(box.style, geo(from), { borderRadius: radius });
-    wrap.insertBefore(box, p2);
+    wrap.insertBefore(box, d.el);
     restoreHead();
     var r1 = src.getBoundingClientRect();
     src.style.opacity = '0';
     var flips = headFrom ? flipHead(headFrom, D) : [];
-    var fade = p2.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 140, fill: 'forwards' });
+    var fade = d.el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 140, fill: 'forwards' });
     var shrink = box.animate([shellFrame(from, radius, 'rgba(0,0,0,.12)'), shellFrame(r1, '20px', 'rgba(0,0,0,.12)')],
                              { duration: D, easing: EASE, fill: 'forwards' });
     Promise.all([shrink, fade].concat(flips.map(function (f) { return f.anim; })).map(fin)).then(function () {
@@ -921,23 +1001,25 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
   }
   // Pull-to-close support for the Page 0 overlay's gesture code: follow the finger (dy px), or spring back.
   function pullDetail(dy, spring) {
-    if (!p2 || !detailOpen()) return;
+    var d = curDetail();
+    if (!d || !detailOpen()) return;
     if (spring) {
-      var cur = p2.style.transform || 'none';
-      var a = p2.animate([{ transform: cur }, { transform: 'none' }], { duration: 200, easing: EASE });
-      p2.style.transform = '';
-      fin(a).then(function () { if (!p2.style.transform) clearPull(); });
+      var cur = d.el.style.transform || 'none';
+      var a = d.el.animate([{ transform: cur }, { transform: 'none' }], { duration: 200, easing: EASE });
+      d.el.style.transform = '';
+      fin(a).then(function () { if (!d.el.style.transform) clearPull(); });
       return;
     }
     var pp = Math.min(1, dy / (innerHeight * 0.55)), sc = 1 - 0.25 * pp;
     wrap.setAttribute('data-pulling', '');
-    Object.assign(p2.style, { transform: 'translateY(' + (dy * 0.55) + 'px) scale(' + sc + ')', borderRadius: (20 / sc) + 'px',
+    Object.assign(d.el.style, { transform: 'translateY(' + (dy * 0.55) + 'px) scale(' + sc + ')', borderRadius: (20 / sc) + 'px',
       boxShadow: '0 0 0 ' + (1 / sc) + 'px rgba(0,0,0,.12)', overflow: 'hidden' });
   }
   if (p2Back) on(p2Back, 'click', function (e) { e.preventDefault(); closeDetail(); });
   on(window, 'popstate', function () {
-    if (detailInHash() && !detailOpen()) openDetail({ push: false });
-    else if (!detailInHash() && detailOpen()) closeDetail({ fromHistory: true });
+    var key = keyFromHash();
+    if (key && !detailOpen()) openDetail(key, { push: false });
+    else if (!key && detailOpen()) closeDetail({ fromHistory: true });
   });
 
   // Kickoff countdowns on Page 2 (one per view): tick every second while the page is open. After
@@ -970,8 +1052,10 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     if (e.key === 'Escape') { if (detailOpen()) closeDetail(); else back(); return; }
     if (!large()) return;
     if (detailOpen()) {
-      if (e.key === 'ArrowDown' || e.key === 'PageDown') { e.preventDefault(); p2Go(p2Active + 1); }
-      else if (e.key === 'ArrowUp' || e.key === 'PageUp') { e.preventDefault(); p2Go(p2Active - 1); }
+      var cd = curDetail();
+      if (!cd) return;
+      if (e.key === 'ArrowDown' || e.key === 'PageDown') { e.preventDefault(); detailGo(cd, cd.active + 1); }
+      else if (e.key === 'ArrowUp' || e.key === 'PageUp') { e.preventDefault(); detailGo(cd, cd.active - 1); }
       return;
     }
     if (e.key === 'ArrowDown' || e.key === 'PageDown') { e.preventDefault(); go(active + 1); }
@@ -979,24 +1063,29 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
   });
   on(window, 'resize', function () {
     if (!large()) return;
-    if (wrap.hasAttribute('data-detail')) { var k = Math.max(0, p2Active); p2Active = -1; p2Go(k, true); p2SetActive(k); }
-    else { go(active, true); updateHead(); }
+    if (wrap.hasAttribute('data-detail')) {
+      var d = curDetail();
+      if (d) { var k = Math.max(0, d.active); d.active = -1; detailGo(d, k, true); detailSetActive(d, k); }
+    } else { go(active, true); updateHead(); }
   });
   // Opens expanded unless told otherwise; opts.card keeps the same card when swiping between games.
   var startView = opts.view === 'condensed' ? 'condensed' : 'large';
   wrap.setAttribute('data-view', startView);
   labelToggle(startView);
   if (startView === 'large') { setHead(lastCard === 0 ? 'card' : 'bar'); requestAnimationFrame(function () { go(lastCard, true); setActive(lastCard); updateHead(); }); }
-  if (opts.detail === undefined ? detailInHash() : opts.detail) {
-    if (large()) { headBefore = 'card'; }
-    openDetail({ instant: true, push: false });
+  if (opts.detail === undefined ? keyFromHash() : opts.detail) {
+    var openKey = keyFromHash() || availableKeys()[0];
+    if (openKey) {
+      if (large()) { headBefore = 'card'; }
+      openDetail(openKey, { instant: true, push: false });
+    }
   }
   return {
     view: function () { return wrap.getAttribute('data-view'); },
     card: function () { return lastCard; },
     head: visibleHead,
     detail: detailOpen,
-    detailAtTop: function () { return !large() || !p2Deck || p2Deck.scrollTop <= 1; },
+    detailAtTop: function () { var d = curDetail(); return !large() || !d || !d.deck || d.deck.scrollTop <= 1; },
     closeDetail: closeDetail,
     pullDetail: pullDetail,
     destroy: function () {
@@ -1229,8 +1318,10 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .team .injuries{font-size:16px;line-height:1.3}
 .injuries li{display:flex;gap:5px;white-space:nowrap}
 .inj-name{overflow:hidden;text-overflow:ellipsis}
-.inj-s{flex:none}
-.inj-out{color:var(--out)}.inj-doubt{color:var(--doubt)}.inj-ques{color:var(--ques)}
+.inj-s{flex:none;display:inline-flex;align-items:center;gap:5px;color:var(--ink)}
+/* Status reads as a colored dot, not colored text (Jason, 2026-09-20) */
+.inj-dot{width:8px;height:8px;border-radius:50%;flex:none}
+.inj-dot.inj-out{background:var(--out)}.inj-dot.inj-doubt{background:var(--doubt)}.inj-dot.inj-ques{background:var(--ques)}
 .inj-none{font-weight:400}
 .ranks{display:grid;grid-template-columns:1fr 1fr}
 .rank-col{display:flex;flex-direction:column;align-items:center;gap:12px}

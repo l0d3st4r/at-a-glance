@@ -352,7 +352,9 @@ def render_p2_block(d, time_html, icons):
 P2_CSS = r"""
 /* ===== Page 2: Game Info deep dive (2026-09-19; deck + condensed views v4) ===== */
 .p2{display:none;position:fixed;inset:var(--bar) 0 var(--bbar);z-index:9;overflow:hidden;background:#fff;transform-origin:50% 50%}
-.p1[data-detail] .p2{display:block}
+/* Up to three of these can exist per game (game-info, away-team, home-team) -- only the one
+   matching data-detail's value shows (render_page2team.py adds the other two data-page values). */
+.p1[data-detail="game-info"] .p2[data-page="game-info"]{display:block}
 .p1[data-detail]>.view,.p1[data-detail]>.dots{visibility:hidden}
 .p1[data-detail][data-pulling]>.view,.p1[data-detail][data-closing]>.view{visibility:visible}   /* Page 1 shows behind a pull / the close */
 .p1[data-detail] .bbar .week:not(.p2-back){display:none}

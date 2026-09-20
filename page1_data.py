@@ -38,8 +38,9 @@ Everything is defensive: a missing piece shows as "—" on the page instead
 of breaking the build.
 """
 
+import math
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 try:
     from zoneinfo import ZoneInfo
@@ -47,7 +48,7 @@ try:
 except Exception:  # pragma: no cover
     EASTERN = None
 
-from divisions import normalize_abbr
+from divisions import DIVISIONS, get_division, normalize_abbr
 from stadiums import STADIUMS, STATE_NAMES, NEUTRAL_VENUES
 from weather import get_game_window_weather
 import weather as wx
@@ -423,8 +424,10 @@ def _injury_builder(injuries, snaps, depth, warnings):
                     continue
                 wk = _int_week(r.get(wcol))
                 name = r.get("full_name") or " ".join(x for x in (r.get("first_name"), r.get("last_name")) if x)
+                designation = ", ".join(x for x in (r.get("report_primary_injury"), r.get("report_secondary_injury")) if x)
                 report[(normalize_abbr(r.get(tcol)), wk)].append({"name": name, "gsis_id": r.get("gsis_id"),
-                                                                  "position": r.get("position"), "status": status})
+                                                                  "position": r.get("position"), "status": status,
+                                                                  "designation": designation or None})
 
     snap_rows = defaultdict(list)  # (team, name_key) -> [(week, share)]
     if snaps:
@@ -456,7 +459,8 @@ def _injury_builder(injuries, snaps, depth, warnings):
     def report_out(week):
         return week in weeks_with_report
 
-    def injuries_for(team, week, gameday=None):
+    def injuries_for(team, week, gameday=None, limit=3):
+        """limit=None returns the full report (team pages); the default top-3 is what Page 1's cards use."""
         rows = report.get((team, week), [])
         seen, out = set(), []
         for r in rows:
@@ -465,8 +469,10 @@ def _injury_builder(injuries, snaps, depth, warnings):
             seen.add(r["name"])
             out.append({**r, "starter": is_starter(team, r, week, gameday)})
         out.sort(key=lambda r: (not r["starter"], INJURY_ORDER[r["status"]], r["name"]))
+        capped = out if limit is None else out[:limit]
         return [{"name": r["name"], "short": short_name(r["name"]), "status": r["status"],
-                 "status_short": INJURY_SHORT[r["status"]], "starter": r["starter"]} for r in out[:3]]
+                 "status_short": INJURY_SHORT[r["status"]], "starter": r["starter"],
+                 "designation": r.get("designation")} for r in capped]
 
     injuries_for.report_out = report_out
     return injuries_for
@@ -673,6 +679,267 @@ def prefetch_page2_weather(games, now_utc, warnings):
         warnings.append(f"page2 weather: {len(errors)} Open-Meteo request(s) failed, first: {errors[0]}")
 
 
+# ---------------------------------------------------------------- team pages (added 2026-09-20)
+# Data for the away-team/home-team deep dives off Page 1 (render_page2team.py): each
+# team's full season, division standings, travel, and an expanded offense/defense
+# stat card. Kept separate from _rank_builder above, which stays exactly as Page 1
+# already uses it for its own (smaller) team cards.
+
+def haversine_miles(lat1, lon1, lat2, lon2):
+    """Great-circle distance between two points, in miles. None if any coordinate is missing."""
+    if None in (lat1, lon1, lat2, lon2):
+        return None
+    r = 3958.8
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp, dl = math.radians(lat2 - lat1), math.radians(lon2 - lon1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return r * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def _team_all_games_index(games):
+    """team -> every game it plays (any game_type), in kickoff order -- used for rest days."""
+    idx = defaultdict(list)
+    for g in games:
+        idx[g["home"]].append(g)
+        idx[g["away"]].append(g)
+    for team in idx:
+        idx[team].sort(key=lambda g: g["sort"])
+    return idx
+
+
+def _rest_days(team_all_games, team, game_id):
+    """Days since this team's previous game (any type), or None for its season opener."""
+    lst = team_all_games.get(team, [])
+    for i, g in enumerate(lst):
+        if g["game_id"] != game_id:
+            continue
+        if i == 0:
+            return None
+        try:
+            d1 = date.fromisoformat(str(g["gameday"])[:10])
+            d0 = date.fromisoformat(str(lst[i - 1]["gameday"])[:10])
+            return (d1 - d0).days
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _team_schedule_index(games):
+    """
+    Regular-season schedule for every team, week 1..max_week, with a running record and
+    a bye-week entry for any week the team doesn't play. Weeks are processed in order
+    across every team at once so "record_after" reflects the true chronological state,
+    not just each team's own game order.
+    Returns (schedules: {team: [week entries]}, bye_week: {team: week int}).
+    """
+    reg = [g for g in games if g["game_type"] == "REG" and g["week"] is not None]
+    max_week = max((g["week"] for g in reg), default=0)
+    by_team_week = {}
+    for g in reg:
+        by_team_week[(g["home"], g["week"])] = (g, True)
+        by_team_week[(g["away"], g["week"])] = (g, False)
+
+    running = defaultdict(lambda: {"wins": 0, "losses": 0, "ties": 0})
+    schedules = defaultdict(list)
+    bye_week = {}
+    for wk in range(1, max_week + 1):
+        for team in DIVISIONS:
+            hit = by_team_week.get((team, wk))
+            if hit is None:
+                schedules[team].append({"week": wk, "bye": True, "record_after": dict(running[team])})
+                bye_week[team] = wk
+                continue
+            g, home = hit
+            opp = g["away"] if home else g["home"]
+            mine, theirs = (g["home_score"], g["away_score"]) if home else (g["away_score"], g["home_score"])
+            entry = {"week": wk, "bye": False, "opponent": opp, "home": home, "gameday": g["gameday"],
+                     "gametime": g["gametime"], "game_id": g["game_id"], "final": g["final"],
+                     "score": {"team": mine, "opp": theirs} if g["final"] else None}
+            if g["final"]:
+                result = "W" if mine > theirs else "L" if mine < theirs else "T"
+                running[team]["wins" if result == "W" else "losses" if result == "L" else "ties"] += 1
+                entry["result"] = result
+            else:
+                entry["result"] = None
+            entry["record_after"] = dict(running[team])
+            schedules[team].append(entry)
+    return schedules, bye_week
+
+
+def _standings_for(schedules, team, week_limit):
+    """
+    This team's division, each member's record through week_limit (exclusive; None = full
+    season), sorted by win pct then wins. Tiebreak is win pct/wins only -- real NFL
+    tiebreakers (head-to-head, division record, etc.) are out of scope here.
+    """
+    division = get_division(team)
+    if not division:
+        return None
+    rows = []
+    for t, d in DIVISIONS.items():
+        if d != division:
+            continue
+        sched = schedules.get(t, [])
+        if week_limit is None:
+            rec = sched[-1]["record_after"] if sched else {"wins": 0, "losses": 0, "ties": 0}
+        else:
+            idx = week_limit - 2   # "record_after" of week (week_limit - 1), i.e. before week_limit
+            rec = sched[idx]["record_after"] if 0 <= idx < len(sched) else {"wins": 0, "losses": 0, "ties": 0}
+        gp = rec["wins"] + rec["losses"] + rec["ties"]
+        pct = (rec["wins"] + 0.5 * rec["ties"]) / gp if gp else 0.0
+        rows.append({"team": t, **rec, "pct": pct})
+    rows.sort(key=lambda r: (-r["pct"], -r["wins"], r["team"]))
+    return {"division": division, "rows": rows}
+
+
+def _game_miles(g, team):
+    """
+    One-way distance from the team's own stadium to THIS game's venue -- 0 for a normal home
+    game, real distance for a road game or a neutral-site "home" game, None if a coordinate
+    is missing. Jason, 2026-09-20: this is per-game, not a season running total.
+    """
+    is_home = team == g["home"]
+    neutral = str(g["raw"].get("location") or "").lower() == "neutral"
+    if is_home and not neutral:
+        return 0
+    v = venue_full(g)
+    home_stadium = stadium_for(team)
+    d = haversine_miles(home_stadium.get("lat"), home_stadium.get("lon"), v.get("lat"), v.get("lon"))
+    return round(d) if d is not None else None
+
+
+# The four "paired" stat rows below (points, all/passing/rushing yards) split into an
+# offense value+rank and a defense (allowed) value+rank; the three "single" rows
+# (turnover margin, sacks, defensive INTs) are inherently one-sided. Red zone % and
+# time of possession have no columns in nflverse's weekly team stats (confirmed against
+# a live pull, Sept 2026 -- see the Items to Address doc) and show as unavailable
+# (value/rank None) rather than a guess.
+TEAM_STAT_KEYS = ("pass_tds", "rush_tds", "pass_yards", "rush_yards")
+
+
+def _team_stat_builder(games, team_weekly, warnings):
+    """Returns stats_through(week_limit) -> {team: {stat_key: {...}}} (cached), the
+    expanded offense/defense card for the team pages."""
+    reg_final = [g for g in games if g["game_type"] == "REG" and g["final"] and g["week"] is not None]
+    opponent = {}
+    for g in games:
+        if g["week"] is not None:
+            opponent[(g["home"], g["week"])] = g["away"]
+            opponent[(g["away"], g["week"])] = g["home"]
+
+    box = {}   # (team, week) -> that game's box score, offense + turnovers
+    if team_weekly:
+        sample = team_weekly[0]
+        tcol, wcol, stcol = _col(sample, TEAM_COLS), _col(sample, WEEK_COLS), _col(sample, SEASON_TYPE_COLS)
+        if tcol and wcol:
+            for r in team_weekly:
+                if stcol and r.get(stcol) not in (None, "REG"):
+                    continue
+                wk, team = _int_week(r.get(wcol)), normalize_abbr(r.get(tcol))
+                if wk is None or not team:
+                    continue
+                takeaways = (_num(r.get("def_interceptions")) or 0) + (_num(r.get("fumble_recovery_opp")) or 0)
+                giveaways = (_num(r.get("passing_interceptions")) or 0) + (_num(r.get("fumbles_lost_total")) or 0)
+                box[(team, wk)] = {
+                    "pass_tds": _num(r.get("passing_tds")) or 0, "rush_tds": _num(r.get("rushing_tds")) or 0,
+                    "pass_yards": _num(r.get("passing_yards")) or 0, "rush_yards": _num(r.get("rushing_yards")) or 0,
+                    "def_sacks": _num(r.get("def_sacks")) or 0, "def_ints": _num(r.get("def_interceptions")) or 0,
+                    "takeaways": takeaways, "giveaways": giveaways,
+                }
+    else:
+        warnings.append("team page stats: no weekly team stats -- offense/defense card will show as —")
+
+    cache = {}
+
+    def stats_through(week_limit):
+        if week_limit in cache:
+            return cache[week_limit]
+        ok = lambda wk: week_limit is None or wk < week_limit
+
+        pts_for, pts_against, pts_games = defaultdict(float), defaultdict(float), defaultdict(int)
+        for g in reg_final:
+            if not ok(g["week"]):
+                continue
+            for team, mine, theirs in ((g["home"], g["home_score"], g["away_score"]), (g["away"], g["away_score"], g["home_score"])):
+                pts_for[team] += mine
+                pts_against[team] += theirs
+                pts_games[team] += 1
+
+        sum_for = defaultdict(lambda: defaultdict(float))
+        sum_allowed = defaultdict(lambda: defaultdict(float))
+        box_games = defaultdict(int)
+        turn_margin, sacks_total, ints_total = defaultdict(float), defaultdict(float), defaultdict(float)
+        for (team, wk), b in box.items():
+            if not ok(wk):
+                continue
+            box_games[team] += 1
+            for key in TEAM_STAT_KEYS:
+                sum_for[team][key] += b[key]
+            turn_margin[team] += b["takeaways"] - b["giveaways"]
+            sacks_total[team] += b["def_sacks"]
+            ints_total[team] += b["def_ints"]
+            opp = opponent.get((team, wk))
+            if opp:
+                for key in TEAM_STAT_KEYS:
+                    sum_allowed[opp][key] += b[key]
+
+        def per_game(totals, n):
+            return {t: totals[t] / n[t] for t in n if n[t] and t in totals}
+
+        def rate_stat(key, higher_better=True):
+            off_pg = per_game({t: v[key] for t, v in sum_for.items()}, box_games)
+            def_pg = per_game({t: v[key] for t, v in sum_allowed.items()}, box_games)
+            off_rank, def_rank = competition_ranks(off_pg, higher_better), competition_ranks(def_pg, not higher_better)
+            teams = set(off_pg) | set(def_pg)
+            return {t: {"off_value": off_pg.get(t), "off_rank": off_rank.get(t),
+                        "def_value": def_pg.get(t), "def_rank": def_rank.get(t)} for t in teams}
+
+        def total_stat(key, higher_better=True):
+            off_tot = {t: v[key] for t, v in sum_for.items()}
+            def_tot = {t: v[key] for t, v in sum_allowed.items()}
+            off_rank, def_rank = competition_ranks(off_tot, higher_better), competition_ranks(def_tot, not higher_better)
+            teams = set(off_tot) | set(def_tot)
+            return {t: {"off_value": off_tot.get(t), "off_rank": off_rank.get(t),
+                        "def_value": def_tot.get(t), "def_rank": def_rank.get(t)} for t in teams}
+
+        pts_for_pg, pts_against_pg = per_game(pts_for, pts_games), per_game(pts_against, pts_games)
+        pts_off_rank, pts_def_rank = competition_ranks(pts_for_pg, True), competition_ranks(pts_against_pg, False)
+        points = {t: {"off_value": pts_for_pg.get(t), "off_rank": pts_off_rank.get(t),
+                      "def_value": pts_against_pg.get(t), "def_rank": pts_def_rank.get(t)}
+                  for t in set(pts_for_pg) | set(pts_against_pg)}
+
+        pass_yards, rush_yards = rate_stat("pass_yards"), rate_stat("rush_yards")
+        all_yards = {}
+        for t in set(pass_yards) | set(rush_yards):
+            po, pd = pass_yards.get(t, {}), rush_yards.get(t, {})
+            all_yards[t] = {"off_value": (po.get("off_value") or 0) + (pd.get("off_value") or 0),
+                            "def_value": (po.get("def_value") or 0) + (pd.get("def_value") or 0)}
+        all_off_rank = competition_ranks({t: v["off_value"] for t, v in all_yards.items()}, True)
+        all_def_rank = competition_ranks({t: v["def_value"] for t, v in all_yards.items()}, False)
+        for t in all_yards:
+            all_yards[t]["off_rank"], all_yards[t]["def_rank"] = all_off_rank.get(t), all_def_rank.get(t)
+
+        pass_tds, rush_tds = total_stat("pass_tds"), total_stat("rush_tds")
+        turn_rank = competition_ranks(dict(turn_margin), True)
+        sacks_rank = competition_ranks(dict(sacks_total), True)
+        ints_rank = competition_ranks(dict(ints_total), True)
+
+        result = {}
+        for t in set(box_games) | set(pts_games):
+            result[t] = {
+                "points": points.get(t, {}), "pass_tds": pass_tds.get(t, {}), "rush_tds": rush_tds.get(t, {}),
+                "all_yards": all_yards.get(t, {}), "pass_yards": pass_yards.get(t, {}), "rush_yards": rush_yards.get(t, {}),
+                "red_zone_pct": None, "top": None,
+                "turnover_margin": {"value": turn_margin[t], "rank": turn_rank.get(t)} if t in turn_margin else None,
+                "sacks": {"value": sacks_total[t], "rank": sacks_rank.get(t)} if t in sacks_total else None,
+                "def_ints": {"value": ints_total[t], "rank": ints_rank.get(t)} if t in ints_total else None,
+            }
+        cache[week_limit] = result
+        return result
+
+    return stats_through
+
+
 # ---------------------------------------------------------------- main entry
 
 def week_key_and_label(game_type, week):
@@ -694,6 +961,9 @@ def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, w
     ranks_through = _rank_builder(games, team_weekly, warnings)
     leaders_through = _leader_builder(player_weekly, warnings)
     injuries_for = _injury_builder(injuries, snaps, depth, warnings)
+    team_all_games = _team_all_games_index(games)
+    team_schedules, bye_week = _team_schedule_index(games)
+    team_stats_through = _team_stat_builder(games, team_weekly, warnings)
 
     details = {}
     for g in games:
@@ -704,10 +974,11 @@ def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, w
             limit = g["week"] if g["game_type"] == "REG" else None
             ranks = ranks_through(limit)
             leaders = leaders_through(limit)
+            team_stats = team_stats_through(limit)
             venue, stadium = _venue(g)
             key, label = week_key_and_label(g["game_type"], g["week"])
 
-            def side(team):
+            def side(team, opponent):
                 pre = records.get(gid, {}).get(team, {})
                 return {
                     "team": team,
@@ -717,6 +988,20 @@ def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, w
                     "injuries": injuries_for(team, g["week"], g["gameday"]),
                     "injury_report_out": injuries_for.report_out(g["week"]),
                     "ranks": ranks.get(team) or {},
+                    "team_page": {
+                        "injuries_full": injuries_for(team, g["week"], g["gameday"], limit=None),
+                        "stats": team_stats.get(team) or {},
+                        "schedule": team_schedules.get(team) or [],
+                        "standings": _standings_for(team_schedules, team, limit),
+                        "next": {
+                            "opponent": opponent,
+                            "gameday": g["gameday"],
+                            "gametime": g["gametime"],
+                            "rest_days": _rest_days(team_all_games, team, gid),
+                            "bye_week": bye_week.get(team),
+                            "miles_traveled": _game_miles(g, team),
+                        },
+                    },
                 }
 
             if g["final"]:
@@ -741,8 +1026,8 @@ def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, w
                 "venue": venue,
                 "weather": _weather(g, venue, stadium, now_utc),
                 "stats_through_week": (limit - 1) if limit else "regular season",
-                "away": side(g["away"]),
-                "home": side(g["home"]),
+                "away": side(g["away"], g["home"]),
+                "home": side(g["home"], g["away"]),
                 "leaders_scope": "game" if g["final"] else "season",
                 "leaders": [
                     {"key": k, "label": lbl, "away": pick(k, g["away"]), "home": pick(k, g["home"])}
