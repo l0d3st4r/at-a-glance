@@ -196,7 +196,12 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
 .week-inner{max-width:600px;margin:0 auto;padding:max(6px,env(safe-area-inset-top)) 16px calc(64px + var(--bbar))}
 .day{text-align:center;font-size:16px;font-weight:400;line-height:19px;padding:18px 0 12px}
 .games{list-style:none;display:flex;flex-direction:column;gap:10px}
-.game{display:grid;grid-template-columns:84px 1fr minmax(96px,auto) 1fr 84px;align-items:center;
+/* Fixed-width side columns (2026-09-21, were 1fr) -- each tile is its own independent grid, so a
+   1fr column's actual pixel width used to depend on THAT tile's own content (a wide final score
+   vs. a short "0-1" record), which shifted the record/score column from tile to tile. Fixed widths
+   make every tile's columns land at the same x regardless of what's in them; .center absorbs
+   whatever space is left, so the overall tile width is unchanged. */
+.game{display:grid;grid-template-columns:84px 100px 1fr 100px 84px;align-items:center;
   padding:16px 8px;color:inherit;text-decoration:none;
   background:var(--tile);border:1px solid var(--tile-border);border-radius:20px;
   transition:transform .16s ease,background-color .16s ease,border-color .16s ease}
@@ -212,16 +217,19 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
    Everything else on the page stays Inter -- records, kickoff times, the week picker, day headers. */
 .abbr{font-size:20px;line-height:24px;font-family:Saira,Inter,system-ui,sans-serif;font-weight:800;
   font-style:italic;font-variation-settings:'wdth' 95;letter-spacing:.02em}
-.stack{display:flex;flex-direction:column;align-items:center;min-width:0}
+/* width:100% (2026-09-21): without an explicit width, this wasn't reliably stretching to fill
+   its fixed-width grid column, so a wide final score's tile and a plain record's tile each sized
+   the column to their own content instead of sharing one column width. */
+.stack{display:flex;flex-direction:column;align-items:center;min-width:0;width:100%}
 .abbr-c{display:none}   /* the condensed view's copy of the abbreviation, over the record */
-.record{font-size:16px;font-weight:400;line-height:19px;color:var(--text-2);text-align:center}  /* vertically centered in the tile */
+.record{font-size:16px;font-weight:400;line-height:19px;color:var(--text-2);text-align:center;font-variant-numeric:tabular-nums}  /* vertically centered in the tile; tabular so "0-1" and "10-6-1" don't nudge the column (2026-09-21) */
 .center{display:flex;flex-direction:column;align-items:center;gap:4px;padding:0 8px}
 .time{font-size:20px;font-weight:700;line-height:24px;white-space:nowrap;margin-top:-6px}
 .tz{font-size:11px;font-weight:400;margin-left:3px;color:var(--text-2)}
 .network{font-size:11px;font-weight:400;line-height:13px;color:var(--text-3);white-space:nowrap}
 /* Finished games */
-.result{display:flex;flex-direction:column;align-items:center;gap:4px}
-.team-record{font-size:16px;font-weight:400;line-height:19px;color:var(--text-2)}
+.result{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0;width:100%}
+.team-record{font-size:16px;font-weight:400;line-height:19px;color:var(--text-2);font-variant-numeric:tabular-nums}
 /* Final scores: Teko (Jason, 2026-09-18). Records and kickoff times deliberately stay Inter. */
 .score{font-size:60px;line-height:1;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:-.02em;
   font-family:Teko,Inter,system-ui,sans-serif;font-weight:700}
@@ -234,14 +242,12 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
 .tri svg{display:block;width:8px;height:10px}
 .tri-h svg{transform:scaleX(-1)}
 .game.final[data-win=away] .tri-a,.game.final[data-win=home] .tri-h{visibility:visible}
-.game.final .center{min-width:100px}  /* same width for FINAL and FINAL/OT, so scores line up tile to tile */
 @media (max-width:420px){
-  .game{grid-template-columns:72px 1fr auto 1fr 72px;padding:14px 4px}
+  .game{grid-template-columns:72px 84px 1fr 84px 72px;padding:14px 4px}
   .team img{width:42px;height:42px}
   .center{padding:0 4px}
   .score{font-size:42px}.final-label{font-size:11px;line-height:13px}
   .final-row{gap:4px}.tri svg{width:6px;height:8px}
-  .game.final .center{min-width:68px}
 }
 /* Teams on bye: one outlined (not clickable) card under the week's last day */
 .bye-list{list-style:none;display:flex;flex-wrap:wrap;justify-content:center;gap:14px 18px;padding:16px 12px;
@@ -264,8 +270,12 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
 [data-view=condensed] .week-inner>section,[data-view=condensed] .games{display:contents}
 [data-view=condensed] .games>li{flex:1 1 0;min-height:0;display:flex}
 [data-view=condensed] .day{font-size:11px;line-height:13px;padding:5px 0 2px;color:var(--text-2);flex:none}
+/* Fixed-width side columns here too (2026-09-21), same reason as the expanded grid above: a
+   final tile's abbreviation+record+score row is wider than an upcoming tile's abbreviation+record,
+   so with 1fr columns each tile's own grid resolved to a different width and the content drifted
+   between tiles. */
 [data-view=condensed] .game{flex:1;min-height:0;border-radius:12px;padding:2px 6px;
-  grid-template-columns:34px 1fr minmax(60px,auto) 1fr 34px}
+  grid-template-columns:34px 130px 1fr 130px 34px}
 [data-view=condensed] .game:hover,[data-view=condensed] .game:focus-visible{transform:scale(1.02)}
 [data-view=condensed] .team img{width:30px;height:30px}
 /* A helmet can never be taller than the tile holding it. The tile is its own size container,
@@ -290,8 +300,18 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
 [data-view=condensed] .stack.home .abbr-c{text-align:right}
 [data-view=condensed] .result.away .abbr-c{text-align:left}
 [data-view=condensed] .result.home .abbr-c{text-align:right}
-[data-view=condensed] .record{font-size:11px;line-height:13px;white-space:nowrap}
-[data-view=condensed] .team-record{white-space:nowrap}
+/* Record and score also get a fixed width (2026-09-21), not just the abbreviation: an upcoming
+   tile's record is the last thing in its row so it was already flush left/right off the fixed
+   abbreviation, but a final tile's score comes right after the record -- if the record's own
+   width varies ("0-1" vs "10-6-1") the score after it drifts. Fixing both keeps the record's
+   own start AND the score that follows it lined up tile to tile. */
+[data-view=condensed] .record{font-size:11px;line-height:13px;white-space:nowrap;display:inline-block;width:3.6em}
+[data-view=condensed] .stack.away .record{text-align:left}
+[data-view=condensed] .stack.home .record{text-align:right}
+[data-view=condensed] .team-record{white-space:nowrap;display:inline-block;width:3.6em}
+[data-view=condensed] .result.away .team-record{text-align:left}
+[data-view=condensed] .result.home .team-record{text-align:right}
+[data-view=condensed] .result .score{display:inline-block;width:1.8em;text-align:center}
 [data-view=condensed] .time{font-size:13px;line-height:15px;margin-top:0}
 [data-view=condensed] .tz{font-size:8px;margin-left:2px}
 [data-view=condensed] .network{display:none}          /* coverage is cut */
@@ -305,6 +325,7 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
 /* narrow phones: a finished tile carries abbreviation + record + score per side, so it gets
    its own sizes rather than wrapping the record onto two lines */
 @media (max-width:400px){
+  [data-view=condensed] .game{grid-template-columns:34px 110px 1fr 110px 34px}
   [data-view=condensed] .game.final .center{min-width:48px}
   [data-view=condensed] .result{gap:5px}
   [data-view=condensed] .result .abbr-c{min-width:2.5em;font-size:15px}
@@ -316,7 +337,7 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
 /* very narrow phones (iPhone SE 1st gen and similar): a finished tile still has to hold
    abbreviation + record + score on each side without pushing the helmets past the edge */
 @media (max-width:344px){
-  [data-view=condensed] .game{grid-template-columns:30px 1fr minmax(40px,auto) 1fr 30px;padding:2px 4px}
+  [data-view=condensed] .game{grid-template-columns:30px 100px 1fr 100px 30px;padding:2px 4px}
   [data-view=condensed] .game.final .center{min-width:40px}
   [data-view=condensed] .result{gap:4px}
   [data-view=condensed] .result .abbr-c{min-width:2.3em;font-size:13px}
@@ -341,7 +362,7 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
 [data-view=condensed] .bye-team img{width:24px;height:24px}
 [data-view=condensed] .bye-team .abbr{display:block;font-size:9px;line-height:11px}
 @media (min-width:601px){
-  [data-view=condensed] .game{padding:4px 10px;border-radius:14px;grid-template-columns:44px 1fr minmax(76px,auto) 1fr 44px}
+  [data-view=condensed] .game{padding:4px 10px;border-radius:14px;grid-template-columns:44px 160px 1fr 160px 44px}
   [data-view=condensed] .team img{width:38px;height:38px}
   [data-view=condensed] .team img{width:auto;height:min(38px,80cqh)}
   [data-view=condensed] .abbr{font-size:19px;line-height:23px}
@@ -359,11 +380,12 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
 /* Page 1 opens on top of Page 0 (see PAGE1_OVERLAY_JS): tapping a tile zooms into it, its helmets,
    abbreviations and scores fly up into Page 1's top bar, then Page 1's cards come in. Page 1's own
    styles live inside a shadow root on .p1-host. Swipe sideways for the week's other games; swipe
-   down from the top, or pinch in, to minimize back into the tile. */
+   down from the top to minimize back into the tile. Pinch toggles expanded/condensed (2026-09-21,
+   was pinch-to-close) -- the same transition as the +/- button, just reachable with two fingers. */
 .p1-overlay{position:fixed;z-index:100;box-sizing:border-box;background:var(--tile);
   border:1px solid var(--tile-border);border-radius:20px;overflow:hidden}
 .p1-overlay.is-open{inset:0;border-radius:0;border-color:transparent;
-  touch-action:pan-y}  /* sideways swipes, pull-down-to-close and two-finger pinches are handled by the script */
+  touch-action:pan-y}  /* sideways swipes, pull-down-to-close and pinch-to-toggle are handled by the script */
 .p1-host{position:absolute;inset:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;background:#fff}
 .p1-shell{position:fixed;box-sizing:border-box;background:var(--tile);border:1px solid var(--tile-border);border-radius:20px;pointer-events:none}
 html.p1-open{overflow:hidden}
@@ -711,6 +733,28 @@ PAGE0_JS = """
       setView(document.body.dataset.view === 'condensed' ? 'expanded' : 'condensed');
     });
     setView(document.body.dataset.view || 'expanded');
+    // Pinch to toggle expanded/condensed here too (2026-09-21), same as the +/- button. Guarded
+    // against the Page 1 overlay being open, which handles pinch itself for whatever it's showing.
+    var pinchD0 = 0, pinchScale = 1, pinching = false;
+    function pinchDist(t) { return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY); }
+    document.addEventListener('touchstart', function (e) {
+      if (e.touches.length === 2 && !document.documentElement.classList.contains('p1-open')) {
+        pinching = true; pinchD0 = pinchDist(e.touches); pinchScale = 1;
+      }
+    }, { passive: true });
+    document.addEventListener('touchmove', function (e) {
+      if (!pinching || e.touches.length !== 2) return;
+      if (e.cancelable) e.preventDefault();
+      pinchScale = pinchDist(e.touches) / pinchD0;
+    }, { passive: false });
+    function pinchEnd(e) {
+      if (!pinching || (e.touches && e.touches.length >= 2)) return;
+      pinching = false;
+      if (pinchScale < 0.82) setView('condensed');
+      else if (pinchScale > 1.18) setView('expanded');
+    }
+    document.addEventListener('touchend', pinchEnd);
+    document.addEventListener('touchcancel', pinchEnd);
   }
 
   // Used by the Page 1 overlay: jump to the week a game belongs to, and the hash to return to.
@@ -733,7 +777,6 @@ PAGE1_OVERLAY_JS = r"""
   var reduce = { matches: false };
   var EASE = 'cubic-bezier(.22,1,.36,1)';
   var TILE = 'a.game[href^="#game-"]';
-  var PINCH_CLOSE = 0.8;     // let go of a pinch below 80% size and Page 1 closes
   var SWIPE_COMMIT = 0.22;   // drag a quarter of the screen (or flick) to change games
   var PULL_CLOSE = 0.16;     // pull down a sixth of the screen (or flick down) and Page 1 closes
   var PULL_FULL = 0.55;      // how far a pull has to go for the page to reach its smallest size
@@ -1056,19 +1099,11 @@ PAGE1_OVERLAY_JS = r"""
     });
   }
 
-  // ------------------------------------------------------------ gestures: pull down or pinch in to close, swipe sideways to change games
+  // ------------------------------------------------------------ gestures: pull down to close, pinch to toggle expanded/condensed, swipe sideways to change games
   function dist(t) { return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY); }
 
-  function setPinch(s, scale) {
-    var h = s.host;
-    h.style.transform = 'scale(' + scale + ')';
-    h.style.borderRadius = (20 / scale) + 'px';
-    h.style.overflow = 'hidden';
-    h.style.boxShadow = '0 0 0 ' + (1 / scale) + 'px rgba(0,0,0,.12)';
-    s.overlay.style.background = 'transparent';
-  }
-  // Pull down to close: same shrinking-card look as a pinch, but travelling down the screen,
-  // so the release can hand straight over to minimize() through pinchScale/pinchRect.
+  // Pull down to close: a shrinking-card look, travelling down the screen, so the release can
+  // hand straight over to minimize() through pinchScale/pinchRect.
   function setPull(s, dy, scale) {
     var h = s.host;
     h.style.transformOrigin = '50% 50%';
@@ -1145,17 +1180,12 @@ PAGE1_OVERLAY_JS = r"""
       var s = state;
       if (!s || s.closing || s.busy || !s.inst) return;
       if (e.touches.length === 2) {
-        if (mode === 'swipe' || mode === 'pull' || detailOn(s)) { if (detailOn(s)) mode = null; return; }   // no pinch on Page 2
+        if (mode === 'swipe' || mode === 'pull') return;
+        // Pinch no longer closes the page (2026-09-21) -- it toggles expanded/condensed instead,
+        // the same transition the +/- button triggers, so there's nothing to set up here beyond
+        // the starting finger distance. Works even while Page 2 Game Info is open; s.inst.pinch
+        // itself is a no-op on a page with no condensed view (the team pages).
         mode = 'pinch'; d0 = dist(e.touches); scale = 1;
-        var tile = tileFor(s.id);
-        if (tile && !visibleRect(tile)) {
-          var r = tile.getBoundingClientRect();
-          s.scrollY = Math.max(0, window.scrollY + r.top - innerHeight / 2 + r.height / 2);
-          window.scrollTo(0, s.scrollY);
-        }
-        var tr = visibleRect(tile);
-        s.host.style.transformOrigin = tr ? (tr.left + tr.width / 2) + 'px ' + (tr.top + tr.height / 2) + 'px'
-          : ((e.touches[0].clientX + e.touches[1].clientX) / 2) + 'px ' + ((e.touches[0].clientY + e.touches[1].clientY) / 2) + 'px';
       } else if (e.touches.length === 1) {
         mode = 'pending'; x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0; dy = 0; t0 = Date.now();
         canPull = detailOn(s) ? s.inst.detailAtTop() : atScrollTop(e);   // Page 2: first card, or condensed
@@ -1169,8 +1199,7 @@ PAGE1_OVERLAY_JS = r"""
       if (mode === 'pinch') {
         if (e.touches.length !== 2) return;
         e.preventDefault();  // keep the browser from zooming instead
-        scale = Math.max(0.35, Math.min(1, dist(e.touches) / d0));
-        setPinch(s, scale);
+        scale = dist(e.touches) / d0;   // no visual feedback while dragging -- just track which way it went
         return;
       }
       if (e.touches.length !== 1) return;
@@ -1213,17 +1242,7 @@ PAGE1_OVERLAY_JS = r"""
       if (mode === 'pinch') {
         if (e.touches && e.touches.length >= 2) return;
         mode = null;
-        if (scale < PINCH_CLOSE && !s.closing) {
-          s.pinchScale = scale;
-          s.pinchRect = s.host.getBoundingClientRect();
-          clearPinchLook(s);
-          requestClose();
-          return;
-        }
-        var from = s.host.style.transform || 'none';
-        var back = reduce.matches ? null : s.host.animate([{ transform: from }, { transform: 'none' }], { duration: 180, easing: EASE });
-        done(back).then(function () { if (state === s && !s.closing) clearPinch(s); });
-        s.host.style.transform = '';
+        if (s.inst && s.inst.pinch) s.inst.pinch(scale);
         return;
       }
       if (mode === 'pull') {

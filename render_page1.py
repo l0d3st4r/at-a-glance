@@ -219,7 +219,7 @@ def injuries_html(side, full):
             label = f"{label} · {r['designation']}"
         out.append(
             f'<li><span class="inj-name">{esc(name or "")}</span>'
-            f'<span class="inj-s"><i class="inj-dot inj-{cls}"></i>{esc(label)}</span></li>'
+            f'<span class="inj-s"><i class="inj-dot inj-{cls}"></i><span class="inj-status">{esc(label)}</span></span></li>'
         )
     return "".join(out)
 
@@ -386,6 +386,31 @@ def header_scores(d):
     return (f'<span class="{a_cls}">{esc(fmt_value(a_s))}</span>', f'<span class="{h_cls}">{esc(fmt_value(h_s))}</span>')
 
 
+def win_side(d):
+    """Finished game -> "away" | "home" | None (tie or not yet final) -- same rule as Page 0's triangle."""
+    score = d.get("score") if d.get("final") else None
+    if not score:
+        return None
+    try:
+        a_s, h_s = float(score.get("away")), float(score.get("home"))
+    except (TypeError, ValueError):
+        return None
+    return "away" if a_s > h_s else "home" if h_s > a_s else None
+
+
+# Winner triangle next to "FINAL" (Jason, 2026-09-17 on Page 0; 2026-09-21 everywhere else "FINAL"
+# shows). Same shape as Page 0's, duplicated here rather than imported to avoid a circular import
+# (render_html.py already imports this module).
+WIN_TRI = ('<svg viewBox="0 0 8 10" aria-hidden="true"><path d="M8 0 0 5l8 5z" fill="currentColor"/></svg>')
+
+
+def final_label_html(d):
+    """"FINAL"/"FINAL/OT" flanked by two triangle slots -- only the winner's side is visible
+    (CSS keys off data-win on .p1), same convention as Page 0."""
+    text = "FINAL/OT" if d.get("overtime") else "FINAL"
+    return (f'<span class="tri tri-a">{WIN_TRI}</span>{esc(text)}<span class="tri tri-h">{WIN_TRI}</span>')
+
+
 def render_p1_block(d, prefix="../"):
     """The <div class="p1"> block (shared by the standalone page and the Page 0 overlay)."""
     away, home = d.get("away") or {}, d.get("home") or {}
@@ -406,10 +431,11 @@ def render_p1_block(d, prefix="../"):
     row = (
         f'<div class="side away">{img(a, 44)}<span class="abbr">{esc(a)}</span>{a_score}</div>'
         # finished games say FINAL / FINAL/OT where the "@" was (Jason, 2026-09-19) -- same element, so every
-        # header animation that moves the "@" carries the label instead
-        f'<div class="mid"><span class="at{" at-final" if final else ""}">{("FINAL/OT" if d.get("overtime") else "FINAL") if final else "@"}</span>'
+        # header animation that moves the "@" carries the label instead. The winner triangle
+        # (2026-09-21) rides along inside both copies since they're just cloned for the animation.
+        f'<div class="mid"><span class="at{" at-final" if final else ""}">{final_label_html(d) if final else "@"}</span>'
         f'<span class="when"><span>{esc(when_day)}</span><span>{esc(when_time)}</span></span>'
-        f'<span class="final-lbl">{"FINAL/OT" if d.get("overtime") else "FINAL"}</span></div>'
+        f'<span class="final-lbl">{final_label_html(d)}</span></div>'
         f'<div class="side home">{h_score}<span class="abbr">{esc(h)}</span>{img(h, 44, True)}</div>'
     )
     hero = f'<div class="hero" aria-hidden="true"><div class="teams">{row}</div></div>'
@@ -464,7 +490,9 @@ def render_p1_block(d, prefix="../"):
     has_detail = " ".join(k for k, block in
                            (("game-info", page2), ("away-team", away_page), ("home-team", home_page)) if block)
     has_detail_attr = f' data-has-detail="{esc(has_detail)}"' if has_detail else ""
-    return (f'<div class="p1" data-view="large" data-head="card"{" data-final" if final else ""}{has_detail_attr} '
+    win = win_side(d)
+    win_attr = f' data-win="{win}"' if win else ""
+    return (f'<div class="p1" data-view="large" data-head="card"{" data-final" if final else ""}{win_attr}{has_detail_attr} '
             f'data-game="{esc(d.get("game_id"))}">{bar}{condensed}{large}{page2}{away_page}{home_page}</div>')
 
 
@@ -560,7 +588,10 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     c.className = (src.className || '') + ' hf';
     c.style.fontSize = cs.fontSize;
     if (src.tagName === 'IMG') { c.style.width = src.offsetWidth + 'px'; c.style.height = src.offsetHeight + 'px'; }
-    else c.style.display = src.classList.contains('when') ? 'flex' : 'block';   // the date keeps its two stacked lines
+    // the date keeps its two stacked lines; FINAL keeps its triangle beside the text (2026-09-21)
+    else if (src.classList.contains('when')) c.style.display = 'flex';
+    else if (src.classList.contains('at-final') || src.classList.contains('final-lbl')) c.style.display = 'inline-flex';
+    else c.style.display = 'block';
     return c;
   }
   if (barRow && heroRow) {
@@ -1080,6 +1111,38 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
       openDetail(openKey, { instant: true, push: false });
     }
   }
+  // Pinch to toggle expanded/condensed (2026-09-21, replaces pinch-to-close): scale < 1 is a
+  // pinch in (go condensed), > 1 is a pinch out (go expanded); a small wobble around 1 does
+  // nothing. Whichever detail (if any) is open decides for itself -- Game Info has a condensed
+  // layout to switch to, the team pages don't, so pinching there is a no-op.
+  function pinchToggle(scale) {
+    var goCondensed = scale < 0.82, goExpanded = scale > 1.18;
+    if (!goCondensed && !goExpanded) return;
+    var d = curDetail();
+    if (d) { if (d.cond.length) detailView(goCondensed ? 'condensed' : 'large'); return; }
+    switchView(goCondensed ? 'condensed' : 'large');
+  }
+  // Standalone page only (opts.onBack is how the Page 0 overlay always calls in -- it wires this
+  // same pinchToggle to its own two-finger gesture instead, see PAGE1_OVERLAY_JS).
+  if (!opts.onBack) {
+    var pinchD0 = 0, pinchScale = 1, pinching = false;
+    function twoFingerDist(t) { return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY); }
+    on(root, 'touchstart', function (e) {
+      if (e.touches.length === 2) { pinching = true; pinchD0 = twoFingerDist(e.touches); pinchScale = 1; }
+    }, { passive: true });
+    on(root, 'touchmove', function (e) {
+      if (!pinching || e.touches.length !== 2) return;
+      if (e.cancelable) e.preventDefault();
+      pinchScale = twoFingerDist(e.touches) / pinchD0;
+    }, { passive: false });
+    function endPinch(e) {
+      if (!pinching || (e.touches && e.touches.length >= 2)) return;
+      pinching = false;
+      pinchToggle(pinchScale);
+    }
+    on(root, 'touchend', endPinch);
+    on(root, 'touchcancel', endPinch);
+  }
   return {
     view: function () { return wrap.getAttribute('data-view'); },
     card: function () { return lastCard; },
@@ -1088,6 +1151,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     detailAtTop: function () { var d = curDetail(); return !large() || !d || !d.deck || d.deck.scrollTop <= 1; },
     closeDetail: closeDetail,
     pullDetail: pullDetail,
+    pinch: pinchToggle,
     destroy: function () {
       if (cdTimer) clearInterval(cdTimer);
       bound.forEach(function (b) { b[0].removeEventListener(b[1], b[2], b[3]); }); bound = [];
@@ -1134,14 +1198,21 @@ a.card:focus-visible{outline:2px solid #000;outline-offset:2px}
 .side,.mid{display:flex;align-items:center;gap:.4em}
 .teams .abbr{font-size:1em}
 .teams .at{font-size:.8em;padding:0 .25em}
-.teams .at-final{font-weight:700;letter-spacing:.04em;white-space:nowrap;padding:0 .3em}   /* 16px in the 20px bar = Page 0's FINAL */
+.teams .at-final{font-weight:700;letter-spacing:.04em;white-space:nowrap;padding:0 .3em;
+  display:inline-flex;align-items:center;gap:.22em}   /* 16px in the 20px bar = Page 0's FINAL */
 .hero .teams .at-final{font-size:.44em;padding:0 .35em}   /* in the Game Info card: label-sized (~16px), so the teams keep their room */
 @media (max-width:400px){.bar .teams .at-final{font-size:.58em;padding:0 .2em}}   /* Page 0 drops FINAL to 11px here too */
 @media (max-width:344px){.p1:not([data-view=large]) .bar .teams{font-size:17px}}
 .teams img{display:block;width:2.2em;height:2.2em}
 .bar .teams{pointer-events:none}
 .when{display:none;flex-direction:column;align-items:center;font-size:11px;font-weight:700;letter-spacing:.1em;line-height:1.35;color:var(--text-2);white-space:nowrap}
-.final-lbl{display:none;font-size:16px;font-weight:700;letter-spacing:.04em;line-height:1.2;white-space:nowrap}   /* same as Page 0's FINAL */
+.final-lbl{display:none;align-items:center;gap:5px;font-size:16px;font-weight:700;letter-spacing:.04em;line-height:1.2;white-space:nowrap}   /* same as Page 0's FINAL */
+/* Winner triangle next to every "FINAL"/"FINAL/OT" in the header (2026-09-21, matches Page 0):
+   one shape, mirrored for the home side, only the winner's copy shown. */
+.tri{display:inline-flex;visibility:hidden;flex:none;color:currentColor}
+.tri svg{display:block;width:.4em;height:.5em}
+.tri-h svg{transform:scaleX(-1)}
+.p1[data-win=away] .tri-a,.p1[data-win=home] .tri-h{visibility:visible}
 /* ===== Expanded view header (2026-09-17) =====
    Game Info card: each team stacks — final score on top, then the helmet, then the abbreviation.
    Top bar, game still to come: helmet + abbreviation (abbreviation on the inside) at opposite edges of
@@ -1150,17 +1221,24 @@ a.card:focus-visible{outline:2px solid #000;outline-offset:2px}
    helmet; the date and time aren't needed once a game is over. */
 .p1[data-view=large] .hero .side{flex-direction:column;gap:.08em}
 .p1[data-view=large] .hero .side img{order:2;width:2.6em;height:2.6em}
-.p1[data-view=large] .hero .side .hscore{order:1;font-size:1.6em;margin-bottom:.14em}   /* the score sits high above the helmet */
+.p1[data-view=large] .hero .side .hscore{order:1;font-size:2.2em;margin-bottom:.14em}   /* the score sits high above the helmet (2026-09-21: bumped up from 1.6em) */
 .p1[data-view=large] .hero .side .abbr{order:3}
 .p1[data-view=large] .bar .teams{font-size:17px;width:100%;padding:0 16px;justify-content:space-between}
 .p1[data-view=large] .bar .side img{width:2.4em;height:2.4em}
 .p1[data-view=large] .bar .at{display:none}
 .p1[data-view=large]:not([data-final]) .bar .when{display:flex}
-.p1[data-view=large][data-final] .bar .final-lbl{display:block}
+.p1[data-view=large][data-final] .bar .final-lbl{display:inline-flex}
 /* which copy of the header shows in the expanded view: in the card (data-head=card), in the bar (bar),
    or neither while the moving copies (.head-fly) travel between them (moving) */
 .p1[data-view=large][data-head=card] .bar .teams,.p1[data-view=large][data-head=card] .when{visibility:hidden}
 .p1[data-view=large][data-head=bar] .hero .teams,.p1[data-view=large][data-head=moving] .hero .teams,.p1[data-view=large][data-head=moving] .bar .teams{visibility:hidden}
+/* The winner triangle's own visibility:visible (further down) would otherwise win the cascade
+   over an ancestor's visibility:hidden above -- re-hide it in whichever copy the rules above
+   already hid, so a "won" triangle doesn't float on screen on its own during the flip (2026-09-21). */
+.p1[data-view=large][data-head=card] .bar .tri,
+.p1[data-view=large][data-head=bar] .hero .tri,
+.p1[data-view=large][data-head=moving] .hero .tri,
+.p1[data-view=large][data-head=moving] .bar .tri{visibility:hidden}
 .head-fly{position:fixed;inset:0;display:block;margin:0;z-index:12;pointer-events:none}
 .head-fly .hf{position:fixed;margin:0;transform-origin:0 0;will-change:transform,opacity}
 .p1:not([data-view=large]) .head-fly,.p1[data-view=large]:not([data-head=moving]) .head-fly{display:none}
@@ -1183,10 +1261,13 @@ a.card:focus-visible{outline:2px solid #000;outline-offset:2px}
 .view-c a.card:hover,.view-c a.card:focus-visible{transform:scale(1.03);border-color:var(--tile-border-hover);z-index:1}
 
 /* Game info: content pulled in from the edges, centered vertically */
-a.card.c-game{padding:var(--ctitle) clamp(22px,7%,32px) 4px;display:flex;flex-direction:column;justify-content:center;gap:clamp(4px,1vh,14px);overflow:hidden}
+a.card.c-game{padding:var(--ctitle) clamp(22px,7%,32px) clamp(16px,2.6vh,24px);display:flex;flex-direction:column;justify-content:center;gap:clamp(4px,1vh,14px);overflow:hidden}
 .c-game .time{font-size:clamp(25px,3.7vh,40px)} .c-game .time small{font-size:12px}
 .c-game .date{font-size:clamp(14px,2.1vh,22px);margin-top:2px}
 .c-game .network{font-size:12px;margin-top:6px}
+/* (2026-09-21) city/weather were flush with the card's bottom corners -- the bigger bottom
+   padding above buys room from the edge; this adds a little more air between the two of them */
+.c-game .game-bottom{gap:16px;margin-top:2px}
 .c-game .city{font-size:13px;padding-left:0}
 .c-game .temp{font-size:clamp(20px,3vh,28px)}
 .c-game .weather{gap:7px} .c-game .weather svg{width:32px;height:24px}
@@ -1212,12 +1293,17 @@ a.card.c-team{padding:var(--ctitle) 10px clamp(8px,1.4vh,14px);display:flex;flex
 .trend{flex:none;display:block}
 .t-w{color:var(--win)} .t-l{color:var(--loss)} .t-t{color:var(--tie)}
 .rc-hit.t-w,.rc-hit.t-l,.rc-hit.t-t{font:inherit}
-/* (2026-09-17, Jason) the rows line up the same way as the expanded card's .l-inj:
-   name on the left, designation on the right, spread apart instead of centered together */
-.c-inj{font-size:12px;line-height:1.28;width:min(100%,220px)}
-.c-inj li{justify-content:space-between;align-items:baseline;gap:10px}
-.c-inj .inj-name{overflow:hidden;text-overflow:ellipsis}
-.c-inj .inj-none{justify-content:center}
+/* (2026-09-21, Jason) name/dot/status as one centered block instead of spread edge to edge:
+   a 3-column grid (li and .inj-s both unboxed via display:contents so the dot gets its own
+   column) with names flush left, statuses flush right, dots in a shared middle column. */
+.c-inj{font-size:12px;line-height:1.28;width:fit-content;max-width:calc(100% - 24px);margin:0 auto;
+  display:grid;grid-template-columns:auto auto auto;column-gap:10px;row-gap:6px;align-items:center}
+.c-inj li:not(.inj-none){display:contents}
+.c-inj .inj-name{overflow:hidden;text-overflow:ellipsis;text-align:left}
+.c-inj .inj-s{display:contents}
+.c-inj .inj-dot{justify-self:center}
+.c-inj .inj-status{text-align:right;color:var(--text-2)}
+.c-inj .inj-none{grid-column:1/-1;text-align:center}
 /* (2026-09-17, Jason) the names were 700 like the rank headings below them; Regular separates
    the two and buys back a few pixels of height */
 .c-inj .inj-name{font-weight:400}
@@ -1225,10 +1311,12 @@ a.card.c-team{padding:var(--ctitle) 10px clamp(8px,1.4vh,14px);display:flex;flex
 .c-team .ranks{column-gap:clamp(12px,4cqi,26px)}
 .c-team .rank-col{gap:clamp(2px,.7vh,7px)}
 .c-team .rank-col h3{font-size:13px}
-.c-team .rank{width:auto;column-gap:2px}
-.c-team .rank-n{font-size:clamp(21px,2.9vh,27px);min-width:1.25em}
-.c-team .rank-sfx{font-size:10px;padding-top:1px}
-.c-team .rank-lbl{font-size:9px;padding-bottom:2px;letter-spacing:.05em}
+.c-team .rank{width:auto;column-gap:3px}
+/* (2026-09-21) grown to actually span the ordinal + label stacked beside it, matching the
+   expanded card's proportions instead of reading small and cramped */
+.c-team .rank-n{font-size:clamp(28px,3.8vh,36px);min-width:1.25em}
+.c-team .rank-sfx{font-size:13px;padding-top:2px}
+.c-team .rank-lbl{font-size:10px;letter-spacing:.05em}
 
 /* Leaders: bigger numbers, columns pulled toward the center, league-rank crowns */
 /* (2026-09-17, Jason) taller card, and the extra height goes into the gaps between rows --
@@ -1326,12 +1414,15 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .ranks{display:grid;grid-template-columns:1fr 1fr}
 .rank-col{display:flex;flex-direction:column;align-items:center;gap:12px}
 .rank-col h3{font-size:24px;font-weight:700;line-height:1.2}
-.rank{display:grid;grid-template-columns:auto auto;grid-template-rows:auto auto;column-gap:3px;align-items:start;width:112px}
+/* row2 is 1fr (2026-09-21, was auto) so it absorbs the extra height rank-n's span needs, which
+   pushes rank-lbl (align-self:end below) down to sit right at rank-n's own bottom edge instead
+   of floating in a gap above it. */
+.rank{display:grid;grid-template-columns:auto auto;grid-template-rows:auto 1fr;column-gap:3px;align-items:start;width:112px}
 /* Ranks are stats -> Teko (Jason, 2026-09-18); the PTS/YDS labels stay Inter. */
 .rank-n{grid-row:1/3;font-size:44px;line-height:1;text-align:right;min-width:52px;
   font-family:Teko,Inter,system-ui,sans-serif;font-weight:700}
 .rank-sfx{font-size:16px;line-height:1;padding-top:3px;font-family:Teko,Inter,system-ui,sans-serif;font-weight:700}
-.rank-lbl{font-size:12px;font-weight:300;line-height:1;align-self:end;padding-bottom:4px;letter-spacing:.02em}
+.rank-lbl{font-size:12px;font-weight:300;line-height:1;align-self:end;letter-spacing:.02em}
 
 .compare .body{padding:46px 0 20px;justify-content:space-evenly;align-items:center}
 .compare .body>.cmp-row{width:90%}
@@ -1361,8 +1452,8 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 /* no prefers-reduced-motion override: motion always plays (Jason, 2026-09-17) */
 /* ===== Production additions (not in the preview) ===== */
 /* Finished games: final score sits in the header next to each abbreviation */
-.teams .hscore{font-size:1em;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.01em;padding:0 .1em;
-  font-family:Teko,Inter,system-ui,sans-serif;font-weight:700}   /* final score in the header -> Teko */
+.teams .hscore{font-size:1.35em;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.01em;padding:0 .1em;
+  font-family:Teko,Inter,system-ui,sans-serif;font-weight:700}   /* final score in the header -> Teko (2026-09-21: bumped up from 1em) */
 .teams .hscore.lose{opacity:.3}
 a.card{cursor:pointer}
 /* condensed cards: name at the top center, same type as the expanded slivers */
