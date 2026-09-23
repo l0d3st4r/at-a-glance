@@ -1180,6 +1180,80 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     Object.assign(d.el.style, { transform: 'translateY(' + (dy * 0.55) + 'px) scale(' + sc + ')', borderRadius: (20 / sc) + 'px',
       boxShadow: '0 0 0 ' + (1 / sc) + 'px rgba(0,0,0,.12)', overflow: 'hidden' });
   }
+  // Swipe sideways between the three Page 2 details (2026-09-24): Game Info <-> away team <->
+  // home team, in DETAIL_KEYS order. Only live once a detail is open and Page 1 is in the
+  // expanded view (the team pages have no condensed layer, so a detail opened on one of them
+  // is already forced into large view). The gesture only claims itself once a drag is clearly
+  // more horizontal than vertical, same threshold as everywhere else in this file, so it never
+  // fights the detail's own vertical card-to-card scroll. The Page 0 overlay's own touch
+  // handling already steps aside for a horizontal drag while a detail is open (see
+  // PAGE1_OVERLAY_JS, "no game swipe on Page 2"), so this is the only thing listening for one.
+  var detailSwipe = null;
+  function detailNeighbor(dir) {
+    var d = curDetail(), i = d ? DETAIL_KEYS.indexOf(d.key) : -1;
+    var key = i > -1 ? DETAIL_KEYS[i + dir] : null;
+    return key && details[key] ? details[key] : null;
+  }
+  on(wrap, 'touchstart', function (e) {
+    detailSwipe = (detailOpen() && large() && !detailBusy && e.touches.length === 1)
+      ? { x0: e.touches[0].clientX, y0: e.touches[0].clientY, dx: 0, dir: 0, mode: 'pending', t0: Date.now(), neighbor: null }
+      : null;
+  }, { passive: true });
+  on(wrap, 'touchmove', function (e) {
+    var s = detailSwipe;
+    if (!s || e.touches.length !== 1) return;
+    var mx = e.touches[0].clientX - s.x0, my = e.touches[0].clientY - s.y0;
+    if (s.mode === 'pending') {
+      if (Math.abs(mx) > 10 && Math.abs(mx) > Math.abs(my) * 1.2) s.mode = 'swipe';
+      else if (Math.abs(my) > 10) { s.mode = null; return; }
+      else return;
+    }
+    if (s.mode !== 'swipe') return;
+    if (e.cancelable) e.preventDefault();
+    var cur = curDetail(); if (!cur) return;
+    var dir = mx < 0 ? 1 : -1, w = innerWidth, nb = detailNeighbor(dir);
+    s.dir = dir; s.dx = nb ? mx : mx * 0.3;   // rubber band past the first/last detail
+    cur.el.style.transform = 'translateX(' + s.dx + 'px)';
+    if (nb !== s.neighbor) {
+      if (s.neighbor) { s.neighbor.el.style.display = ''; s.neighbor.el.style.transform = ''; }
+      if (nb) { nb.el.style.display = 'block'; detailPlace(nb, 0); }
+      s.neighbor = nb;
+    }
+    if (nb) nb.el.style.transform = 'translateX(' + (dir * w + s.dx) + 'px)';
+  }, { passive: false });
+  function endDetailSwipe(e) {
+    var s = detailSwipe;
+    if (s) detailSwipe = null;
+    if (!s || s.mode !== 'swipe') return;
+    var cur = curDetail(), nb = s.neighbor, w = innerWidth, dir = s.dir;
+    if (!cur) return;
+    var v = Math.abs(s.dx) / Math.max(1, Date.now() - s.t0);
+    if (nb && (Math.abs(s.dx) > w * 0.22 || v > 0.5)) {   // same commit rule as the game-to-game swipe (SWIPE_COMMIT)
+      detailBusy = true;
+      var outAnim = cur.el.animate([{ transform: 'translateX(' + s.dx + 'px)' }, { transform: 'translateX(' + (-dir * w) + 'px)' }],
+                                    { duration: 220, easing: EASE, fill: 'forwards' });
+      var inAnim = nb.el.animate([{ transform: 'translateX(' + (dir * w + s.dx) + 'px)' }, { transform: 'translateX(0)' }],
+                                  { duration: 220, easing: EASE, fill: 'forwards' });
+      Promise.all([fin(outAnim), fin(inAnim)]).then(function () {
+        cur.el.style.transform = ''; cur.el.style.display = '';
+        nb.el.style.transform = ''; nb.el.style.display = '';
+        wrap.setAttribute('data-detail', nb.key);
+        history.replaceState(Object.assign({}, history.state, { p2: nb.key }), '', (hashBase() || '#') + nb.hash);
+        detailBusy = false;
+      });
+      return;
+    }
+    var back1 = cur.el.animate([{ transform: 'translateX(' + s.dx + 'px)' }, { transform: 'translateX(0)' }], { duration: 180, easing: EASE });
+    cur.el.style.transform = '';
+    fin(back1);
+    if (nb) {
+      var back2 = nb.el.animate([{ transform: 'translateX(' + (dir * w + s.dx) + 'px)' }, { transform: 'translateX(' + (dir * w) + 'px)' }],
+                                 { duration: 180, easing: EASE, fill: 'forwards' });
+      fin(back2).then(function () { nb.el.style.transform = ''; nb.el.style.display = ''; });
+    }
+  }
+  on(wrap, 'touchend', endDetailSwipe);
+  on(wrap, 'touchcancel', endDetailSwipe);
   if (p2Back) on(p2Back, 'click', function (e) { e.preventDefault(); closeDetail(); });
   on(window, 'popstate', function () {
     var key = keyFromHash();
