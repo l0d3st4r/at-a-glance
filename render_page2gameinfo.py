@@ -417,7 +417,7 @@ P2_CSS = r"""
 .ko-tv{display:flex;justify-content:center;align-items:center;gap:24px;font-size:16px}
 .ko-tv.has-crew{justify-content:space-between}
 .ko-crew{display:flex;flex-direction:column;text-align:right;line-height:1.25}
-.wx-desc{font-size:20px;font-weight:700;line-height:1.2;margin-bottom:10px}
+.wx-desc{font-size:20px;font-weight:700;line-height:1.2;margin-bottom:10px;text-align:center}
 .wx-top{display:flex;align-items:flex-end;gap:24px}
 .wx-t b{display:block;font-size:58px;font-weight:700;line-height:1;letter-spacing:-.01em;white-space:nowrap}
 .wx-t>span{display:block;font-size:14px;color:var(--text-2);margin-top:6px}
