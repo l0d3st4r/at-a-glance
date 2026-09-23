@@ -200,8 +200,14 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
    1fr column's actual pixel width used to depend on THAT tile's own content (a wide final score
    vs. a short "0-1" record), which shifted the record/score column from tile to tile. Fixed widths
    make every tile's columns land at the same x regardless of what's in them; .center absorbs
-   whatever space is left, so the overall tile width is unchanged. */
-.game{display:grid;grid-template-columns:84px 100px 1fr 100px 84px;align-items:center;
+   whatever space is left, so the overall tile width is unchanged.
+   minmax(0,Npx), not a bare Npx (2026-09-23 fix): a bare fixed track never shrinks, so on a
+   narrow phone the four side columns alone could add up to more than the card's width and the
+   whole row overflowed the card -- with the home side's record/helmet visibly hanging off the
+   right edge. minmax(0,Npx) still resolves to exactly Npx whenever there's room (so the
+   alignment fix above still holds) but lets every column shrink together, in the same
+   proportion, when the card is too narrow to give them all their full width. */
+.game{display:grid;grid-template-columns:minmax(0,84px) minmax(0,100px) 1fr minmax(0,100px) minmax(0,84px);align-items:center;
   padding:16px 8px;color:inherit;text-decoration:none;
   background:var(--tile);border:1px solid var(--tile-border);border-radius:20px;
   transition:transform .16s ease,background-color .16s ease,border-color .16s ease}
@@ -243,7 +249,12 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
 .tri-h svg{transform:scaleX(-1)}
 .game.final[data-win=away] .tri-a,.game.final[data-win=home] .tri-h{visibility:visible}
 @media (max-width:420px){
-  .game{grid-template-columns:72px 84px 1fr 84px 72px;padding:14px 4px}
+  /* Narrower side columns than the >420px default (2026-09-23): 84px/100px per side left only
+     ~30px for the center at a 375-390px phone width, so "1:00 PM ET" (needs ~95px) had nowhere
+     to go but to spill sideways into the record columns next to it. 52px/56px is sized to the
+     actual content -- a 3-letter abbreviation, a "10-6-1"-worst-case record -- so the center
+     keeps the ~115px it needs. */
+  .game{grid-template-columns:minmax(0,52px) minmax(0,56px) 1fr minmax(0,56px) minmax(0,52px);padding:14px 4px}
   .team img{width:42px;height:42px}
   .center{padding:0 4px}
   .score{font-size:42px}.final-label{font-size:11px;line-height:13px}
@@ -275,7 +286,7 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
    so with 1fr columns each tile's own grid resolved to a different width and the content drifted
    between tiles. */
 [data-view=condensed] .game{flex:1;min-height:0;border-radius:12px;padding:2px 6px;
-  grid-template-columns:34px 130px 1fr 130px 34px}
+  grid-template-columns:minmax(0,34px) minmax(0,130px) 1fr minmax(0,130px) minmax(0,34px)}
 [data-view=condensed] .game:hover,[data-view=condensed] .game:focus-visible{transform:scale(1.02)}
 [data-view=condensed] .team img{width:30px;height:30px}
 /* A helmet can never be taller than the tile holding it. The tile is its own size container,
@@ -325,7 +336,7 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
 /* narrow phones: a finished tile carries abbreviation + record + score per side, so it gets
    its own sizes rather than wrapping the record onto two lines */
 @media (max-width:400px){
-  [data-view=condensed] .game{grid-template-columns:34px 110px 1fr 110px 34px}
+  [data-view=condensed] .game{grid-template-columns:minmax(0,34px) minmax(0,110px) 1fr minmax(0,110px) minmax(0,34px)}
   [data-view=condensed] .game.final .center{min-width:48px}
   [data-view=condensed] .result{gap:5px}
   [data-view=condensed] .result .abbr-c{min-width:2.5em;font-size:15px}
@@ -337,7 +348,7 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
 /* very narrow phones (iPhone SE 1st gen and similar): a finished tile still has to hold
    abbreviation + record + score on each side without pushing the helmets past the edge */
 @media (max-width:344px){
-  [data-view=condensed] .game{grid-template-columns:30px 100px 1fr 100px 30px;padding:2px 4px}
+  [data-view=condensed] .game{grid-template-columns:minmax(0,30px) minmax(0,100px) 1fr minmax(0,100px) minmax(0,30px);padding:2px 4px}
   [data-view=condensed] .game.final .center{min-width:40px}
   [data-view=condensed] .result{gap:4px}
   [data-view=condensed] .result .abbr-c{min-width:2.3em;font-size:13px}
@@ -362,7 +373,7 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
 [data-view=condensed] .bye-team img{width:24px;height:24px}
 [data-view=condensed] .bye-team .abbr{display:block;font-size:9px;line-height:11px}
 @media (min-width:601px){
-  [data-view=condensed] .game{padding:4px 10px;border-radius:14px;grid-template-columns:44px 160px 1fr 160px 44px}
+  [data-view=condensed] .game{padding:4px 10px;border-radius:14px;grid-template-columns:minmax(0,44px) minmax(0,160px) 1fr minmax(0,160px) minmax(0,44px)}
   [data-view=condensed] .team img{width:38px;height:38px}
   [data-view=condensed] .team img{width:auto;height:min(38px,80cqh)}
   [data-view=condensed] .abbr{font-size:19px;line-height:23px}
