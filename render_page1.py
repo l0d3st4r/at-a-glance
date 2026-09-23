@@ -1053,8 +1053,11 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     else if (!key && detailOpen()) closeDetail({ fromHistory: true });
   });
 
-  // Kickoff countdowns on Page 2 (one per view): tick every second while the page is open. After
-  // kickoff they read IN PROGRESS until the next data refresh marks the game final.
+  // Kickoff countdowns on Page 2 (one per view): tick every second while the page is open,
+  // showing only two units at a time -- days+hours with more than a day to go, hours+minutes
+  // with less than a day but more than an hour, minutes+seconds inside the final hour. There's
+  // no live score feed, so once kickoff passes there's nothing left to count down to and it just
+  // reads LIVE until the next data refresh marks the game final.
   var cds = [].slice.call(root.querySelectorAll('[data-kickoff]')), cdTimer = null;
   function tick() {
     cds.forEach(function (cd) {
@@ -1064,12 +1067,18 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
       if (left <= 0) {
         rows.forEach(function (r) { r.hidden = true; });
         status.hidden = false;
-        status.textContent = left > -5 * 3600e3 ? 'IN PROGRESS' : 'FINAL SOON';
+        status.textContent = 'LIVE';
         return;
       }
-      var mins = Math.floor(left / 60000), v = { d: Math.floor(mins / 1440), h: Math.floor(mins % 1440 / 60), m: mins % 60 };
+      status.hidden = true;
+      var secs = Math.floor(left / 1000);
+      var v = { d: Math.floor(secs / 86400), h: Math.floor(secs % 86400 / 3600), m: Math.floor(secs % 3600 / 60), s: secs % 60 };
+      var show = v.d >= 1 ? ['d', 'h'] : (v.h >= 1 ? ['h', 'm'] : ['m', 's']);
       rows.forEach(function (r) {
-        var n = r.querySelector('.cd-n'), u = r.querySelector('.cd-u'), val = v[n.getAttribute('data-u')];
+        var key = r.getAttribute('data-u'), visible = show.indexOf(key) !== -1;
+        r.hidden = !visible;
+        if (!visible) return;
+        var n = r.querySelector('.cd-n'), u = r.querySelector('.cd-u'), val = v[key];
         if (n.textContent !== String(val)) n.textContent = val;
         var w = u.getAttribute('data-w') + (val === 1 ? '' : 'S');
         if (u.textContent !== w) u.textContent = w;

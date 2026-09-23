@@ -88,16 +88,29 @@ def fmt_meeting_date(iso):
 
 
 def countdown_parts(kickoff_iso, now=None):
-    """Build-time value for the countdown (the page script keeps it live) -> (days, hours, minutes) or None."""
+    """Build-time value for the countdown (the page script keeps it live) -> (days, hours, minutes,
+    seconds) or None once kickoff has passed."""
     try:
         ko = datetime.fromisoformat(str(kickoff_iso).replace("Z", "+00:00"))
     except (TypeError, ValueError):
         return None
-    secs = (ko - (now or datetime.now(timezone.utc))).total_seconds()
+    secs = int((ko - (now or datetime.now(timezone.utc))).total_seconds())
     if secs <= 0:
         return None
-    mins = int(secs // 60)
-    return mins // 1440, (mins % 1440) // 60, mins % 60
+    return secs // 86400, secs % 86400 // 3600, secs % 3600 // 60, secs % 60
+
+
+COUNTDOWN_UNITS = (("d", "DAY"), ("h", "HOUR"), ("m", "MINUTE"), ("s", "SECOND"))
+
+
+def _countdown_pair(days, hours, minutes, seconds):
+    """Only two units show at a time: days+hours with more than a day to go, hours+minutes with
+    less than a day but more than an hour, minutes+seconds inside the final hour."""
+    if days >= 1:
+        return {"d": days, "h": hours}
+    if hours >= 1:
+        return {"h": hours, "m": minutes}
+    return {"m": minutes, "s": seconds}
 
 
 def _unit(n, word):
@@ -123,12 +136,21 @@ def _lose(mine, theirs):
 def _countdown(d, info, cls):
     if d.get("final"):
         return f'<div class="{cls} cd-done"><span class="cd-status">{"FINAL/OT" if d.get("overtime") else "FINAL"}</span></div>'
-    parts = countdown_parts(info.get("kickoff_utc"))
+    kickoff = info.get("kickoff_utc")
+    parts = countdown_parts(kickoff)
+    if parts is None:
+        # Kickoff has already passed as of this build. There's no live score feed to poll, so
+        # this just reads LIVE until the next scheduled rebuild picks up the final score and
+        # renders the "final" branch above instead -- the page script leaves a plain LIVE alone
+        # (no data-kickoff to tick against).
+        return f'<div class="{cls} cd-done"><span class="cd-status">LIVE</span></div>'
+    active = _countdown_pair(*parts)
     rows = "".join(
-        f'<div class="cd-row"><b class="cd-n" data-u="{key}">{DASH if n is None else n}</b>'
-        f'<span class="cd-u" data-w="{word}">{_unit(n, word)}</span></div>'
-        for key, word, n in zip(("d", "h", "m"), ("DAY", "HOUR", "MINUTE"), parts or (None, None, None)))
-    return (f'<div class="{cls}" data-kickoff="{esc(info.get("kickoff_utc") or "")}" role="timer" aria-label="Time until kickoff">'
+        f'<div class="cd-row" data-u="{key}"{"" if key in active else " hidden"}>'
+        f'<b class="cd-n">{active.get(key, 0)}</b>'
+        f'<span class="cd-u" data-w="{word}">{_unit(active.get(key, 0), word)}</span></div>'
+        for key, word in COUNTDOWN_UNITS)
+    return (f'<div class="{cls}" data-kickoff="{esc(kickoff or "")}" role="timer" aria-label="Time until kickoff">'
             f'{rows}<span class="cd-status" hidden></span></div>')
 
 
@@ -377,6 +399,7 @@ P2_CSS = r"""
 .ko-when .time+.ko-date{margin-top:8px}
 .cd{display:flex;flex-direction:column;gap:7px;padding-top:4px}
 .cd-row{display:flex;align-items:baseline;gap:5px;white-space:nowrap}
+.cd-row[hidden]{display:none}   /* an author display:flex above would otherwise beat the UA [hidden] default */
 .cd-n{font-size:36px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;min-width:1.25em;text-align:right;letter-spacing:-.01em}
 .cd-u{font-size:13px;font-weight:700;letter-spacing:.04em}
 .cd-status{font-size:16px;font-weight:700;letter-spacing:.04em;line-height:1.2;white-space:nowrap}   /* same as Page 0's FINAL */
