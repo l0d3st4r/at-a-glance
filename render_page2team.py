@@ -218,14 +218,23 @@ def _stat_cell(value, rank, signed=False):
         return f'<div class="stat"><span class="stat-v na">{DASH}</span></div>'
     c = rank_color(rank)
     disp = _fmt_signed(value) if signed else _fmt_int(value)
-    return (f'<div class="stat" style="color:{c}">'
-            f'<span class="stat-v">{disp}</span><span class="stat-rank">{rank}{esc(ordinal(rank))}</span></div>')
+    # Only the rank carries the tier color -- the raw value stays plain so it doesn't compete
+    # with it (Jason, 2026-09-24).
+    return (f'<div class="stat">'
+            f'<span class="stat-v">{disp}</span><span class="stat-rank" style="color:{c}">{rank}{esc(ordinal(rank))}</span></div>')
 
 
 def _stat_row(label, sub, left_html, right_html):
     sub_html = f'<span class="stat-sub">{esc(sub)}</span>' if sub else ""
     return (f'<div class="stat-row">{left_html}'
             f'<div class="stat-lbl">{esc(label)}{sub_html}</div>{right_html}</div>')
+
+
+def _stat_row_solo(label, cell_html):
+    """Turnover diff., ToP, sacks, INTs aren't offense- or defense-specific, so they don't get
+    a paired column each -- just their one value+rank next to the title, not aligned to the
+    Offense/Defense columns above (Jason, 2026-09-24)."""
+    return f'<div class="stat-row stat-row-solo">{cell_html}<div class="stat-lbl">{esc(label)}</div></div>'
 
 
 def offense_defense_body(team_stats):
@@ -238,8 +247,8 @@ def offense_defense_body(team_stats):
         rows.append(_stat_row(label, sub, left, right))
     for key, label in SINGLE_STAT_ROWS:
         s = stats.get(key)
-        left = _stat_cell((s or {}).get("value"), (s or {}).get("rank"), signed=(key == "turnover_margin"))
-        rows.append(_stat_row(label, None, left, '<div class="stat"></div>'))
+        cell = _stat_cell((s or {}).get("value"), (s or {}).get("rank"), signed=(key == "turnover_margin"))
+        rows.append(_stat_row_solo(label, cell))
     return (
         '<div class="stat-head"><span>Offense</span><span></span><span>Defense</span></div>'
         f'<div class="stat-list">{"".join(rows)}</div>'
@@ -403,14 +412,38 @@ P3_CSS = r"""
 /* Status reads as a colored dot, not colored text (Jason, 2026-09-20) -- shared .inj-dot/.inj-s
    rules live in render_page1.P1_CSS so Page 1's own cards match. */
 /* Team Stats card (renamed from "Offense/Defense", Jason, 2026-09-20): titles centered over
-   their own column, matching the value columns below rather than pushed to the edges. */
-.stat-head{display:grid;grid-template-columns:1fr auto 1fr;padding:4px 2px 10px;font-size:13px;font-weight:700;
+   their own column, matching the value columns below rather than pushed to the edges.
+   Fixed-width side columns, not 1fr (2026-09-24): each row is its own independent grid, and
+   the middle "auto" label column is a different width per row ("Points" vs "Total Passing
+   TDs" vs "D. Sacks"), so with 1fr sides the leftover space split between them -- and thus
+   where a centered value actually landed -- also changed row to row, drifting out of line
+   instead of stacking in one straight column under "Offense"/"Defense". Fixed side columns
+   pin that value column to the same x on every row (and in the header); the label column
+   goes 1fr instead, absorbing whatever's left and centering its own text within it. */
+.stat-head{display:grid;grid-template-columns:72px 1fr 72px;padding:4px 2px 10px;font-size:13px;font-weight:700;
   text-transform:uppercase;letter-spacing:.04em;color:var(--text-2)}
 .stat-head span{text-align:center}
 .stat-list{display:flex;flex-direction:column}
-.stat-row{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:10px 2px;
-  min-height:64px;border-bottom:1px solid var(--tile-border-soft)}
-.stat{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:56px;height:100%}
+/* Value + rank share one line, not two (2026-09-24) -- 11 rows stacked at the old two-line
+   height ran past the bottom of the card on a short phone screen, hiding Sacks/INTs below the
+   fold with no scroll to reach them. One line per row buys back enough height for all of them
+   to fit. */
+.stat-row{display:grid;grid-template-columns:72px 1fr 72px;align-items:center;gap:8px;padding:6px 2px;
+  min-height:44px;border-bottom:1px solid var(--tile-border-soft)}
+/* width:100% so this fills its fixed-width column instead of shrinking to its own content --
+   otherwise a short value ("0") wouldn't be centered on the same axis as a wide one ("263"). */
+.stat{display:flex;flex-direction:row;align-items:baseline;justify-content:center;gap:3px;width:100%}
+/* Rank sits on the outside of its value, away from the label between them, on both sides
+   (2026-09-24) -- the offense column is first in the DOM (value then rank, left to right), so
+   reversing just that one puts its rank on the card's outer edge to match the defense column,
+   which already reads that way without changing anything. */
+.stat-row:not(.stat-row-solo) > .stat:first-child{flex-direction:row-reverse}
+/* Turnover diff./ToP/sacks/INTs aren't offense- or defense-specific, so they get their own
+   plainer row instead of the two aligned value columns above: just the value+rank next to its
+   title, sized to its own content rather than pinned to the 72px columns (2026-09-24). */
+.stat-row-solo{display:flex;align-items:baseline;justify-content:flex-start;gap:12px;padding:6px 2px 6px 6px}
+.stat-row-solo .stat{width:auto;justify-content:flex-start}
+.stat-row-solo .stat-lbl{display:block;text-align:left}
 .stat-v{font-family:Teko,Inter,system-ui,sans-serif;font-weight:700;font-size:28px;line-height:1;font-variant-numeric:tabular-nums}
 .stat-v.na{color:var(--text-3);font-family:Inter,sans-serif;font-size:20px}
 .stat-rank{font-size:11px;font-weight:700}
@@ -435,8 +468,17 @@ P3_CSS = r"""
 .sc-rec{color:var(--text-2);text-align:right;font-variant-numeric:tabular-nums;font-size:11px}
 .sc-bye{grid-template-columns:16px 1fr;color:var(--text-2)}
 .sc-bye-lbl{letter-spacing:.06em;font-size:10px;font-weight:700}
+/* Short screens (iPhone SE-class heights and similar): the card's own height is whatever's
+   left between the top/bottom bars, so a shorter phone leaves less room for it regardless of
+   width -- tighten the row height further so all 11 rows still fit without scrolling. */
+@media (max-height:700px){
+  .stat-head{padding:4px 2px 6px}
+  .stat-row{min-height:36px;padding:4px 2px}
+}
 @media (max-width:400px){
   .stat-v{font-size:23px}
+  .stat-head{grid-template-columns:62px 1fr 62px}
+  .stat-row{grid-template-columns:62px 1fr 62px}
   .ov-facts{gap:10px}
   .st-row{grid-template-columns:20px 1fr 20px 20px 20px 46px}
   .sc-row{grid-template-columns:14px 44px 10px 18px 1fr auto 38px;gap:4px;font-size:11px;padding:3px 2px}
