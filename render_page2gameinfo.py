@@ -176,6 +176,7 @@ def _weather_values(d, w):
     pct, hum = g("precip_pct"), g("humidity_pct")
     return {
         "ok": ok, "temp": g("temp_f"), "feels": g("feels_f"), "condition": g("condition"),
+        "description": g("description"),
         "pct": None if d.get("final") or pct is None else fmt_int(pct),   # a chance of rain means nothing after the game
         "inches": fmt_inches(g("precip_in")), "speed": speed, "dir": g("wind_dir"),
         "humidity": None if hum is None else fmt_int(hum),
@@ -254,8 +255,9 @@ def weather_body(d, w, icons):
     if not v["ok"]:
         note = (f'<p class="wx-note">Forecast posts {esc(w.get("window_days"))} days before kickoff</p>'
                 if w.get("reason") == "forecast_window" else '<p class="wx-note">Weather not available</p>')
+    desc = f'<p class="wx-desc">{esc(v["description"])}</p>' if v["description"] else ""
     return (
-        '<div class="wx-top">'
+        f'{desc}<div class="wx-top">'
         f'<div class="wx-t"><b>{_temp(v["temp"])}</b><span>Actual</span></div>'
         f'<div class="wx-t"><b>{_temp(v["feels"])}</b><span>Feels Like</span></div>'
         f'<div class="wx-ic">{icons.get(v["condition"], "")}</div></div>'
@@ -319,8 +321,9 @@ def weather_condensed(d, w, icons):
         precip = _na()
     wind = (f'{esc(v["speed"])}<small>MPH</small>' + (f' <em>{esc(v["dir"])}</em>' if v["dir"] else "")) if v["speed"] is not None else _na()
     hum = f'{esc(v["humidity"])}<small>%</small>' if v["humidity"] is not None else _na()
+    desc = f'<p class="wx-desc">{esc(v["description"])}</p>' if v["description"] else ""
     return (
-        f'<div class="cc-top"><div class="cc-temps"><div class="wx-t"><b>{_temp(v["temp"])}</b><span>Actual</span></div>'
+        f'{desc}<div class="cc-top"><div class="cc-temps"><div class="wx-t"><b>{_temp(v["temp"])}</b><span>Actual</span></div>'
         f'<div class="wx-t"><b>{_temp(v["feels"])}</b><span>Feels Like</span></div></div>'
         f'<div class="wx-ic">{icons.get(v["condition"], "")}</div></div>'
         f'<div class="strip">{_fact("Precip", precip)}{_fact("Wind", wind)}{_fact("Humidity", hum)}</div>'
@@ -414,6 +417,7 @@ P2_CSS = r"""
 .ko-tv{display:flex;justify-content:center;align-items:center;gap:24px;font-size:16px}
 .ko-tv.has-crew{justify-content:space-between}
 .ko-crew{display:flex;flex-direction:column;text-align:right;line-height:1.25}
+.wx-desc{font-size:20px;font-weight:700;line-height:1.2;margin-bottom:10px}
 .wx-top{display:flex;align-items:flex-end;gap:24px}
 .wx-t b{display:block;font-size:58px;font-weight:700;line-height:1;letter-spacing:-.01em;white-space:nowrap}
 .wx-t>span{display:block;font-size:14px;color:var(--text-2);margin-top:6px}
@@ -459,6 +463,7 @@ a.card.cc{display:flex;flex-direction:column;justify-content:space-evenly;gap:6p
 .sf i{display:block;font-style:normal;font-size:11px;color:var(--text-2);margin-top:2px}
 .mm{display:inline-flex;align-items:center;gap:.3em;white-space:nowrap}
 .mm .sc{min-width:0}
+.cc .wx-desc{font-size:14px;margin-bottom:4px}
 .cc-temps{display:flex;gap:20px}
 .cc .wx-t b{font-size:clamp(34px,5.6vh,48px)}
 .cc .wx-t>span{font-size:12px;margin-top:3px}
@@ -472,14 +477,14 @@ a.card.cc{display:flex;flex-direction:column;justify-content:space-evenly;gap:6p
   .p2 .slot .body{padding-left:18px;padding-right:18px}
   .ko-when .time{font-size:50px}.ko-date{font-size:26px}
   .cd-n{font-size:31px}.cd-u{font-size:12px}
-  .wx-t b{font-size:50px}.wx-top{gap:18px}
+  .wx-desc{font-size:18px}.wx-t b{font-size:50px}.wx-top{gap:18px}
   .wx-v{font-size:38px}.wx-x{font-size:27px}.wx-row{grid-template-columns:minmax(92px,auto) 1fr auto;gap:12px}
   .st-name{font-size:33px}.st-city{font-size:26px}.fact b{font-size:32px}
   a.card.cc{padding-left:16px;padding-right:16px}
 }
 @media (max-width:344px){
   .ko-when .time{font-size:40px}.ko-date{font-size:22px}.cd-n{font-size:25px}.cd-u{font-size:10px;letter-spacing:.02em}
-  .wx-t b{font-size:40px}.wx-v{font-size:31px}.wx-x{font-size:23px}
+  .wx-desc{font-size:16px}.wx-t b{font-size:40px}.wx-v{font-size:31px}.wx-x{font-size:23px}
   .sf>span{font-size:9px;letter-spacing:.06em}
 }
 @media (max-width:344px){.fact b{font-size:26px}.p2 .st-facts{gap:8px}}

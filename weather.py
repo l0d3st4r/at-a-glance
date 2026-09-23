@@ -221,6 +221,38 @@ def _wmo_category(code):
     return None
 
 
+# Open-Meteo only gives a numeric WMO code, not free text like NWS's shortForecast -- this is
+# the standard WMO code -> plain-English text table, phrased to match NWS's own style (e.g.
+# "Slight Rain" alongside NWS's "Light Rain") for the Page 2 weather card's short descriptor.
+WMO_TEXT = {
+    0: "Clear Sky", 1: "Mainly Clear", 2: "Partly Cloudy", 3: "Overcast",
+    45: "Fog", 48: "Depositing Rime Fog",
+    51: "Light Drizzle", 53: "Moderate Drizzle", 55: "Dense Drizzle",
+    56: "Light Freezing Drizzle", 57: "Dense Freezing Drizzle",
+    61: "Slight Rain", 63: "Moderate Rain", 65: "Heavy Rain",
+    66: "Light Freezing Rain", 67: "Heavy Freezing Rain",
+    71: "Slight Snow Fall", 73: "Moderate Snow Fall", 75: "Heavy Snow Fall", 77: "Snow Grains",
+    80: "Slight Rain Showers", 81: "Moderate Rain Showers", 82: "Violent Rain Showers",
+    85: "Slight Snow Showers", 86: "Heavy Snow Showers",
+    95: "Thunderstorm", 96: "Thunderstorm With Slight Hail", 99: "Thunderstorm With Heavy Hail",
+}
+
+
+def _wmo_text(code):
+    try:
+        return WMO_TEXT.get(int(code))
+    except (TypeError, ValueError):
+        return None
+
+
+def _finalize_description(condition, text):
+    """The wind-override in _condition() can move the icon to "wind" even though the raw text/code
+    was e.g. "Sunny" -- keep that in sync so the descriptor never contradicts the icon."""
+    if condition == "wind" and not (text and any(w in text.lower() for w in ("wind", "breez", "gust"))):
+        return "Windy"
+    return text
+
+
 def _condition(cats, wind_max):
     cats = [c for c in cats if c]
     condition = Counter(cats).most_common(1)[0][0] if cats else None
@@ -305,6 +337,8 @@ def get_game_window_detail_nws(lat, lon, kickoff_utc, hours=3):
         lows = [min(w) for w in winds if w]
         highs = [max(w) for w in winds if w]
         dirs = [p.get("windDirection") for p in window if p.get("windDirection")]
+        texts = [p.get("shortForecast") for p in window if p.get("shortForecast")]
+        condition = _condition([condition_category(t) for t in texts], max(highs) if highs else None)
         out = {
             "available": True, "source": "nws",
             "temp_f": _round(_avg(temps)),
@@ -313,7 +347,10 @@ def get_game_window_detail_nws(lat, lon, kickoff_utc, hours=3):
             "wind_min_mph": min(lows) if lows else None,
             "wind_max_mph": max(highs) if highs else None,
             "wind_dir": Counter(dirs).most_common(1)[0][0] if dirs else None,
-            "condition": _condition([condition_category(p.get("shortForecast")) for p in window], max(highs) if highs else None),
+            "condition": condition,
+            # NWS's own plain-English text (e.g. "Light Rain", "Mostly Sunny") -- the most common
+            # one across the window, kept in sync with the wind-override above if it applies.
+            "description": _finalize_description(condition, Counter(texts).most_common(1)[0][0] if texts else None),
             "feels_f": None, "precip_in": None,
         }
         try:  # the gridpoint data adds apparent temperature and precipitation amounts
@@ -397,6 +434,11 @@ def get_game_window_detail_om(lat, lon, kickoff_utc, hours=3):
         winds = [r.get("wind_speed_10m") for r in rows if r.get("wind_speed_10m") is not None]
         pops = [r.get("precipitation_probability") for r in rows if r.get("precipitation_probability") is not None]
         precip = [r.get("precipitation") for r in rows if r.get("precipitation") is not None]
+        codes = [r.get("weather_code") for r in rows if r.get("weather_code") is not None]
+        condition = _condition([_wmo_category(c) for c in codes], max(winds) if winds else None)
+        # Open-Meteo only gives a numeric code, not free text -- WMO_TEXT is the standard code ->
+        # plain-English table; most-common code across the window, same tie-break as condition.
+        raw_text = _wmo_text(Counter(codes).most_common(1)[0][0]) if codes else None
         return {
             "available": True, "source": "open-meteo",
             "temp_f": _round(_avg([r.get("temperature_2m") for r in rows])),
@@ -407,7 +449,8 @@ def get_game_window_detail_om(lat, lon, kickoff_utc, hours=3):
             "wind_min_mph": _round(min(winds)) if winds else None,
             "wind_max_mph": _round(max(winds)) if winds else None,
             "wind_dir": compass(_mean_direction([r.get("wind_direction_10m") for r in rows])),
-            "condition": _condition([_wmo_category(r.get("weather_code")) for r in rows], max(winds) if winds else None),
+            "condition": condition,
+            "description": _finalize_description(condition, raw_text),
         }
     except Exception as e:
         return {"available": False, "reason": str(e)}

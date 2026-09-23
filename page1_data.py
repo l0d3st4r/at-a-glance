@@ -628,7 +628,7 @@ def weather_detail(g, v, now_utc):
             if temp is None:
                 return w
             w = {"available": True, "source": "nflverse", "temp_f": None, "feels_f": None, "humidity_pct": None,
-                 "precip_pct": None, "precip_in": None, "wind_dir": None, "condition": None,
+                 "precip_pct": None, "precip_in": None, "wind_dir": None, "condition": None, "description": None,
                  "wind_min_mph": _round_or_none(wind), "wind_max_mph": _round_or_none(wind)}
         if temp is not None:
             w["temp_f"] = round(temp)  # the recorded kickoff temperature, same number Page 1 shows
