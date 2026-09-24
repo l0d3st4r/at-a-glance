@@ -146,15 +146,17 @@ def format_record(record):
 
 # ---------------------------------------------------------------- page 0
 
-PAGE0_CSS = f"""
-*{{box-sizing:border-box;margin:0;padding:0}}
-:root{{
-  --bg:{theme.BG};
-  --tile:{theme.TILE}; --tile-border:{theme.TILE_BORDER};
-  --tile-hover:{theme.TILE_HOVER}; --tile-border-hover:{theme.TILE_BORDER_HOVER};
-  --text:{theme.TEXT}; --text-2:{theme.TEXT_2}; --text-3:{theme.TEXT_3};
-}}
-html{{background:var(--bg)}}""" + r"""
+# Colors come only from theme.py's --aag-* tokens (light/dark mode, 2026-09-24) -- see theme.py
+# for why no literal colors belong in here.
+PAGE0_CSS = theme.THEME_CSS + theme.SWITCH_CSS + """
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:var(--aag-bg);
+  --tile:var(--aag-tile); --tile-border:var(--aag-tile-border);
+  --tile-hover:var(--aag-tile-hover); --tile-border-hover:var(--aag-tile-border-hover);
+  --text:var(--aag-text); --text-2:var(--aag-text-2); --text-3:var(--aag-text-3);
+}
+html{background:var(--bg)}""" + r"""
 /* Type follows the Framer design: Inter only, Regular 400 / Bold 700,
    sizes 11px (date/time labels), 16px (week label, records), 20px (team abbreviations),
    plus Inter Black 900 for the big final scores (the Framer type spec's "big numbers" weight). */
@@ -164,26 +166,26 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
    button and +/− toggle in the same spot, same size). --bbar = bar height incl. the iPhone home-indicator area. */
 """ + f":root{{--bbar:{theme.BBAR_HEIGHT}}}" + r"""
 .bottombar{position:fixed;left:0;right:0;bottom:0;z-index:10;height:var(--bbar);padding-bottom:env(safe-area-inset-bottom);
-  background:rgba(255,255,255,.94);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+  background:var(--aag-bar-bg);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
 /* Same inner column as Page 1's .bbar-in, so the week pill and the +/- toggle sit in the same
    spot on both pages. */
 .bar-in{position:relative;max-width:600px;height:52px;margin:0 auto;display:flex;align-items:flex-start;justify-content:center;padding-top:10px}
 /* +/- toggle (2026-09-17): no circle and no hover fill -- hovering or pressing only enlarges it.
    Condensed shows "+" (tap to expand); expanded shows "-" (tap to condense), same as Page 1. */
-.toggle{position:absolute;right:16px;top:9px;width:34px;height:34px;border:0;background:none;color:#000;padding:0;
+.toggle{position:absolute;right:16px;top:9px;width:34px;height:34px;border:0;background:none;color:var(--text);padding:0;
   display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;
   transition:transform .2s cubic-bezier(.22,1,.36,1)}
 .toggle:hover{transform:scale(1.18)}
 .toggle:active{transform:scale(1.30)}
-.toggle:focus-visible{outline:2px solid #000;outline-offset:2px;border-radius:50%}
+.toggle:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px;border-radius:50%}
 .toggle .i-plus{display:none}
 .toggle .i-minus{display:block}
 [data-view=condensed] .toggle .i-minus{display:none}
 [data-view=condensed] .toggle .i-plus{display:block}
 .week-picker{position:relative;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;
   font-size:16px;font-weight:400;line-height:19px;cursor:pointer;transition:background-color .16s ease}
-.week-picker:hover{background:rgba(0,0,0,.05)}
-.week-picker:focus-within{outline:2px solid #000;outline-offset:2px}
+.week-picker:hover{background:var(--aag-pill-hover)}
+.week-picker:focus-within{outline:2px solid var(--aag-focus);outline-offset:2px}
 .chevron{width:12px;height:12px;flex:none}
 /* The real <select> sits invisibly on top, so phones get their native week picker. */
 .week-picker select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;
@@ -213,7 +215,7 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
   transition:transform .16s ease,background-color .16s ease,border-color .16s ease}
 /* (2026-09-17, Jason) hover/press scales the tile and brightens its outline -- no fill */
 .game:hover,.game:focus-visible{transform:scale(1.03);border-color:var(--tile-border-hover)}
-.game:focus-visible{outline:2px solid #000;outline-offset:2px}
+.game:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px}
 .game.placeholder{color:var(--text-2)}
 .game.placeholder:hover{transform:none;border-color:var(--tile-border)}
 /* no prefers-reduced-motion override: motion always plays (Jason, 2026-09-17) */
@@ -244,7 +246,7 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
 /* Winner arrow: a slot sits on each side of FINAL and only the winner's shows, so the word stays
    centred in the tile whoever won. A tie shows neither. */
 .final-row{display:flex;align-items:center;justify-content:center;gap:5px}
-.tri{display:flex;visibility:hidden;color:#000;flex:none}
+.tri{display:flex;visibility:hidden;color:var(--text);flex:none}
 .tri svg{display:block;width:8px;height:10px}
 .tri-h svg{transform:scaleX(-1)}
 .game.final[data-win=away] .tri-a,.game.final[data-win=home] .tri-h{visibility:visible}
@@ -397,7 +399,7 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
   border:1px solid var(--tile-border);border-radius:20px;overflow:hidden}
 .p1-overlay.is-open{inset:0;border-radius:0;border-color:transparent;
   touch-action:pan-y}  /* sideways swipes, pull-down-to-close and pinch-to-toggle are handled by the script */
-.p1-host{position:absolute;inset:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;background:#fff}
+.p1-host{position:absolute;inset:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;background:var(--bg)}
 .p1-shell{position:fixed;box-sizing:border-box;background:var(--tile);border:1px solid var(--tile-border);border-radius:20px;pointer-events:none}
 html.p1-open{overflow:hidden}
 """
@@ -787,6 +789,8 @@ PAGE1_OVERLAY_JS = r"""
   // Speed/easing taken from yeezy.com: 200-300ms moves on cubic-bezier(.22,1,.36,1), 150ms fades.
   var reduce = { matches: false };
   var EASE = 'cubic-bezier(.22,1,.36,1)';
+  // the card outline color for the open/close animations -- read from the theme so it matches light or dark
+  function tileLine() { return getComputedStyle(docEl).getPropertyValue('--aag-tile-border').trim() || 'rgba(0,0,0,.12)'; }
   var TILE = 'a.game[href^="#game-"]';
   var SWIPE_COMMIT = 0.22;   // drag a quarter of the screen (or flick) to change games
   var PULL_CLOSE = 0.16;     // pull down a sixth of the screen (or flick down) and Page 1 closes
@@ -846,6 +850,7 @@ PAGE1_OVERLAY_JS = r"""
     if (opts.hidden) host.style.visibility = 'hidden';
     if (opts.dx) host.style.transform = 'translateX(' + opts.dx + 'px)';
     s.overlay.appendChild(host);
+    if (window.AAG_THEME) window.AAG_THEME.sync();   // the new game's light/dark switch shows the current state
     var m = { host: host, root: root, title: page.title };
     if (opts.preview) {  // a neighbour shown while swiping: same card as the current game, no listeners yet
       var slots = root.querySelectorAll('.view-l > .slot'), i = Math.max(0, Math.min(slots.length - 1, opts.card || 0));
@@ -994,7 +999,7 @@ PAGE1_OVERLAY_JS = r"""
       ghost.animate([{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(1.3)', opacity: 0 }],
                     { duration: 200, easing: EASE, fill: 'forwards' });
       Object.keys(parts).forEach(function (k) { var f = flyer(parts[k]); f.key = k; flyers.push(f); s.extras.push(f.el); });
-      grow = overlay.animate([frame(start, '20px', 'rgba(0,0,0,.12)'), frame(screenRect(), '0px', 'rgba(0,0,0,0)')],
+      grow = overlay.animate([frame(start, '20px', tileLine()), frame(screenRect(), '0px', 'rgba(0,0,0,0)')],
                              { duration: 300, easing: EASE, fill: 'forwards' });
     } else {
       grow = overlay.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, fill: 'forwards' });
@@ -1096,7 +1101,7 @@ PAGE1_OVERLAY_JS = r"""
     overlay.insertBefore(shell, host);
     overlay.style.background = 'transparent';
     overlay.style.borderColor = 'transparent';
-    var shellAnim = shell.animate([frame(from, s0 < 1 ? '20px' : '0px', 'rgba(0,0,0,.12)'), frame(end, '20px', 'rgba(0,0,0,.12)')],
+    var shellAnim = shell.animate([frame(from, s0 < 1 ? '20px' : '0px', tileLine()), frame(end, '20px', tileLine())],
                                   { duration: 280, easing: EASE, fill: 'forwards' });
     // ...while the cards minimize into it and fade
     host.style.transformOrigin = cx + 'px ' + cy + 'px';
@@ -1121,7 +1126,7 @@ PAGE1_OVERLAY_JS = r"""
     h.style.transform = 'translateY(' + dy + 'px) scale(' + scale + ')';
     h.style.borderRadius = (20 / scale) + 'px';
     h.style.overflow = 'hidden';
-    h.style.boxShadow = '0 0 0 ' + (1 / scale) + 'px rgba(0,0,0,.12)';
+    h.style.boxShadow = '0 0 0 ' + (1 / scale) + 'px ' + tileLine();
     s.overlay.style.background = 'transparent';
   }
   function clearPinch(s) {
@@ -1361,6 +1366,7 @@ def render_page0(data):
         "<!doctype html><html lang='en'><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1,viewport-fit=cover'>"
         "<meta name='theme-color' content='#ffffff'>"
+        f"<script>{theme.THEME_HEAD_JS}</script>"
         f"<title>{esc(current_label)} · At A Glance</title>"
         "<meta name='description' content='Pro Football Upcoming Game Information'>"
         "<link rel='preconnect' href='https://fonts.googleapis.com'>"
@@ -1373,6 +1379,7 @@ def render_page0(data):
         f"<main class='track' id='track'>{panels}</main>"
         "<nav class='bottombar' aria-label='Week'>"
         "<div class='bar-in'>"
+        f"{theme.SWITCH_HTML}"
         "<label class='week-picker'>"
         f"<span id='week-label'>{esc(current_label)}</span>"
         "<svg class='chevron' viewBox='0 0 12 12' aria-hidden='true'><path d='M2.5 7.5 6 4l3.5 3.5' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>"
@@ -1382,6 +1389,7 @@ def render_page0(data):
         f"<span class='i-plus'>{render_page1.PLUS}</span><span class='i-minus'>{render_page1.MINUS}</span>"
         "</button>"
         "</div></nav>"
+        f"<script>{theme.THEME_JS}</script>"
         f"<script>{PAGE0_JS}</script>"
         f"<script>{render_page1.P1_JS}</script>"
         f"<script>{PAGE1_OVERLAY_JS}</script>"

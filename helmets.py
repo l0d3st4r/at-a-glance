@@ -137,6 +137,18 @@ SHADING_OVERRIDES = {
 }
 
 
+# White "sticker" outline (Jason, 2026-09-24), so dark shells (CHI, ATL, LV, ...) stand out on the
+# dark-mode background. Same file in both themes -- on the light background white-on-white just
+# disappears. It's an SVG filter: the helmet's silhouette grown by OUTLINE_WIDTH (in the 100-wide
+# artwork's units; 2.5 = ~1.2px at 48px) and filled white, drawn underneath the helmet. Growing the
+# silhouette also fills the thin gaps between shell, ear piece and facemask, which gives the die-cut
+# sticker look. The viewBox grows by OUTLINE_PAD on every side so the outline is never cut off; the
+# helmet art therefore sits ~6% smaller inside the same <img> box.
+OUTLINE_WIDTH = 2.5
+OUTLINE_PAD = 3
+OUTLINE_COLOR = "#fff"
+
+
 def helmet_svg(team, mirrored=False, id_prefix=None):
     """
     Return the SVG markup for one team's helmet: shell, ear piece and facemask, each with
@@ -150,8 +162,9 @@ def helmet_svg(team, mirrored=False, id_prefix=None):
     shell_top, shell_bottom = SHADING_OVERRIDES.get(team, (SHELL_LIGHTEN_TOP, SHELL_DARKEN_BOTTOM))
     pid = id_prefix or f"helmet-{team or 'x'}{'-m' if mirrored else ''}"
     flip = ' transform="translate(100 0) scale(-1 1)"' if mirrored else ""
+    box = 100 + 2 * OUTLINE_PAD
     return (
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" '
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{-OUTLINE_PAD} {-OUTLINE_PAD} {box} {box}" role="img" '
         f'aria-label="{team} helmet">'
         "<defs>"
         f'<linearGradient id="{pid}-shell" x1="0.4975" x2="0.5025" y1="0" y2="1">'
@@ -167,12 +180,17 @@ def helmet_svg(team, mirrored=False, id_prefix=None):
         f'<stop offset="0" stop-color="{_mix(mask, WHITE, MASK_LIGHTEN)}"/>'
         f'<stop offset="1" stop-color="{_mix(mask, BLACK, MASK_DARKEN)}"/>'
         "</linearGradient>"
+        f'<filter id="{pid}-outline" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">'
+        f'<feMorphology in="SourceAlpha" operator="dilate" radius="{OUTLINE_WIDTH}" result="grown"/>'
+        f'<feFlood flood-color="{OUTLINE_COLOR}"/><feComposite in2="grown" operator="in" result="outline"/>'
+        '<feMerge><feMergeNode in="outline"/><feMergeNode in="SourceGraphic"/></feMerge>'
+        "</filter>"
         "</defs>"
-        f"<g{flip}>"
+        f'<g filter="url(#{pid}-outline)"><g{flip}>'
         f'<path d="{SHELL_PATH}" fill="url(#{pid}-shell)"/>'
         f'<path d="{EAR_PATH}" fill="url(#{pid}-ear)" transform="translate(0 33.444)"/>'
         f'<path d="{MASK_PATH}" fill="url(#{pid}-mask)" transform="translate(47.641 42.126)"/>'
-        "</g></svg>"
+        "</g></g></svg>"
     )
 
 
