@@ -1,10 +1,33 @@
 name: Refresh matchup data and publish
 
+# The site rebuilds whenever nflverse publishes something new (2026-09-24).
+#
+# Every 15 minutes in season (every 3 hours in the offseason) the "check" job asks
+# check_updates.py whether nflverse's data differs from what the live site was built
+# from. Only then do "build" and "deploy" run, so the site is at most ~15 minutes
+# (plus a couple of minutes of build) behind nflverse, without rebuilding for nothing.
+# nflverse's own update times, for reference (UTC): stats after each game window and
+# daily at 09:00, injuries/rosters/depth charts daily at 07:00, snap counts every
+# 6 hours, and the schedule (scores, kickoff times) many times a day.
+#
+# It also rebuilds regardless of nflverse:
+#   - twice a day (08:05 and 16:05 UTC) for the parts that don't come from nflverse:
+#     weather forecasts and which week is "current"
+#   - whenever code is pushed to main, so a merged change goes live right away
+#   - when run by hand from the Actions tab
+#
+# Note: GitHub switches off scheduled workflows in a public repo after 60 days with
+# no commits. If the site stops refreshing in the offseason, re-enable the workflow
+# from the Actions tab (or push any commit).
+
 on:
   schedule:
-    # Runs at 8am and 4pm UTC daily (roughly 4am/noon US Eastern).
-    # Adjust anytime by editing these two lines -- no other setup needed.
-    - cron: "0 8,16 * * *"
+    - cron: "7,22,37,52 * * 1,2,9-12 *"   # in season (Sep-Feb): check every 15 minutes
+    - cron: "7 */3 * 3-8 *"               # offseason (Mar-Aug): check every 3 hours
+    - cron: "5 8,16 * * *"                # rebuild twice a day no matter what
+  push:
+    branches: [main]
+    paths-ignore: ["mockups/**", "**.md"]
   workflow_dispatch: {}  # lets you trigger a run manually from the Actions tab
 
 permissions:
@@ -17,7 +40,35 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.decide.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find the live site's address
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Has nflverse published anything new?
+        id: decide
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          # only the two every-15-minutes/3-hours check schedules look at nflverse; the
+          # twice-a-day schedule, pushes and manual runs always rebuild
+          IS_CHECK: ${{ github.event_name == 'schedule' && github.event.schedule != '5 8,16 * * *' }}
+        run: |
+          if [ "$IS_CHECK" = "true" ]; then
+            # ?t= skips GitHub Pages' 10-minute cache, so a just-deployed fingerprint is seen
+            python check_updates.py --compare "${{ steps.pages.outputs.base_url }}/nflverse-stamps.json?t=$(date +%s)"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
+    needs: check
+    if: needs.check.outputs.changed == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,6 +80,13 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      # Taken BEFORE downloading, so if nflverse updates mid-build the next check still
+      # sees a difference and rebuilds, instead of thinking the site is already current.
+      - name: Note which nflverse data this build uses
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python check_updates.py --out "$RUNNER_TEMP/nflverse-stamps.json"
+
       - name: Pull latest data
         run: python build_data.py
 
@@ -37,6 +95,9 @@ jobs:
 
       - name: Verify build before publishing
         run: python check_build.py
+
+      - name: Publish the data fingerprint with the site
+        run: cp "$RUNNER_TEMP/nflverse-stamps.json" site/nflverse-stamps.json
 
       - name: Upload site as Pages artifact
         uses: actions/upload-pages-artifact@v3
