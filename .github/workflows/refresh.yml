@@ -104,8 +104,11 @@ jobs:
         with:
           path: site
 
+  # Only main publishes: GitHub's github-pages environment refuses deploys from other
+  # branches, so a manual run on a branch is a test build (check + build) and stops here.
   deploy:
     needs: build
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
