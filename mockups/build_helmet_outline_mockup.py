@@ -13,6 +13,9 @@ works anywhere the <img> goes):
                   gaps between shell, ear piece and facemask stay see-through.
   * "Sticker"  -- the same ring, but it also fills those gaps with white, so
                   the helmet reads like a die-cut sticker.
+  * "Sticker + filled facemask" -- the sticker, plus the facemask's openings
+                  filled solid white (a white copy of the facemask's outer
+                  shape drawn under the bars).
 The viewBox grows by the outline width so the ring never gets cut off, and
 the preview grows the <img> by the same ratio so the helmet itself stays the
 size it is today.
@@ -101,8 +104,9 @@ h1{font-family:Saira,Inter,sans-serif;font-style:italic;font-weight:800;font-var
     <div class="ctl"><span class="ctl-label" id="l-style">Style</span>
       <div class="seg" role="group" aria-labelledby="l-style">
         <button type="button" id="st-off" data-style="off" aria-pressed="false">No outline</button>
-        <button type="button" id="st-outline" data-style="outline" aria-pressed="true">Outline</button>
+        <button type="button" id="st-outline" data-style="outline" aria-pressed="false">Outline</button>
         <button type="button" id="st-sticker" data-style="sticker" aria-pressed="false">Sticker</button>
+        <button type="button" id="st-filled" data-style="filled" aria-pressed="true">Sticker + filled facemask</button>
       </div></div>
     <div class="ctl"><span class="ctl-label" id="l-width">Width at 48px</span>
       <div class="seg" role="group" aria-labelledby="l-width">
@@ -137,20 +141,21 @@ h1{font-family:Saira,Inter,sans-serif;font-style:italic;font-weight:800;font-var
 <!--DATA-->
 <script>
 (function () {
-  var H = window.HELMETS, state = { style: 'outline', w: 2.5 };
+  var H = window.HELMETS, state = { style: 'filled', w: 2.5 };
   var GAMES = [['CHI', 'ATL', '1:00', 'PM'], ['LV', 'NO', '4:25', 'PM'], ['BAL', 'PIT', '8:20', 'PM'], ['JAX', 'NYJ', '1:00', 'PM']];
   var ZOOM = ['CHI', 'ATL', 'LV', 'BAL'];
   var HINTS = {
     off: 'Today’s helmets. The dark shells blend into the background.',
     outline: 'A ring around the outer edge only. The small gaps between the shell, ear piece and facemask stay dark.',
-    sticker: 'The ring also fills the small gaps between parts with white, like a die-cut sticker.'
+    sticker: 'The ring also fills the small gaps between parts with white, like a die-cut sticker.',
+    filled: 'The sticker, with every opening in the facemask filled solid white.'
   };
   // Adds the outline filter to one helmet SVG string. r = outline width in helmet units (the art is 100 wide).
   function outlined(svg, style, r) {
     var pad = style === 'off' ? 0 : Math.ceil(r + 1);
     if (!pad) return { svg: svg, scale: 1 };
     var v = (-pad) + ' ' + (-pad) + ' ' + (100 + 2 * pad) + ' ' + (100 + 2 * pad);
-    var ring = style === 'sticker'
+    var ring = style !== 'outline'
       ? '<feMorphology in="SourceAlpha" operator="dilate" radius="' + r + '" result="ring"/>'
       // outer edge only: grow the helmet, then cut out a copy with its small gaps closed
       : '<feMorphology in="SourceAlpha" operator="dilate" radius="' + r + '" result="grown"/>' +
@@ -167,7 +172,7 @@ h1{font-family:Saira,Inter,sans-serif;font-style:italic;font-weight:800;font-var
     return { svg: svg, scale: (100 + 2 * pad) / 100 };
   }
   function img(team, mirrored, size) {
-    var o = outlined(H[team][mirrored ? 1 : 0], state.style, state.w), px = Math.round(size * o.scale * 10) / 10;
+    var o = outlined(H[team][(mirrored ? 1 : 0) + (state.style === 'filled' ? 2 : 0)], state.style, state.w), px = Math.round(size * o.scale * 10) / 10;
     return '<span class="hbox" style="width:' + size + 'px;height:' + size + 'px"><img alt="" width="' + px + '" height="' + px +
       '" src="data:image/svg+xml;charset=utf-8,' + encodeURIComponent(o.svg) + '"></span>';
   }
@@ -204,8 +209,22 @@ h1{font-family:Saira,Inter,sans-serif;font-style:italic;font-weight:800;font-var
 """
 
 
+# The facemask path's first sub-path is its outer edge; the rest are the openings between the bars.
+MASK_OUTER = helmets.MASK_PATH.split(" Z ")[0] + " Z"
+
+
+def filled_mask(svg):
+    """Draw the facemask's outer shape in white right under the facemask, filling its openings."""
+    mask = f'<path d="{helmets.MASK_PATH}"'
+    if mask not in svg:
+        raise SystemExit("facemask path not found in helmet SVG")
+    return svg.replace(mask, f'<path d="{MASK_OUTER}" fill="#fff" transform="translate(47.641 42.126)"/>' + mask, 1)
+
+
 def main():
-    data = {t: [helmets.helmet_svg(t), helmets.helmet_svg(t, mirrored=True)] for t in sorted(helmets.TEAM_COLORS)}
+    data = {t: [helmets.helmet_svg(t), helmets.helmet_svg(t, mirrored=True),
+                filled_mask(helmets.helmet_svg(t)), filled_mask(helmets.helmet_svg(t, mirrored=True))]
+            for t in sorted(helmets.TEAM_COLORS)}
     blob = "<script>window.HELMETS = " + json.dumps(data).replace("</", "<\\/") + ";</script>"
     with open(OUT, "w", encoding="utf-8") as f:
         f.write(PAGE.replace("<!--DATA-->", blob))
