@@ -139,11 +139,14 @@ SHADING_OVERRIDES = {
 
 # White "sticker" outline (Jason, 2026-09-24), so dark shells (CHI, ATL, LV, ...) stand out on the
 # dark-mode background. Same file in both themes -- on the light background white-on-white just
-# disappears. It's an SVG filter: the helmet's silhouette grown by OUTLINE_WIDTH (in the 100-wide
-# artwork's units; 2.5 = ~1.2px at 48px) and filled white, drawn underneath the helmet. Growing the
-# silhouette also fills the thin gaps between shell, ear piece and facemask, which gives the die-cut
-# sticker look. The viewBox grows by OUTLINE_PAD on every side so the outline is never cut off; the
-# helmet art therefore sits ~6% smaller inside the same <img> box.
+# disappears. It's plain vector art: a white copy of the shell, ear piece and facemask drawn
+# underneath the helmet, with a white stroke OUTLINE_WIDTH wide on each side of every edge (so
+# 2 * OUTLINE_WIDTH in total; in the 100-wide artwork's units, 2.5 = ~1.2px at 48px). The stroke
+# also fills the thin gaps between the parts, which gives the die-cut sticker look.
+# NOT an SVG filter (the first version, feMorphology): iPhone browsers draw filtered SVG images at
+# low resolution, which made every helmet blurry on phones (2026-09-24). Strokes stay sharp.
+# The viewBox grows by OUTLINE_PAD on every side so the outline is never cut off; the helmet art
+# therefore sits ~6% smaller inside the same <img> box.
 OUTLINE_WIDTH = 2.5
 OUTLINE_PAD = 3
 OUTLINE_COLOR = "#fff"
@@ -180,17 +183,22 @@ def helmet_svg(team, mirrored=False, id_prefix=None):
         f'<stop offset="0" stop-color="{_mix(mask, WHITE, MASK_LIGHTEN)}"/>'
         f'<stop offset="1" stop-color="{_mix(mask, BLACK, MASK_DARKEN)}"/>'
         "</linearGradient>"
-        f'<filter id="{pid}-outline" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">'
-        f'<feMorphology in="SourceAlpha" operator="dilate" radius="{OUTLINE_WIDTH}" result="grown"/>'
-        f'<feFlood flood-color="{OUTLINE_COLOR}"/><feComposite in2="grown" operator="in" result="outline"/>'
-        '<feMerge><feMergeNode in="outline"/><feMergeNode in="SourceGraphic"/></feMerge>'
-        "</filter>"
         "</defs>"
-        f'<g filter="url(#{pid}-outline)"><g{flip}>'
+        f"<g{flip}>"
+        # the outline: a white copy of all three parts, stroked, underneath the colored ones
+        f'<g fill="{OUTLINE_COLOR}" stroke="{OUTLINE_COLOR}" stroke-width="{2 * OUTLINE_WIDTH}" stroke-linejoin="round">'
+        f'<path d="{SHELL_PATH}"/>'
+        f'<path d="{EAR_PATH}" transform="translate(0 33.444)"/>'
+        f'<path d="{MASK_PATH}" transform="translate(47.641 42.126)"/>'
+        # solid white under the two round holes (ear hole, facemask screw): a stroke wider than
+        # a circle this small folds over itself and leaves a dark pinhole in the middle
+        '<circle cx="44.553" cy="78.041" r="2.2" stroke="none"/>'
+        '<circle cx="54.166" cy="55.178" r="2.0" stroke="none"/>'
+        "</g>"
         f'<path d="{SHELL_PATH}" fill="url(#{pid}-shell)"/>'
         f'<path d="{EAR_PATH}" fill="url(#{pid}-ear)" transform="translate(0 33.444)"/>'
         f'<path d="{MASK_PATH}" fill="url(#{pid}-mask)" transform="translate(47.641 42.126)"/>'
-        "</g></g></svg>"
+        "</g></svg>"
     )
 
 
