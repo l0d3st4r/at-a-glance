@@ -1,0 +1,119 @@
+<meta charset="utf-8">
+<title>At A Glance Dark Mode</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&family=Saira:ital,wdth,wght@1,95,800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ground:#F3F3F1; --panel:#FFFFFF; --ink:#0B0B0C; --ink-2:rgba(11,11,12,.62); --ink-3:rgba(11,11,12,.4);
+  --line:rgba(11,11,12,.12); --bezel:#1B1B1D; --bezel-edge:#3A3A3D; --seg:#E6E6E3; --seg-on:#FFFFFF;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){color-scheme:dark;
+    --ground:#050506; --panel:#111113; --ink:#F2F2F2; --ink-2:rgba(242,242,242,.62); --ink-3:rgba(242,242,242,.4);
+    --line:rgba(255,255,255,.12); --bezel:#2A2A2D; --bezel-edge:#4A4A4E; --seg:#1C1C1F; --seg-on:#34343A}
+}
+:root[data-theme="dark"]{color-scheme:dark;
+  --ground:#050506; --panel:#111113; --ink:#F2F2F2; --ink-2:rgba(242,242,242,.62); --ink-3:rgba(242,242,242,.4);
+  --line:rgba(255,255,255,.12); --bezel:#2A2A2D; --bezel-edge:#4A4A4E; --seg:#1C1C1F; --seg-on:#34343A}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font:400 15px/1.5 Inter,system-ui,-apple-system,sans-serif;
+  -webkit-font-smoothing:antialiased;padding-inline:16px;padding-block:40px 64px}
+.wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:40px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:20px 32px}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin:0 0 6px}
+h1{font-family:Saira,Inter,sans-serif;font-style:italic;font-weight:800;font-variation-settings:'wdth' 95;
+  font-size:clamp(34px,5vw,52px);line-height:1;letter-spacing:.01em;margin:0;text-wrap:balance}
+.lede{max-width:60ch;color:var(--ink-2);margin:10px 0 0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;background:var(--seg);gap:2px}
+.seg button{font:500 14px/1 Inter,system-ui,sans-serif;color:var(--ink-2);background:none;border:0;border-radius:999px;
+  padding:9px 16px;cursor:pointer;transition:background-color .2s,color .2s}
+.seg button[aria-pressed="true"]{background:var(--seg-on);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.seg button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.phones{display:flex;flex-wrap:wrap;justify-content:center;gap:40px 32px}
+figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:14px}
+.phone{--s:.8;width:calc(390px * var(--s) + 20px);height:calc(844px * var(--s) + 20px);padding:10px;border-radius:52px;
+  background:var(--bezel);box-shadow:inset 0 0 0 1.5px var(--bezel-edge),0 24px 60px -24px rgba(0,0,0,.45);position:relative}
+.screen{width:calc(390px * var(--s));height:calc(844px * var(--s));border-radius:42px;overflow:hidden;position:relative;background:#0B0B0C}
+.screen::after{content:"";position:absolute;left:50%;bottom:7px;width:108px;height:4px;margin-left:-54px;border-radius:2px;background:rgba(128,128,128,.55);pointer-events:none}
+.screen iframe{width:390px;height:844px;border:0;transform:scale(var(--s));transform-origin:0 0;display:block;background:transparent}
+figcaption{text-align:center;display:flex;flex-direction:column;gap:2px}
+figcaption b{font-weight:700;font-size:15px}
+figcaption span{color:var(--ink-2);font-size:13px}
+.notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.note{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:20px 22px}
+.note h2{font-size:15px;font-weight:700;margin:0 0 8px}
+.note p{margin:0;color:var(--ink-2);font-size:14px;max-width:60ch}
+.swatches{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.swatches li{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:10px;font-size:13px}
+.swatches code{font:500 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink-2)}
+.chip{width:22px;height:22px;border-radius:6px;box-shadow:inset 0 0 0 1px var(--line)}
+@media (max-width:420px){.phone{--s:.72}}
+</style>
+<!--MOCK_DATA-->
+<div class="wrap">
+  <header>
+    <div>
+      <p class="eyebrow">At A Glance · Mockup</p>
+      <h1>Dark mode</h1>
+      <p class="lede">The real Week, Game and Game Info pages with a dark theme on top. The new switch sits in the left corner of the bottom bar, opposite the +/− toggle. Flip it in any phone and all three change together. Every phone still swipes, toggles and opens its cards.</p>
+    </div>
+    <div class="seg" role="group" aria-label="Mockup theme">
+      <button type="button" id="seg-light" data-t="light" aria-pressed="false">Light</button>
+      <button type="button" id="seg-dark" data-t="dark" aria-pressed="true">Dark</button>
+    </div>
+  </header>
+
+  <div class="phones">
+    <figure><div class="phone"><div class="screen"><iframe id="f-week" title="Week view" data-page="week"></iframe></div></div>
+      <figcaption><b>Week view</b><span>Page 0 · Week 3, expanded</span></figcaption></figure>
+    <figure><div class="phone"><div class="screen"><iframe id="f-final" title="Finished game, condensed" data-page="final"></iframe></div></div>
+      <figcaption><b>Final game</b><span>Page 1 · DET @ BUF, condensed</span></figcaption></figure>
+    <figure><div class="phone"><div class="screen"><iframe id="f-upcoming" title="Upcoming game, expanded" data-page="upcoming"></iframe></div></div>
+      <figcaption><b>Upcoming game</b><span>Page 1 · PHI @ CHI, expanded</span></figcaption></figure>
+  </div>
+
+  <div class="notes">
+    <section class="note">
+      <h2>The switch</h2>
+      <p>A 48 × 28 pill pinned 16px from the left edge, centered on the same line as the week pill and the +/− toggle. The knob carries a sun or a moon, and it grows on hover and press the same way the +/− does. It shows on every page that has the bottom bar.</p>
+    </section>
+    <section class="note">
+      <h2>Palette</h2>
+      <ul class="swatches">
+        <li>Background <span class="chip" style="background:#0B0B0C"></span><code>#0B0B0C</code></li>
+        <li>Card fill <span class="chip" style="background:#161618"></span><code>#161618</code></li>
+        <li>Card outline <span class="chip" style="background:rgba(255,255,255,.12)"></span><code>white 12%</code></li>
+        <li>Text / 2nd / 3rd <span class="chip" style="background:#F2F2F2"></span><code>#F2F2F2 · 62% · 40%</code></li>
+      </ul>
+    </section>
+    <section class="note">
+      <h2>What changes</h2>
+      <p>Only colors. Helmets and team-color pills stay as they are. Win, loss and injury colors get one step brighter (<code>#4CC76E</code>, <code>#FF6B6B</code>, <code>#E8B93A</code>) so they stay readable on black. The choice would be saved on the device and would follow the phone's own setting until someone flips it.</p>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  var theme = 'dark';
+  var helmets = {};
+  try { helmets = JSON.parse(window.MOCK_HELMETS || '{}'); } catch (e) {}
+  var frames = [].slice.call(document.querySelectorAll('iframe[data-page]'));
+  function withHelmets(html) {
+    return html.replace(/(?:\.\.\/)?helmets\/([A-Za-z-]+)\.svg/g, function (m, k) { return helmets[k] || m; })
+               .replace('<head>', '<head><script>window.AAG_THEME=' + JSON.stringify(theme) + ';<\/script>');
+  }
+  frames.forEach(function (f) { f.srcdoc = withHelmets(window.MOCK_PAGES[f.getAttribute('data-page')]); });
+  function set(t) {
+    theme = t;
+    frames.forEach(function (f) { try { f.contentWindow.postMessage({ aagTheme: t }, '*'); } catch (e) {} });
+    [].forEach.call(document.querySelectorAll('.seg button'), function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-t') === t)); });
+  }
+  window.addEventListener('message', function (e) { if (e.data && e.data.aagThemeReq) set(e.data.aagThemeReq); });
+  [].forEach.call(document.querySelectorAll('.seg button'), function (b) {
+    b.addEventListener('click', function () { set(b.getAttribute('data-t')); });
+  });
+})();
+</script>
