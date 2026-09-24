@@ -1,6 +1,10 @@
 """
 Dark mode mockup (2026-09-24) -- NOT part of the live build.
 
+SNAPSHOT: this was the design mockup. The approved version now lives in the real
+build (theme.py, helmets.py), so this script only works against a site/ built from
+before that change (commit 3bf4628). Kept for reference; the .html beside it still opens.
+
 Builds mockups/dark-mode.html: one self-contained page with three phone
 frames showing the real rendered pages (Page 0's week list, and two games'
 Page 1), with a proposed dark theme and a light/dark switch pinned to the

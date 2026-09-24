@@ -1,6 +1,10 @@
 """
 Helmet outline mockup (2026-09-24) -- NOT part of the live build.
 
+SNAPSHOT: this was the design mockup. The approved version now lives in the real
+build (theme.py, helmets.py), so this script only works against a site/ built from
+before that change (commit 3bf4628). Kept for reference; the .html beside it still opens.
+
 Builds mockups/helmet-outlines.html: every team's helmet, straight from
 helmets.helmet_svg(), with a white outline added so dark shells (CHI, ATL,
 LV, ...) don't sink into the dark-mode background. The page has live

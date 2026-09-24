@@ -578,7 +578,7 @@ def render_p1_block(d, prefix="../"):
         f'<div class="teams" aria-label="{esc(TEAM_NAMES.get(a, a))} at {esc(TEAM_NAMES.get(h, h))}">{row}</div>'
         "</div></header>"
         # back button + view toggle live at the bottom of the screen (2026-09-17)
-        '<nav class="bbar" aria-label="Page controls"><div class="bbar-in">'
+        '<nav class="bbar" aria-label="Page controls"><div class="bbar-in">' + theme.SWITCH_HTML +
         f'<a class="week" href="{esc(week_href)}">{CHEV}<span>{esc(week_label)}</span></a>'
         # Page 2's back button takes the week pill's place while Game Info is open (2026-09-19)
         f'<a class="week p2-back" href="#" aria-label="Back to {esc(a)} at {esc(h)}">{CHEV}'
@@ -638,14 +638,16 @@ def render_standalone(d):
         "<!doctype html><html lang='en'><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1,viewport-fit=cover'>"
         "<meta name='theme-color' content='#ffffff'>"
+        f"<script>{theme.THEME_HEAD_JS}</script>"
         f"<title>{esc(title)}</title>"
         "<link rel='preconnect' href='https://fonts.googleapis.com'><link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>"
         "<link href='https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;700;900&display=swap' rel='stylesheet'>"
         "<link href='https://fonts.googleapis.com/css2?family=Saira:ital,wdth,wght@1,50..125,400..900&family=Teko:wght@400..700&display=swap' rel='stylesheet'>"
         f"<style id='p1-css'>{P1_CSS}{render_page2gameinfo.P2_CSS}{render_page2team.P3_CSS}</style>"
-        "<style>html,body{margin:0;background:#fff}</style></head><body>"
+        # the theme tokens sit on this page's own root (on Page 0 they come from Page 0's root)
+        f"<style>{theme.THEME_CSS}html,body{{margin:0;background:var(--aag-bg)}}</style></head><body>"
         f"{render_p1_block(d)}"
-        f"<script>{P1_JS}</script><script>AAG_P1.init(document);</script>"
+        f"<script>{theme.THEME_JS}</script><script>{P1_JS}</script><script>AAG_P1.init(document);</script>"
         "</body></html>"
     )
 
@@ -674,6 +676,8 @@ P1_JS = r"""
 window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
   opts = opts || {};
   var wrap = root.querySelector('.p1'); if (!wrap) return { destroy: function () {} };
+  // the card outline color for the open/close animations -- read from the theme so it matches light or dark
+  function tileLine() { return getComputedStyle(wrap).getPropertyValue('--aag-tile-border').trim() || 'rgba(0,0,0,.12)'; }
   var deck = root.querySelector('.view-l'), slots = [].slice.call(root.querySelectorAll('.view-l > .slot')),
       dots = [].slice.call(root.querySelectorAll('.p1 > .dots .dot')), toggle = root.querySelector('.toggle'),
       week = root.querySelector('.week'), active = -1, bound = [], morphing = false;
@@ -1107,7 +1111,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     var D = 300, area = d.el.getBoundingClientRect(), flips = headFrom ? flipHead(headFrom, D) : [];
     d.el.style.opacity = '0';
     m.copy.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: 'forwards' });
-    var grow = m.box.animate([shellFrame(m.r, '20px', 'rgba(0,0,0,.12)'), shellFrame(area, '0px', 'rgba(0,0,0,0)')],
+    var grow = m.box.animate([shellFrame(m.r, '20px', tileLine()), shellFrame(area, '0px', 'rgba(0,0,0,0)')],
                              { duration: D, easing: EASE, fill: 'forwards' });
     Promise.all([grow].concat(flips.map(function (f) { return f.anim; })).map(fin)).then(function () {
       d.el.style.opacity = '';
@@ -1151,7 +1155,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     src.style.opacity = '0';
     var flips = headFrom ? flipHead(headFrom, D) : [];
     var fade = d.el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 140, fill: 'forwards' });
-    var shrink = box.animate([shellFrame(from, radius, 'rgba(0,0,0,.12)'), shellFrame(r1, '20px', 'rgba(0,0,0,.12)')],
+    var shrink = box.animate([shellFrame(from, radius, tileLine()), shellFrame(r1, '20px', tileLine())],
                              { duration: D, easing: EASE, fill: 'forwards' });
     Promise.all([shrink, fade].concat(flips.map(function (f) { return f.anim; })).map(fin)).then(function () {
       fade.cancel();
@@ -1178,7 +1182,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     var pp = Math.min(1, dy / (innerHeight * 0.55)), sc = 1 - 0.25 * pp;
     wrap.setAttribute('data-pulling', '');
     Object.assign(d.el.style, { transform: 'translateY(' + (dy * 0.55) + 'px) scale(' + sc + ')', borderRadius: (20 / sc) + 'px',
-      boxShadow: '0 0 0 ' + (1 / sc) + 'px rgba(0,0,0,.12)', overflow: 'hidden' });
+      boxShadow: '0 0 0 ' + (1 / sc) + 'px ' + tileLine(), overflow: 'hidden' });
   }
   // Swipe sideways between the three Page 2 details (2026-09-24): Game Info <-> away team <->
   // home team, in DETAIL_KEYS order. Only live once a detail is open and Page 1 is in the
@@ -1379,14 +1383,18 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
 
 # ---------------------------------------------------------------- styles (ported 1:1 from the approved v8 preview)
 
-P1_CSS = "\n:host{display:block}\n" + (
-    f".p1{{--ink:{theme.TEXT};--tile:{theme.TILE};--tile-border:{theme.TILE_BORDER};--tile-border-soft:rgba(0,0,0,.07);"
-    f"--tile-hover:{theme.TILE_HOVER};--tile-border-hover:{theme.TILE_BORDER_HOVER};--text-2:{theme.TEXT_2};--text-3:{theme.TEXT_3};\n"
-    "  --out:#A00000;--doubt:#A52800;--ques:#B58900;--win:#1E8A3C;--loss:#A00000;--tie:#B58900;--gold:#D4A20A;--silver:#A2A7AD;"
+# Colors come only from theme.py's --aag-* tokens (light/dark mode, 2026-09-24): this stylesheet is
+# copied into a shadow root when Page 0 opens a game, and custom properties are the one thing that
+# inherits into it from Page 0's root. The medal colors (gold/silver/bronze) are the same in both themes.
+P1_CSS = "\n:host{display:block}\n" + theme.SWITCH_CSS + (
+    ".p1{--ink:var(--aag-text);--tile:var(--aag-tile);--tile-border:var(--aag-tile-border);--tile-border-soft:var(--aag-tile-border-soft);"
+    "--tile-hover:var(--aag-tile-hover);--tile-border-hover:var(--aag-tile-border-hover);--text-2:var(--aag-text-2);--text-3:var(--aag-text-3);\n"
+    "  --out:var(--aag-out);--doubt:var(--aag-doubt);--ques:var(--aag-ques);--win:var(--aag-win);--loss:var(--aag-loss);--tie:var(--aag-tie);"
+    "--gold:#D4A20A;--silver:#A2A7AD;"
     f"--bronze:#B5702F;--bar:64px;--bbar:{theme.BBAR_HEIGHT};--peek:40px;--gap:12px;--col:600px;--ctitle:clamp(22px,3.2vh,30px)}}"
 ) + r"""
 *{box-sizing:border-box;margin:0;padding:0}
-.p1{min-height:100%;background:#fff;color:var(--ink);font-family:Inter,system-ui,-apple-system,sans-serif;font-weight:400;-webkit-font-smoothing:antialiased}
+.p1{min-height:100%;background:var(--aag-bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,sans-serif;font-weight:400;-webkit-font-smoothing:antialiased}
 .view{display:none}
 .p1[data-view=condensed] .view-c{display:grid}
 .p1[data-view=large] .view-l,.p1[data-view=large] .dots{display:block}
@@ -1396,18 +1404,18 @@ P1_CSS = "\n:host{display:block}\n" + (
   font-variation-settings:'wdth' 95;letter-spacing:.02em}
 a.card{position:relative;display:block;color:inherit;text-decoration:none;background:var(--tile);border:1px solid var(--tile-border);border-radius:20px;
   transition:transform .16s,background-color .16s,border-color .16s}
-a.card:focus-visible{outline:2px solid #000;outline-offset:2px}
+a.card:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px}
 
 /* ===== Top bar ===== */
-.bar{position:fixed;inset:0 0 auto;height:var(--bar);z-index:10;background:rgba(255,255,255,.94);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.bar{position:fixed;inset:0 0 auto;height:var(--bar);z-index:10;background:var(--aag-bar-bg);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
 .bar-in{position:relative;max-width:var(--col);height:100%;margin:0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
 /* Bottom bar (2026-09-17): "‹ Week N" back button centered + the +/− toggle on the right, in the same
    spot and size as Page 0's bottom week picker */
-.bbar{position:fixed;inset:auto 0 0;height:var(--bbar);padding-bottom:env(safe-area-inset-bottom);z-index:10;background:rgba(255,255,255,.94);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.bbar{position:fixed;inset:auto 0 0;height:var(--bbar);padding-bottom:env(safe-area-inset-bottom);z-index:10;background:var(--aag-bar-bg);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
 .bbar-in{position:relative;max-width:var(--col);height:52px;margin:0 auto;display:flex;align-items:flex-start;justify-content:center;padding-top:10px}
 .week{color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:6px;font-size:16px;font-weight:400;line-height:19px;padding:6px 12px;border-radius:999px;transition:background-color .16s}
-.week:hover{background:rgba(0,0,0,.05)}
-.week:focus-visible{outline:2px solid #000;outline-offset:2px}
+.week:hover{background:var(--aag-pill-hover)}
+.week:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px}
 .week .chev{width:12px;height:12px}
 /* The header row is sized in em so the same row can be drawn at any size and scale cleanly between them:
    20px in the condensed bar (44px helmets, unchanged), smaller in the expanded bar, larger in the Game Info card. */
@@ -1461,12 +1469,12 @@ a.card:focus-visible{outline:2px solid #000;outline-offset:2px}
 .p1:not([data-view=large]) .head-fly,.p1[data-view=large]:not([data-head=moving]) .head-fly{display:none}
 /* +/- toggle (2026-09-17): no circle and no hover fill -- hovering or pressing only enlarges it.
    Page 0's bottom bar uses the same rules, so the button is identical on both pages. */
-.toggle{position:absolute;right:16px;top:9px;width:34px;height:34px;border:0;background:none;color:#000;padding:0;
+.toggle{position:absolute;right:16px;top:9px;width:34px;height:34px;border:0;background:none;color:var(--ink);padding:0;
   display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;
   transition:transform .2s cubic-bezier(.22,1,.36,1)}
 .toggle:hover{transform:scale(1.18)}
 .toggle:active{transform:scale(1.30)}
-.toggle:focus-visible{outline:2px solid #000;outline-offset:2px;border-radius:50%}
+.toggle:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px;border-radius:50%}
 .toggle .i-minus,.p1[data-view=large] .toggle .i-plus{display:none}
 .p1[data-view=large] .toggle .i-minus{display:block}
 
@@ -1569,12 +1577,12 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .slot.active .peek-top{opacity:1}
 .slot.active .peek-top svg{display:none}
 .slot.below a.card:hover,.slot.above a.card:hover{border-color:var(--tile-border-hover)}
-.slot.below a.card:hover .peek,.slot.above a.card:hover .peek{color:#000}
+.slot.below a.card:hover .peek,.slot.above a.card:hover .peek{color:var(--ink)}
 .dots{display:none;position:fixed;right:calc(max(16px,(100vw - var(--col)) / 2 + 16px) / 2 - 3px);top:calc(var(--bar) + (100% - var(--bar) - var(--bbar)) / 2);transform:translateY(-50%);z-index:10}
 .dots{flex-direction:column;align-items:center;gap:8px}
 .p1[data-view=large] .dots{display:flex}
-.dot{width:6px;height:6px;border-radius:3px;border:0;background:#CFCFCF;cursor:pointer;padding:0;transition:height .2s,background-color .2s}
-.dot.on{height:18px;background:#000}
+.dot{width:6px;height:6px;border-radius:3px;border:0;background:var(--aag-dot);cursor:pointer;padding:0;transition:height .2s,background-color .2s}
+.dot.on{height:18px;background:var(--ink)}
 /* Page 1's own deck nav (2026-09-23): icons instead of plain dots, selection read as opacity
    (plus a slight scale-up) rather than size/color. Scoped to ".p1 > .dots" (the exact nav this
    page renders) so Page 2's sub-deck navs -- Game Info's own cards, the team pages -- keep the
@@ -1595,7 +1603,7 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .p1 > .dots{right:3px;gap:18px}
 .p1 > .dots .dot{width:10px;height:10px;border-radius:0;background:none;opacity:.4;
   display:flex;align-items:center;justify-content:center;transition:opacity .2s}
-.p1 > .dots .dot svg{display:block;width:10px;height:auto;color:#000;transition:transform .2s}
+.p1 > .dots .dot svg{display:block;width:10px;height:auto;color:var(--ink);transition:transform .2s}
 .p1 > .dots .dot.on{height:10px;background:none;opacity:1}
 .p1 > .dots .dot.on svg{transform:scale(1.15)}
 .p1 > .dots .dot:not(.on):hover{opacity:.7}
