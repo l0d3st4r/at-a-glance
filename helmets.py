@@ -137,6 +137,21 @@ SHADING_OVERRIDES = {
 }
 
 
+# White "sticker" outline (Jason, 2026-09-24), so dark shells (CHI, ATL, LV, ...) stand out on the
+# dark-mode background. Same file in both themes -- on the light background white-on-white just
+# disappears. It's plain vector art: a white copy of the shell, ear piece and facemask drawn
+# underneath the helmet, with a white stroke OUTLINE_WIDTH wide on each side of every edge (so
+# 2 * OUTLINE_WIDTH in total; in the 100-wide artwork's units, 2.5 = ~1.2px at 48px). The stroke
+# also fills the thin gaps between the parts, which gives the die-cut sticker look.
+# NOT an SVG filter (the first version, feMorphology): iPhone browsers draw filtered SVG images at
+# low resolution, which made every helmet blurry on phones (2026-09-24). Strokes stay sharp.
+# The viewBox grows by OUTLINE_PAD on every side so the outline is never cut off; the helmet art
+# therefore sits ~6% smaller inside the same <img> box.
+OUTLINE_WIDTH = 2.5
+OUTLINE_PAD = 3
+OUTLINE_COLOR = "#fff"
+
+
 def helmet_svg(team, mirrored=False, id_prefix=None):
     """
     Return the SVG markup for one team's helmet: shell, ear piece and facemask, each with
@@ -150,8 +165,9 @@ def helmet_svg(team, mirrored=False, id_prefix=None):
     shell_top, shell_bottom = SHADING_OVERRIDES.get(team, (SHELL_LIGHTEN_TOP, SHELL_DARKEN_BOTTOM))
     pid = id_prefix or f"helmet-{team or 'x'}{'-m' if mirrored else ''}"
     flip = ' transform="translate(100 0) scale(-1 1)"' if mirrored else ""
+    box = 100 + 2 * OUTLINE_PAD
     return (
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" '
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{-OUTLINE_PAD} {-OUTLINE_PAD} {box} {box}" role="img" '
         f'aria-label="{team} helmet">'
         "<defs>"
         f'<linearGradient id="{pid}-shell" x1="0.4975" x2="0.5025" y1="0" y2="1">'
@@ -169,6 +185,16 @@ def helmet_svg(team, mirrored=False, id_prefix=None):
         "</linearGradient>"
         "</defs>"
         f"<g{flip}>"
+        # the outline: a white copy of all three parts, stroked, underneath the colored ones
+        f'<g fill="{OUTLINE_COLOR}" stroke="{OUTLINE_COLOR}" stroke-width="{2 * OUTLINE_WIDTH}" stroke-linejoin="round">'
+        f'<path d="{SHELL_PATH}"/>'
+        f'<path d="{EAR_PATH}" transform="translate(0 33.444)"/>'
+        f'<path d="{MASK_PATH}" transform="translate(47.641 42.126)"/>'
+        # solid white under the two round holes (ear hole, facemask screw): a stroke wider than
+        # a circle this small folds over itself and leaves a dark pinhole in the middle
+        '<circle cx="44.553" cy="78.041" r="2.2" stroke="none"/>'
+        '<circle cx="54.166" cy="55.178" r="2.0" stroke="none"/>'
+        "</g>"
         f'<path d="{SHELL_PATH}" fill="url(#{pid}-shell)"/>'
         f'<path d="{EAR_PATH}" fill="url(#{pid}-ear)" transform="translate(0 33.444)"/>'
         f'<path d="{MASK_PATH}" fill="url(#{pid}-mask)" transform="translate(47.641 42.126)"/>'

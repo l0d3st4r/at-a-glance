@@ -1,0 +1,152 @@
+<meta charset="utf-8">
+<title>At A Glance Dark Mode</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&family=Saira:ital,wdth,wght@1,95,800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ground:#F3F3F1; --panel:#FFFFFF; --ink:#0B0B0C; --ink-2:rgba(11,11,12,.62); --ink-3:rgba(11,11,12,.4);
+  --line:rgba(11,11,12,.12); --bezel:#1B1B1D; --bezel-edge:#3A3A3D; --seg:#E6E6E3; --seg-on:#FFFFFF;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){color-scheme:dark;
+    --ground:#050506; --panel:#111113; --ink:#F2F2F2; --ink-2:rgba(242,242,242,.62); --ink-3:rgba(242,242,242,.4);
+    --line:rgba(255,255,255,.12); --bezel:#2A2A2D; --bezel-edge:#4A4A4E; --seg:#1C1C1F; --seg-on:#34343A}
+}
+:root[data-theme="dark"]{color-scheme:dark;
+  --ground:#050506; --panel:#111113; --ink:#F2F2F2; --ink-2:rgba(242,242,242,.62); --ink-3:rgba(242,242,242,.4);
+  --line:rgba(255,255,255,.12); --bezel:#2A2A2D; --bezel-edge:#4A4A4E; --seg:#1C1C1F; --seg-on:#34343A}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font:400 15px/1.5 Inter,system-ui,-apple-system,sans-serif;
+  -webkit-font-smoothing:antialiased;padding-inline:16px;padding-block:40px 64px}
+.wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:40px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:20px 32px}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin:0 0 6px}
+h1{font-family:Saira,Inter,sans-serif;font-style:italic;font-weight:800;font-variation-settings:'wdth' 95;
+  font-size:clamp(34px,5vw,52px);line-height:1;letter-spacing:.01em;margin:0;text-wrap:balance}
+.lede{max-width:60ch;color:var(--ink-2);margin:10px 0 0}
+.seg{display:inline-flex;padding:3px;border-radius:999px;background:var(--seg);gap:2px}
+.seg button{font:500 14px/1 Inter,system-ui,sans-serif;color:var(--ink-2);background:none;border:0;border-radius:999px;
+  padding:9px 16px;cursor:pointer;transition:background-color .2s,color .2s}
+.seg button[aria-pressed="true"]{background:var(--seg-on);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.seg button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.controls{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.ctl-label{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.status{margin:0;font-size:13px;color:var(--ink-2);text-align:right;min-height:1.5em}
+.status b{color:var(--ink);font-weight:600}
+.status button{font:500 13px/1 Inter,system-ui,sans-serif;color:var(--ink);background:none;border:1px solid var(--line);border-radius:999px;padding:5px 10px;margin-left:6px;cursor:pointer}
+.status button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+@media (max-width:640px){.controls{align-items:flex-start}.status{text-align:left}}
+.phones{display:flex;flex-wrap:wrap;justify-content:center;gap:40px 32px}
+figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:14px}
+.phone{--s:.8;width:calc(390px * var(--s) + 20px);height:calc(844px * var(--s) + 20px);padding:10px;border-radius:52px;
+  background:var(--bezel);box-shadow:inset 0 0 0 1.5px var(--bezel-edge),0 24px 60px -24px rgba(0,0,0,.45);position:relative}
+.screen{width:calc(390px * var(--s));height:calc(844px * var(--s));border-radius:42px;overflow:hidden;position:relative;background:#0B0B0C}
+.screen::after{content:"";position:absolute;left:50%;bottom:7px;width:108px;height:4px;margin-left:-54px;border-radius:2px;background:rgba(128,128,128,.55);pointer-events:none}
+.screen iframe{width:390px;height:844px;border:0;transform:scale(var(--s));transform-origin:0 0;display:block;background:transparent}
+figcaption{text-align:center;display:flex;flex-direction:column;gap:2px}
+figcaption b{font-weight:700;font-size:15px}
+figcaption span{color:var(--ink-2);font-size:13px}
+.notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.note{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:20px 22px}
+.note h2{font-size:15px;font-weight:700;margin:0 0 8px}
+.note p{margin:0;color:var(--ink-2);font-size:14px;max-width:60ch}
+.swatches{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.swatches li{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:10px;font-size:13px}
+.swatches code{font:500 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink-2)}
+.chip{width:22px;height:22px;border-radius:6px;box-shadow:inset 0 0 0 1px var(--line)}
+@media (max-width:420px){.phone{--s:.72}}
+</style>
+<!--MOCK_DATA-->
+<div class="wrap">
+  <header>
+    <div>
+      <p class="eyebrow">At A Glance · Mockup</p>
+      <h1>Dark mode</h1>
+      <p class="lede">The real Week and Game pages with a dark theme. The pages follow the phone's light or dark setting until someone uses the new switch in the bottom-left corner. Flip the switch in any phone and all three change together.</p>
+    </div>
+    <div class="controls">
+      <span class="ctl-label" id="sys-label">Phone setting</span>
+      <div class="seg" role="group" aria-labelledby="sys-label">
+        <button type="button" id="sys-light" data-sys="light" aria-pressed="false">Light</button>
+        <button type="button" id="sys-dark" data-sys="dark" aria-pressed="true">Dark</button>
+      </div>
+      <p class="status" id="status" aria-live="polite"></p>
+    </div>
+  </header>
+
+  <div class="phones">
+    <figure><div class="phone"><div class="screen"><iframe id="f-week" title="Week view" data-page="week"></iframe></div></div>
+      <figcaption><b>Week view</b><span>Page 0 · Week 3. Tap PHI @ CHI to open it.</span></figcaption></figure>
+    <figure><div class="phone"><div class="screen"><iframe id="f-final" title="Finished game, condensed" data-page="final"></iframe></div></div>
+      <figcaption><b>Final game</b><span>Page 1 · DET @ BUF, condensed</span></figcaption></figure>
+    <figure><div class="phone"><div class="screen"><iframe id="f-upcoming" title="Upcoming game, expanded" data-page="upcoming"></iframe></div></div>
+      <figcaption><b>Upcoming game</b><span>Page 1 · PHI @ CHI, expanded</span></figcaption></figure>
+  </div>
+
+  <div class="notes">
+    <section class="note">
+      <h2>Following the phone</h2>
+      <p>With no choice saved, the pages match the phone's own setting and change when it changes. Using the switch saves a choice on that device. Switching back to whatever the phone is set to clears the choice, so the page goes back to following the phone.</p>
+    </section>
+    <section class="note">
+      <h2>Games opened from the week list</h2>
+      <p>A game opened from the week list lives in a sealed-off part of the page that outside styles can't reach. Colors can still pass into it, though. So every color becomes a named theme value set once at the top of the page, and the game's styles read those values. Try it in the Week phone: open PHI @ CHI, then flip the switch.</p>
+    </section>
+    <section class="note">
+      <h2>Palette</h2>
+      <ul class="swatches">
+        <li>Background <span class="chip" style="background:#0B0B0C"></span><code>#0B0B0C</code></li>
+        <li>Card fill <span class="chip" style="background:#161618"></span><code>#161618</code></li>
+        <li>Card outline <span class="chip" style="background:rgba(255,255,255,.12)"></span><code>white 12%</code></li>
+        <li>Text / 2nd / 3rd <span class="chip" style="background:#F2F2F2"></span><code>#F2F2F2 · 62% · 40%</code></li>
+        <li>Win / loss / injury <span class="chip" style="background:#4CC76E"></span><code>#4CC76E · #FF6B6B · #E8B93A</code></li>
+      </ul>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  var state = { sys: 'dark', choice: null };
+  var helmets = {};
+  try { helmets = JSON.parse(window.MOCK_HELMETS || '{}'); } catch (e) {}
+  var pages = window.MOCK_PAGES;
+  function withHelmets(html) {
+    return html.replace(/(?:\.\.\/)?helmets\/([A-Za-z-]+)\.svg/g, function (m, k) { return helmets[k] || m; });
+  }
+  function boot(html, extra) {
+    var js = 'window.AAG_INIT=' + JSON.stringify(state) + ';' + (extra || '');
+    return withHelmets(html).replace('<head>', '<head><script>' + js + '<\/script>');
+  }
+  var games = {};
+  Object.keys(pages).forEach(function (k) { if (k.indexOf('g_') === 0) games[k.slice(2)] = withHelmets(pages[k]); });
+  var gamesJs = 'window.AAG_GAMES=' + JSON.stringify(games).replace(/<\//g, '<\\/') + ';';
+  var frames = [].slice.call(document.querySelectorAll('iframe[data-page]'));
+  frames.forEach(function (f) {
+    var key = f.getAttribute('data-page');
+    f.srcdoc = boot(pages[key], key === 'week' ? gamesJs : '');
+  });
+  var status = document.getElementById('status');
+  function render() {
+    frames.forEach(function (f) { try { f.contentWindow.postMessage({ aagState: state }, '*'); } catch (e) {} });
+    [].forEach.call(document.querySelectorAll('.seg button'), function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-sys') === state.sys));
+    });
+    var name = function (t) { return t === 'dark' ? 'Dark' : 'Light'; };
+    status.innerHTML = state.choice
+      ? 'Switch set to <b>' + name(state.choice) + '</b> on this phone. <button type="button" id="reset">Follow phone setting</button>'
+      : 'Following the phone: <b>' + name(state.sys) + '</b>';
+    var r = document.getElementById('reset');
+    if (r) r.addEventListener('click', function () { state.choice = null; render(); });
+  }
+  window.addEventListener('message', function (e) {
+    if (e.data && 'aagChoice' in e.data) { state.choice = e.data.aagChoice; render(); }
+  });
+  [].forEach.call(document.querySelectorAll('.seg button'), function (b) {
+    b.addEventListener('click', function () { state.sys = b.getAttribute('data-sys'); render(); });
+  });
+  render();
+})();
+</script>
