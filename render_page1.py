@@ -1549,8 +1549,26 @@ a.card.c-team{padding:var(--ctitle) 10px clamp(8px,1.4vh,14px);display:flex;flex
    expanded card's proportions instead of reading small and cramped */
 .c-team .rank{--n:clamp(28px,3.8vh,36px);width:auto;column-gap:3px}
 .c-team .rank-n{min-width:1.25em}
-.c-team .rank-sfx{font-size:13px}
-.c-team .rank-lbl{font-size:10px;letter-spacing:.05em}
+.c-team .rank-lbl{letter-spacing:.05em}
+/* Short screens (2026-09-27): on an iPhone 16 Pro in Safari (~402x760 plus the 34px home-
+   indicator inset in the bottom bar) the team cards overflowed by ~18px, cutting off the YDS
+   ranks, and Game Info by ~13px. Below 880px tall the record, helmet, injury text and rank
+   numbers may shrink further (lower clamp floors and vh slopes, tighter padding), and Game
+   Info takes a little height from Season Leaders. Taller screens keep the rules above as-is.
+   --n stays >= 24px so the stacked ordinal + label still fit beside the number. */
+@media (max-height:880px){
+  .view-c{grid-template-rows:minmax(0,.7fr) minmax(0,1.18fr) minmax(0,1.54fr)}
+  .c-game .time{font-size:clamp(22px,3.3vh,40px)}
+  a.card.c-game{padding-bottom:clamp(8px,1.8vh,24px);gap:clamp(2px,.7vh,14px)}
+  a.card.c-team{padding-bottom:8px}
+  .c-team .l-top{padding-top:3px;padding-bottom:2px}
+  .c-team .l-id img{width:clamp(24px,3.3vh,36px);height:clamp(24px,3.3vh,36px)}
+  .c-team .record{font-size:min(clamp(22px,3.4vh,38px),calc((100cqi - 92px) / 1.8))}
+  .c-inj{font-size:11.5px;line-height:1.22}
+  .c-team .rank-col{gap:2px}
+  .c-team .rank-col h3{font-size:12px}
+  .c-team .rank{--n:clamp(24px,3.2vh,36px)}
+}
 
 /* Leaders: bigger numbers, columns pulled toward the center, league-rank crowns */
 /* (2026-09-17, Jason) taller card, and the extra height goes into the gaps between rows --
@@ -1695,8 +1713,13 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
   font-family:Teko,Inter,system-ui,sans-serif;font-weight:700}
 .rank-side{display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;
   height:calc(var(--n) * .65);margin-top:calc(var(--n) * .09)}
-.rank-sfx{font-size:16px;line-height:1;margin-top:-.07em;font-family:Teko,Inter,system-ui,sans-serif;font-weight:700}
-.rank-lbl{font-size:12px;font-weight:300;line-height:1;margin-bottom:-.135em;letter-spacing:.02em}
+/* Ordinal and label scale with the number (2026-09-27): both have to fit stacked inside
+   .rank-side's --n * .65, or the label gets shoved below the digits' baseline whenever the
+   number shrinks. .38 / .28 use ~.6 of that height (.93 and .865 of each font size are its
+   visible share at line-height 1 after the margins below), and the 9px / 8px floors still fit
+   beside any number down to 24px -- keep --n at 24px or more wherever it's set. */
+.rank-sfx{font-size:max(9px,calc(var(--n) * .38));line-height:1;margin-top:-.07em;font-family:Teko,Inter,system-ui,sans-serif;font-weight:700}
+.rank-lbl{font-size:max(8px,calc(var(--n) * .28));font-weight:300;line-height:1;margin-bottom:-.135em;letter-spacing:.02em}
 
 .compare .body{padding:46px 0 20px;justify-content:space-evenly;align-items:center}
 .compare .body>.cmp-row{width:90%}
