@@ -1747,7 +1747,7 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .rank-lbl{font-size:max(8px,calc(var(--n) * .28));font-weight:300;line-height:1;margin-bottom:-.135em;letter-spacing:.02em}
 
 .compare .body{padding:46px 0 20px;justify-content:center;align-items:center}
-.compare .body>.cmp-row{width:90%}
+.compare .body>.cmp-row{width:82%}   /* 2026-09-27: was 90%, more room from the card's sides */
 .compare .body>.cmp-row:not(.cmp-head){padding:10px 0}
 /* Leader rows, ESPN-style (2026-09-27), same in both views: both big numbers on the top line at
    the outer edges with the stat label between them; under each number its name + position and

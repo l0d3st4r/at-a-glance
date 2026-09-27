@@ -56,7 +56,8 @@ import weather as wx
 
 PLAYOFF_LABELS = {"WC": "Wild Card", "DIV": "Divisional Round", "CON": "Conference Championships", "SB": "Super Bowl"}
 INJURY_ORDER = {"Out": 0, "Doubtful": 1, "Questionable": 2}
-INJURY_SHORT = {"Out": "OUT", "Doubtful": "DOUBT", "Questionable": "QUES"}
+# Page 1's condensed card only (2026-09-27, was OUT / DOUBT / QUES); the expanded card spells it out
+INJURY_SHORT = {"Out": "O", "Doubtful": "D", "Questionable": "Q"}
 STARTER_SNAP_SHARE = 0.5   # average share of offensive or defensive snaps in games played so far
 NWS_WINDOW_DAYS = 7
 
