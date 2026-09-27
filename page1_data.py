@@ -513,6 +513,11 @@ def _name_key_venue(name):
 _VENUE_BY_NAME = {_name_key_venue(v["name"]): v for v in STADIUMS.values()}
 
 
+def _surface_name(raw):
+    s = str(raw.get("surface") or "").strip().lower()
+    return SURFACE_NAMES.get(s) or (s.replace("_", " ").title() if s else None)
+
+
 def venue_full(g):
     """
     Everything Page 2's stadium card needs (added 2026-09-19). Roof TYPE comes from stadiums.py;
@@ -540,8 +545,7 @@ def venue_full(g):
         indoor = False
     else:
         indoor = nf in ("dome", "closed")
-    surface_raw = str(raw.get("surface") or "").strip().lower()
-    surface = SURFACE_NAMES.get(surface_raw) or (surface_raw.replace("_", " ").title() if surface_raw else None)
+    surface = _surface_name(raw)
     return {
         "name": v.get("name") or raw.get("stadium") or None,
         "city": v.get("city") or None,
@@ -965,6 +969,73 @@ def week_key_and_label(game_type, week):
     if game_type in PLAYOFF_LABELS:
         return game_type, PLAYOFF_LABELS[game_type]
     return str(week), f"Week {week}"
+
+
+def _shown(w):
+    """A weather dict the pages actually display something for (a forecast/reading, or indoors)."""
+    return bool(w) and bool(w.get("indoor") or w.get("available"))
+
+
+def _p1_weather_from_detail(w):
+    """Page 1's weather from Page 2's (for a finished game with nothing else to show)."""
+    if w.get("indoor"):
+        return {"available": True, "indoor": True}
+    return {"available": True, "temp_f": w.get("temp_f"), "condition": w.get("condition"),
+            "wind_mph": w.get("wind_max_mph"), "source": w.get("source")}
+
+
+def apply_game_snapshot(details, schedules, snapshot):
+    """
+    Freezes a finished game's weather (Page 1 and Page 2) and playing surface at what the site
+    last showed before it went final (2026-09-27; see snapshot.py). Updates `details` in place
+    and returns the snapshot to publish with this build.
+
+    Not final yet: the snapshot follows the latest populated values (a failed forecast fetch
+    doesn't erase the last good one). Final: the snapshot's values are served as they are --
+    except that a retractable roof nflverse records as closed after the game wins, since that's
+    a fact about the game rather than a missing value. A game that was already final before it
+    had a snapshot falls back once -- Page 1 to Page 2's observed weather, the surface to the
+    last one nflverse listed for that stadium -- and that fallback is frozen in turn.
+    """
+    games = _games(schedules)
+    stadium_key = lambda g: str(g["raw"].get("stadium_id") or g["raw"].get("stadium") or "").strip()
+    stadium_surface = {}  # stadium -> surface nflverse lists for any of its games this season
+    for g in games:
+        s = _surface_name(g["raw"])
+        if s and stadium_key(g):
+            stadium_surface[stadium_key(g)] = s
+
+    out = {}
+    for g in games:
+        gid = g["game_id"]
+        d = details.get(gid)
+        if not d:
+            continue
+        info = d.get("info") or {}
+        st = info.get("stadium") or {}
+        prev = snapshot.get(gid) or {}
+        indoor_now = bool((d.get("weather") or {}).get("indoor"))
+        if g["final"] and not indoor_now:
+            if prev.get("weather"):
+                d["weather"] = prev["weather"]
+            elif not _shown(d.get("weather")) and _shown(info.get("weather")):
+                d["weather"] = _p1_weather_from_detail(info["weather"])
+            if prev.get("weather_detail") and info:
+                info["weather"] = prev["weather_detail"]
+        if st:
+            if g["final"] and prev.get("surface"):
+                st["surface"] = prev["surface"]
+            elif not st.get("surface") and stadium_key(g):
+                st["surface"] = stadium_surface.get(stadium_key(g))
+        entry = {
+            "weather": d.get("weather") if _shown(d.get("weather")) else prev.get("weather"),
+            "weather_detail": info.get("weather") if _shown(info.get("weather")) else prev.get("weather_detail"),
+            "surface": st.get("surface") or prev.get("surface"),
+        }
+        entry = {k: v for k, v in entry.items() if v}
+        if entry:
+            out[gid] = entry
+    return out
 
 
 def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, warnings, now_utc=None, depth=None, history=None):

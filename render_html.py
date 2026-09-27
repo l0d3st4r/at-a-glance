@@ -57,11 +57,13 @@ the whole page.
 import html
 import json
 import os
+import shutil
 import traceback
 from datetime import date
 
 import helmets
 import render_page1
+import snapshot
 import theme
 from divisions import DIVISIONS
 
@@ -1449,6 +1451,12 @@ def main():
 
     warnings = []
     pages = render_page1.write_all(data, SITE_DIR, warnings)
+
+    # Published with the site so the next build can read it back (see snapshot.py)
+    if os.path.exists(snapshot.LOCAL_PATH):
+        shutil.copyfile(snapshot.LOCAL_PATH, os.path.join(SITE_DIR, snapshot.FILE_NAME))
+    else:
+        warnings.append(f"no {snapshot.FILE_NAME} to publish -- the next build can't freeze finished games")
 
     print(f"Wrote {INDEX_PATH}, {RAW_PATH}, {pages} game pages and helmets to {HELMET_DIR}")
     for w in warnings:

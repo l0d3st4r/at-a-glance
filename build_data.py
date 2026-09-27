@@ -30,6 +30,7 @@ from stadiums import STADIUMS
 from weather import get_kickoff_weather
 from ranks import compute_ranks
 import page1_data
+import snapshot
 
 OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "data", "matchups.json")
 
@@ -353,6 +354,13 @@ def main():
                                                      depth=depth, history=history or None)
     except Exception as e:
         warnings.append(f"build_game_details: {e}")
+
+    # Finished games keep the weather and surface the site last showed (2026-09-27, see snapshot.py)
+    try:
+        frozen = page1_data.apply_game_snapshot(game_details, schedules, snapshot.load(warnings))
+        snapshot.save(frozen, season)
+    except Exception as e:
+        warnings.append(f"game snapshot: {e}")
 
     output = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),

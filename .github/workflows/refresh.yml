@@ -44,6 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       changed: ${{ steps.decide.outputs.changed }}
+      site_url: ${{ steps.pages.outputs.base_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -87,7 +88,11 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: python check_updates.py --out "$RUNNER_TEMP/nflverse-stamps.json"
 
+      # AAG_SITE_URL: where to read back the last build's game-snapshot.json, which keeps a
+      # finished game's weather and surface frozen (see snapshot.py)
       - name: Pull latest data
+        env:
+          AAG_SITE_URL: ${{ needs.check.outputs.site_url }}
         run: python build_data.py
 
       - name: Render v0 page

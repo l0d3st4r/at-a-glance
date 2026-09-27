@@ -1578,13 +1578,19 @@ a.card.c-team{padding:var(--ctitle) 10px clamp(8px,1.4vh,14px);display:flex;flex
 /* (2026-09-27) position column added left of the name; gaps and side margin tightened so the
    extra column doesn't squeeze names into ellipses on phone-width cards. Row gap cut from 6px
    to 2px the same day -- the lines read as one tighter list (expanded card unchanged). */
+/* (2026-09-27) the status is a single colored letter (O / D / Q) now, so the dot beside it was
+   redundant: dropped here, and the letter takes the dot's color. Three columns: position, name,
+   status. The expanded card keeps its dots. */
 .c-inj{font-size:12px;line-height:1.28;width:fit-content;max-width:100%;margin:0 auto;
-  display:grid;grid-template-columns:auto auto auto auto;column-gap:8px;row-gap:2px;align-items:center}
+  display:grid;grid-template-columns:auto auto auto;column-gap:8px;row-gap:2px;align-items:center}
 .c-inj li:not(.inj-none),.c-inj .inj-who{display:contents}
 .c-inj .inj-pos{font-size:10px;min-width:0;margin-right:-4px}.c-inj .inj-name{overflow:hidden;text-overflow:ellipsis;text-align:left}
 .c-inj .inj-s{display:contents}
-.c-inj .inj-dot{justify-self:center}
+.c-inj .inj-dot{display:none}
 .c-inj .inj-status{text-align:right;color:var(--text-2)}
+.c-inj .inj-out+.inj-status{color:var(--out)}
+.c-inj .inj-doubt+.inj-status{color:var(--doubt)}
+.c-inj .inj-ques+.inj-status{color:var(--ques)}
 .c-inj .inj-none{grid-column:1/-1;text-align:center}
 /* (2026-09-17, Jason) the names were 700 like the rank headings below them; Regular separates
    the two and buys back a few pixels of height */
@@ -1621,16 +1627,15 @@ a.card.c-team{padding:var(--ctitle) 10px clamp(8px,1.4vh,14px);display:flex;flex
    no new elements, same number sizes. Each row is its own flex item so space-between can
    spread them; the name still hugs its own stat (v15). */
 /* (2026-09-27) ESPN-style rows with a stats line under each name (see .cmp-row further down).
-   To fit that third line on phones the team-color pills ride on the title line instead of
-   taking a row of their own. The rows stay together (fixed gaps: 6px on phones, a little more
-   on tall screens) and sit centered, so the card's spare height -- more now that Game Info is
-   compact -- becomes equal margin above and below them. */
+   The team-color pills head the columns again, as the first row of the stack (they briefly
+   rode on the title line to save height; the compact Game Info card freed enough). The rows
+   stay together (fixed gaps: 6px on phones, a little more on tall screens) and sit centered,
+   so the card's spare height becomes equal margin above and below them. */
 a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(--ctitle) 0 6px;overflow:hidden}
 .c-cmp-in{width:84%;height:100%;display:flex;flex-direction:column;justify-content:center;
-  gap:clamp(6px,calc(2.4vh - 12px),18px);padding:5px 0 0;position:relative}
-.c-cmp-in>.cmp-row:not(.cmp-head){flex:0 0 auto;padding-top:3px}
-/* the title strip is --ctitle tall with its text centered; 4.5px is half a pill */
-.c-cmp .cmp-head{position:absolute;left:0;right:0;top:calc(var(--ctitle) / -2 - 4.5px)}
+  gap:clamp(6px,calc(2.4vh - 12px),18px);padding:5px 0 0}
+.c-cmp-in>.cmp-row{flex:0 0 auto}
+.c-cmp-in>.cmp-row:not(.cmp-head){padding-top:3px}
 .c-cmp .ldr-v{position:relative;display:inline-block;font-size:clamp(18px,2.65vh,26px);font-weight:700;line-height:1}
 .c-cmp .ldr-n{font-size:11.5px;line-height:1.1;margin-top:-1px}   /* the name hugs its own stat; the gap to the next row stays larger */
 .cm{font-style:normal}
