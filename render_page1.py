@@ -313,15 +313,37 @@ def fmt_when(d):
     return when, (f"{t} {ampm}".strip() if t != "TBD" else "TIME TBD")
 
 
+def weather_html(d):
+    w = d.get("weather") or {}
+    if w.get("indoor"):
+        return f'<span class="temp temp-word">Indoors</span>{WEATHER_ICONS["indoor"]}'
+    if w.get("available") and w.get("temp_f") is not None:
+        return f'<span class="temp">{esc(w["temp_f"])}°</span>{WEATHER_ICONS.get(w.get("condition"), "")}'
+    return f'<span class="temp temp-na" title="Forecast not available yet">{DASH}°</span>'
+
+
+def game_body_compact(d):
+    """Condensed Game Info (2026-09-27): two lines instead of a spread-out block, to give the
+    Leaders card more height -- time + date/day left, weather right; then city left, TV right.
+    The date uses the top bar's short form ('SUN SEP 27'): spelled out ('SEP 27 Wednesday') it
+    didn't fit beside the time and an 'Indoors' forecast on narrow phones."""
+    t, ampm = fmt_time(d.get("gametime"))
+    small = f"<small>{ampm}</small>" if ampm else ""
+    venue = d.get("venue") or {}
+    day, _time = fmt_when(d)
+    return (
+        '<div class="gc-row gc-1"><div class="gc-when">'
+        f'<div class="time">{esc(t)}{small}</div><div class="date">{esc(day)}</div></div>'
+        f'<div class="weather">{weather_html(d)}</div></div>'
+        f'<div class="gc-row gc-2"><div class="city">{esc(venue.get("city") or "")}</div>'
+        f'<div class="network">{esc(fmt_network(d.get("networks")))}</div></div>'
+    )
+
+
 def game_body(d, hero=""):
     t, ampm = fmt_time(d.get("gametime"))
-    w, venue = d.get("weather") or {}, d.get("venue") or {}
-    if w.get("indoor"):
-        weather = f'<span class="temp temp-word">Indoors</span>{WEATHER_ICONS["indoor"]}'
-    elif w.get("available") and w.get("temp_f") is not None:
-        weather = f'<span class="temp">{esc(w["temp_f"])}°</span>{WEATHER_ICONS.get(w.get("condition"), "")}'
-    else:
-        weather = f'<span class="temp temp-na" title="Forecast not available yet">{DASH}°</span>'
+    venue = d.get("venue") or {}
+    weather = weather_html(d)
     small = f"<small>{ampm}</small>" if ampm else ""
     headline = f'<div class="time">{esc(t)}{small}</div>'
     corner = f'<div class="network">{esc(fmt_network(d.get("networks")))}</div>'
@@ -614,7 +636,7 @@ def render_p1_block(d, prefix="../"):
     )
     condensed = (
         '<div class="view view-c" aria-label="Condensed matchup">'
-        f'<a class="card c-game" tabindex="0" data-detail="game-info" aria-label="Game info">{card_title("Game Info")}{game_body(d)}</a>'
+        f'<a class="card c-game" tabindex="0" data-detail="game-info" aria-label="Game info">{card_title("Game Info")}{game_body_compact(d)}</a>'
         f'<div class="c-teams">{c_team(away, "away", final)}{c_team(home, "home", final)}</div>'
         f'<a class="card c-cmp" tabindex="0" data-detail="leaders" aria-label="{leaders_name}">{card_title(leaders_name)}<div class="c-cmp-in">{pill_row(a, h)}{rows}</div></a>'
         "</div>"
@@ -1505,26 +1527,32 @@ a.card:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px}
 .p1[data-view=large] .toggle .i-minus{display:block}
 
 /* ===== Condensed view: everything on one screen ===== */
-/* Row heights (2026-09-17, Jason): the comparison card is the one worth reading, so it takes
-   height from the other two. Was .74 / 1.3 / 1.38. */
-.view-c{max-width:var(--col);margin:0 auto;height:100dvh;min-height:720px;padding:calc(var(--bar) + 12px) 16px calc(var(--bbar) + 12px);gap:12px;
-  grid-template-rows:minmax(0,.62fr) minmax(0,1.18fr) minmax(0,1.62fr)}
+/* Row heights (2026-09-27, was .62fr / 1.18fr / 1.62fr with 12px gaps): Game Info is only as
+   tall as its two compact lines, the team cards keep exactly the height they had (their old
+   1.18 of 3.42 shares of the space left after the bars, the 12px paddings and the old two 12px
+   gaps), and Season Leaders takes everything else -- the height Game Info gave up plus the 8px
+   the tighter gaps free. Gaps between cards are 8px both ways (see .c-teams). */
+.view-c{max-width:var(--col);margin:0 auto;height:100dvh;min-height:720px;padding:calc(var(--bar) + 12px) 16px calc(var(--bbar) + 12px);gap:8px;
+  grid-template-rows:auto calc((max(100dvh, 720px) - var(--bar) - var(--bbar) - 48px) * 1.18 / 3.42) minmax(0,1fr)}
 .view-c a.card:hover,.view-c a.card:focus-visible{transform:scale(1.015);border-color:var(--tile-border-hover);z-index:1}
 
-/* Game info: content pulled in from the edges, centered vertically */
-a.card.c-game{padding:var(--ctitle) clamp(22px,7%,32px) clamp(16px,2.6vh,24px);display:flex;flex-direction:column;justify-content:center;gap:clamp(4px,1vh,14px);overflow:hidden}
+/* Game info (2026-09-27, compact): line 1 is the time with the date/day beside it, weather at
+   the right; line 2 is the city, TV at the right. Was a top block + bottom row spread over a
+   taller card, mostly empty space. */
+a.card.c-game{padding:var(--ctitle) clamp(16px,5%,28px) 10px;display:flex;flex-direction:column;justify-content:center;gap:5px;overflow:hidden}
+.c-game .gc-row{display:flex;justify-content:space-between;gap:12px;min-width:0}
+.c-game .gc-1{align-items:center}
+.c-game .gc-2{align-items:baseline}
+.c-game .gc-when{display:flex;align-items:baseline;gap:8px;min-width:0}
 .c-game .time{font-size:clamp(25px,3.7vh,40px)} .c-game .time small{font-size:12px}
-.c-game .date{font-size:clamp(14px,2.1vh,22px);margin-top:2px}
-.c-game .network{font-size:12px;margin-top:6px}
-/* (2026-09-21) city/weather were flush with the card's bottom corners -- the bigger bottom
-   padding above buys room from the edge; this adds a little more air between the two of them */
-.c-game .game-bottom{gap:16px;margin-top:2px}
-.c-game .city{font-size:13px;padding-left:0}
+.c-game .date{font-size:clamp(13px,1.7vh,18px);margin:0;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.c-game .city{font-size:13px;padding-left:0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-game .network{font-size:12px;margin:0;flex:none;color:var(--text-2)}
 .c-game .temp{font-size:clamp(20px,3vh,28px)}
-.c-game .weather{gap:7px} .c-game .weather svg{width:32px;height:24px}
+.c-game .weather{gap:6px;flex:none} .c-game .weather svg{width:28px;height:21px}
 
 /* Team cards: centered column — trend + record, 3 injuries, spaced ranks */
-.c-teams{display:grid;grid-template-columns:1fr 1fr;gap:12px;min-height:0}
+.c-teams{display:grid;grid-template-columns:1fr 1fr;gap:8px;min-height:0}
 a.card.c-team{padding:var(--ctitle) 10px clamp(8px,1.4vh,14px);display:flex;flex-direction:column;align-items:center;justify-content:space-evenly;text-align:center;overflow:hidden;min-width:0;container-type:inline-size}
 /* helmet + abbreviation left, last-game arrow + record right -- same as the expanded card (2026-09-17) */
 .c-team .l-top{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:0 2px}
@@ -1573,13 +1601,11 @@ a.card.c-team{padding:var(--ctitle) 10px clamp(8px,1.4vh,14px);display:flex;flex
 /* Short screens (2026-09-27): on an iPhone 16 Pro in Safari (~402x760 plus the 34px home-
    indicator inset in the bottom bar) the team cards overflowed by ~18px, cutting off the YDS
    ranks, and Game Info by ~13px. Below 880px tall the record, helmet, injury text and rank
-   numbers may shrink further (lower clamp floors and vh slopes, tighter padding), and Game
-   Info takes a little height from Season Leaders. Taller screens keep the rules above as-is.
+   numbers may shrink further (lower clamp floors and vh slopes, tighter padding). Taller
+   screens keep the rules above as-is.
    --n stays >= 24px so the stacked ordinal + label still fit beside the number. */
 @media (max-height:880px){
-  .view-c{grid-template-rows:minmax(0,.7fr) minmax(0,1.18fr) minmax(0,1.54fr)}
   .c-game .time{font-size:clamp(22px,3.3vh,40px)}
-  a.card.c-game{padding-bottom:clamp(8px,1.8vh,24px);gap:clamp(2px,.7vh,14px)}
   a.card.c-team{padding-bottom:8px}
   .c-team .l-top{padding-top:3px;padding-bottom:2px}
   .c-team .l-id img{width:clamp(24px,3.3vh,36px);height:clamp(24px,3.3vh,36px)}
@@ -1596,11 +1622,12 @@ a.card.c-team{padding:var(--ctitle) 10px clamp(8px,1.4vh,14px);display:flex;flex
    spread them; the name still hugs its own stat (v15). */
 /* (2026-09-27) ESPN-style rows with a stats line under each name (see .cmp-row further down).
    To fit that third line on phones the team-color pills ride on the title line instead of
-   taking a row of their own, and the card's bottom padding is small so the leftover height
-   goes between the rows (space-between) rather than under the last one. */
+   taking a row of their own. The rows stay together (fixed gaps: 6px on phones, a little more
+   on tall screens) and sit centered, so the card's spare height -- more now that Game Info is
+   compact -- becomes equal margin above and below them. */
 a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(--ctitle) 0 6px;overflow:hidden}
-.c-cmp-in{width:84%;height:100%;display:flex;flex-direction:column;justify-content:space-between;
-  padding:5px 0 0;position:relative}
+.c-cmp-in{width:84%;height:100%;display:flex;flex-direction:column;justify-content:center;
+  gap:clamp(6px,calc(2.4vh - 12px),18px);padding:5px 0 0;position:relative}
 .c-cmp-in>.cmp-row:not(.cmp-head){flex:0 0 auto;padding-top:3px}
 /* the title strip is --ctitle tall with its text centered; 4.5px is half a pill */
 .c-cmp .cmp-head{position:absolute;left:0;right:0;top:calc(var(--ctitle) / -2 - 4.5px)}
@@ -1806,7 +1833,7 @@ a.card{cursor:pointer}
 .morph{position:fixed;z-index:9;background:var(--tile);border:1px solid var(--tile-border);border-radius:20px;overflow:hidden;pointer-events:none}
 .morph>.card{position:absolute;left:0;top:0;border:0;border-radius:0;background:transparent;transform:none;transition:none}
 .temp-word{font-size:26px}
-.c-game .temp-word{font-size:clamp(18px,2.6vh,22px)}
+.c-game .temp-word{font-size:clamp(15px,2vh,20px)}   /* shares line 1 with time + date (2026-09-27) */
 .temp-na,.rank-n.na,.crank b.na,.ldr-v.na{color:var(--text-3)}
 .inj-none{color:var(--text-2)}
 .l-inj .inj-none{font-weight:400}
