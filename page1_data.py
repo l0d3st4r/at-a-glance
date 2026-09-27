@@ -14,7 +14,8 @@ before the game):
                                      (offense: most points/yards = 1st;
                                       defense: fewest allowed = 1st)
   - season leaders + league crowns . same weeks as the ranks. FINISHED games show each
-                                     team's leaders in that game instead, no crowns
+                                     team's leaders in that game instead, no crowns (once
+                                     nflverse has that game's player stats; season until then)
                                      (Jason, 2026-09-16)
   - injury report .................. that week's official report (Out / Doubtful /
                                      Questionable), starters first, then severity.
@@ -66,6 +67,16 @@ LEADER_STATS = [
     ("interceptions", "Interceptions", ["def_interceptions", "interceptions"]),
     ("sacks", "Sacks", ["def_sacks", "sacks"]),
 ]
+
+# Supporting stats shown with a leader (2026-09-27): summed over the same span as the leader's
+# own number (the season so far, or that one game). Keyed by the leader stat they belong to.
+LEADER_EXTRAS = {
+    "passing_yards": [("completions", ["completions"]), ("attempts", ["attempts"]),
+                      ("passing_tds", ["passing_tds"]), ("passing_ints", ["passing_interceptions"])],
+    "rushing_yards": [("carries", ["carries"]), ("rushing_tds", ["rushing_tds"])],
+    "receiving_yards": [("receptions", ["receptions"]), ("receiving_tds", ["receiving_tds"])],
+}
+_EXTRA_COLS = [(k, cands) for extras in LEADER_EXTRAS.values() for k, cands in extras]
 
 # Candidate column names (first present wins)
 TEAM_COLS = ["team", "recent_team", "team_abbr", "club_code"]
@@ -283,6 +294,12 @@ def _rank_builder(games, team_weekly, warnings):
 
 # ---------------------------------------------------------------- leaders
 
+def _extras(key, stats):
+    """{"extra": {...}} with the supporting stats for a leader of `key`, or {} if it has none."""
+    names = [k for k, _c in LEADER_EXTRAS.get(key, [])]
+    return {"extra": {k: int(stats.get(k) or 0) for k in names}} if names else {}
+
+
 def _leader_builder(player_weekly, warnings):
     """Returns leaders_through(week) -> {stat_key: {"by_team": {team: leader}, ...}} (cached)."""
     rows = []
@@ -291,6 +308,7 @@ def _leader_builder(player_weekly, warnings):
         tcol, wcol, stcol = _col(sample, TEAM_COLS), _col(sample, WEEK_COLS), _col(sample, SEASON_TYPE_COLS)
         idcol, ncol, pcol = _col(sample, PLAYER_ID_COLS), _col(sample, PLAYER_NAME_COLS), _col(sample, POSITION_COLS)
         stat_cols = {key: _col(sample, cands) for key, _label, cands in LEADER_STATS}
+        stat_cols.update({key: _col(sample, cands) for key, cands in _EXTRA_COLS})
         missing = [k for k, c in stat_cols.items() if not c]
         if missing:
             warnings.append(f"page1 leaders: player stats missing columns for {missing} (have: {sorted(sample)[:20]}...)")
@@ -339,7 +357,7 @@ def _leader_builder(player_weekly, warnings):
                 if team not in by_team or v > by_team[team]["value"]:
                     name, pos = info.get(pid, ("", ""))
                     by_team[team] = {"name": short_name(name), "full_name": name, "position": pos or "",
-                                     "value": v, "league_rank": league_rank.get(pid)}
+                                     "value": v, "league_rank": league_rank.get(pid), **_extras(key, s)}
             result[key] = by_team
         cache[week_limit] = result
         return result
@@ -357,7 +375,7 @@ def _leader_builder(player_weekly, warnings):
                 v = r["stats"].get(key, 0)
                 if v > 0 and (best is None or v > best["value"]):
                     best = {"name": short_name(r["name"]), "full_name": r["name"], "position": r["position"] or "",
-                            "value": v, "league_rank": None}
+                            "value": v, "league_rank": None, **_extras(key, r["stats"])}
             out[key] = best
         return out
 
@@ -1004,9 +1022,15 @@ def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, w
                     },
                 }
 
+            # A final game shows that game's leaders -- but nflverse publishes per-game player stats
+            # some hours after the final whistle, and until they land every game leader would be
+            # empty. Keep showing season leaders (with crowns) until the game has any stats at all.
+            game_scope = False
             if g["final"]:
                 game = {g["away"]: leaders_through.game(g["away"], g["week"]),
                         g["home"]: leaders_through.game(g["home"], g["week"])}
+                game_scope = any(v for side_leaders in game.values() for v in side_leaders.values())
+            if game_scope:
                 pick = lambda k, team: game[team].get(k)
             else:
                 pick = lambda k, team: leaders.get(k, {}).get(team)
@@ -1028,7 +1052,7 @@ def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, w
                 "stats_through_week": (limit - 1) if limit else "regular season",
                 "away": side(g["away"], g["home"]),
                 "home": side(g["home"], g["away"]),
-                "leaders_scope": "game" if g["final"] else "season",
+                "leaders_scope": "game" if game_scope else "season",
                 "leaders": [
                     {"key": k, "label": lbl, "away": pick(k, g["away"]), "home": pick(k, g["home"])}
                     for k, lbl, _c in LEADER_STATS

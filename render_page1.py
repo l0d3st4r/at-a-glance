@@ -10,7 +10,8 @@ Design = Jason's approved v8 preview (2026-09-16):
         position dots on the right
       * condensed: every card on one screen, same top bar
   - finished games: final score in the top bar next to each abbreviation (loser
-    faded), and the Leaders card shows each team's leaders in THAT game, no crowns
+    faded), and the Leaders card shows each team's leaders in THAT game, no crowns (season
+    leaders until nflverse publishes the game's player stats -- see leaders_scope)
   - cards: Game Info, away team, home team, Leaders
   - team cards: last-game arrow (green up = W, red down = L, yellow line = T),
     record, top 3 injuries (starters first), offense/defense ranks
@@ -489,19 +490,38 @@ def l_team(side, final=False):
     )
 
 
+def leader_extra(x):
+    """The small stats line under a leader's name (2026-09-27), ESPN-style: completion % / carries /
+    receptions, then TDs and INTs only when they aren't zero, dot-separated."""
+    if not x:
+        return ""
+    if "attempts" in x:
+        a = x.get("attempts") or 0
+        parts = [f'{x.get("completions", 0) / a * 100:.1f}%' if a else None,
+                 f'{x["passing_tds"]} TD' if x.get("passing_tds") else None,
+                 f'{x["passing_ints"]} INT' if x.get("passing_ints") else None]
+    elif "carries" in x:
+        parts = [f'{x.get("carries", 0)} CAR', f'{x["rushing_tds"]} TD' if x.get("rushing_tds") else None]
+    else:
+        parts = [f'{x.get("receptions", 0)} REC', f'{x["receiving_tds"]} TD' if x.get("receiving_tds") else None]
+    return " · ".join(p for p in parts if p)
+
+
 def leader_cell(p):
     if not p:
         return f'<div class="ldr"><div class="ldr-v na"><span>{DASH}</span></div><div class="ldr-n">&nbsp;</div></div>'
+    extra = leader_extra(p.get("extra"))
     return (
         f'<div class="ldr"><div class="ldr-v"><span>{esc(fmt_value(p.get("value"))).replace(",", "<i class=cm>,</i>")}</span>{crown(p.get("league_rank"))}</div>'
-        f'<div class="ldr-n"><span class="nm">{esc(p.get("name") or "")}</span><span class="pos">{esc(p.get("position") or "")}</span></div></div>'
+        f'<div class="ldr-n"><span class="nm">{esc(p.get("name") or "")}</span><span class="pos">{esc(p.get("position") or "")}</span></div>'
+        + (f'<div class="ldr-x">{esc(extra)}</div>' if extra else "") + "</div>"
     )
 
 
 def leader_rows(d):
     return "".join(
         f'<div class="cmp-row">{leader_cell(row.get("away"))}'
-        f'<div class="cmp-lbl">{esc(row.get("label", "")).replace(" ", "<br>")}</div>'
+        f'<div class="cmp-lbl">{esc(row.get("label", ""))}</div>'
         f'{leader_cell(row.get("home"))}</div>'
         for row in d.get("leaders") or []
     )
@@ -1574,16 +1594,21 @@ a.card.c-team{padding:var(--ctitle) 10px clamp(8px,1.4vh,14px);display:flex;flex
 /* (2026-09-17, Jason) taller card, and the extra height goes into the gaps between rows --
    no new elements, same number sizes. Each row is its own flex item so space-between can
    spread them; the name still hugs its own stat (v15). */
-a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(--ctitle) 0 clamp(10px,1.7vh,18px);overflow:hidden}
+/* (2026-09-27) ESPN-style rows with a stats line under each name (see .cmp-row further down).
+   To fit that third line on phones the team-color pills ride on the title line instead of
+   taking a row of their own, and the card's bottom padding is small so the leftover height
+   goes between the rows (space-between) rather than under the last one. */
+a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(--ctitle) 0 6px;overflow:hidden}
 .c-cmp-in{width:84%;height:100%;display:flex;flex-direction:column;justify-content:space-between;
-  padding:clamp(6px,1.1vh,12px) 0}
-.c-cmp-in>.cmp-row:not(.cmp-head){flex:0 0 auto}
-.c-cmp .cmp-row{grid-template-columns:1fr 76px 1fr}
+  padding:5px 0 0;position:relative}
+.c-cmp-in>.cmp-row:not(.cmp-head){flex:0 0 auto;padding-top:3px}
+/* the title strip is --ctitle tall with its text centered; 4.5px is half a pill */
+.c-cmp .cmp-head{position:absolute;left:0;right:0;top:calc(var(--ctitle) / -2 - 4.5px)}
 .c-cmp .ldr-v{position:relative;display:inline-block;font-size:clamp(18px,2.65vh,26px);font-weight:700;line-height:1}
 .c-cmp .ldr-n{font-size:11.5px;line-height:1.1;margin-top:-1px}   /* the name hugs its own stat; the gap to the next row stays larger */
 .cm{font-style:normal}
 .c-cmp .cm{position:relative;top:-.1em}   /* lift thousands commas so their tails clear the name below */
-.c-cmp .cmp-lbl{font-size:10px}
+.c-cmp .cmp-lbl{font-size:10.5px}
 .crown{position:absolute;left:100%;top:50%;transform:translate(4px,-62%);overflow:visible}
 
 /* ===== Large view: one card per screen ===== */
@@ -1721,15 +1746,34 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .rank-sfx{font-size:max(9px,calc(var(--n) * .38));line-height:1;margin-top:-.07em;font-family:Teko,Inter,system-ui,sans-serif;font-weight:700}
 .rank-lbl{font-size:max(8px,calc(var(--n) * .28));font-weight:300;line-height:1;margin-bottom:-.135em;letter-spacing:.02em}
 
-.compare .body{padding:46px 0 20px;justify-content:space-evenly;align-items:center}
+.compare .body{padding:46px 0 20px;justify-content:center;align-items:center}
 .compare .body>.cmp-row{width:90%}
-.compare .cmp-row{grid-template-columns:1fr 84px 1fr}
-.cmp-row{display:grid;grid-template-columns:1fr 104px 1fr;align-items:center}
-.cmp-head{justify-items:center}
+.compare .body>.cmp-row:not(.cmp-head){padding:10px 0}
+/* Leader rows, ESPN-style (2026-09-27), same in both views: both big numbers on the top line at
+   the outer edges with the stat label between them; under each number its name + position and
+   a small stats line, aligned to that team's side. .ldr is display:contents so its three parts
+   land in the row's grid directly. Four columns, not three: the label spans the two middle
+   auto columns, which split its width evenly, so each team's name/stats area (1-2 or 3-4) ends
+   exactly at the row's center line and two long names can't run into each other. */
+.cmp-row{display:grid;grid-template-columns:1fr auto auto 1fr;align-items:end}
+.cmp-row>.ldr{display:contents}
+.cmp-row>.ldr:first-child>.ldr-v{grid-column:1;grid-row:1;justify-self:start}
+.cmp-row>.ldr:last-child>.ldr-v{grid-column:4;grid-row:1;justify-self:end}
+.cmp-row>.cmp-lbl{grid-column:2 / 4;grid-row:1;align-self:center;white-space:nowrap;font-weight:600;padding:0 8px}
+.cmp-row>.ldr>.ldr-n{grid-row:2}
+.cmp-row>.ldr>.ldr-x{grid-row:3}
+.cmp-row>.ldr:first-child>.ldr-n,.cmp-row>.ldr:first-child>.ldr-x{grid-column:1 / 3;justify-self:start;justify-content:flex-start;text-align:left;max-width:100%;padding-right:4px}
+.cmp-row>.ldr:last-child>.ldr-n,.cmp-row>.ldr:last-child>.ldr-x{grid-column:3 / 5;justify-self:end;justify-content:flex-end;text-align:right;max-width:100%;padding-left:4px}
+.ldr-x{font-size:9px;line-height:1.2;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;font-variant-numeric:tabular-nums}
+.compare .ldr-x{font-size:13px;margin-top:2px}
+.compare .cmp-lbl{font-size:14px}
+/* pills sit over their own team's edge, above that side's numbers */
+.cmp-head{grid-template-columns:1fr auto 1fr;align-items:center}
+.cmp-head>:first-child{justify-self:start}
+.cmp-head>:last-child{justify-self:end}
 .pill{display:block;width:56px;height:14px;border-radius:999px}
 .c-cmp .pill{width:36px;height:9px}
-.c-cmp .cmp-head{padding-bottom:4px}
-.ldr{text-align:center;min-width:0}
+.ldr{min-width:0}
 /* Leader values are stats -> Teko; the player names under them stay Inter. */
 .ldr-v{font-size:20px;line-height:1.2;font-family:Teko,Inter,system-ui,sans-serif;font-weight:700}
 .compare .ldr-v{position:relative;display:inline-block;font-size:clamp(28px,8.2vw,36px);line-height:1.05}
@@ -1738,7 +1782,7 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .cmp-row>.ldr:last-child .crown{left:auto;right:100%;transform:translate(-4px,-62%)}
 .compare .cmp-row>.ldr:last-child .ldr-v .crown{transform:translate(-5px,-64%)}
 .compare .ldr-n{margin-top:2px}
-.ldr-n{font-size:14px;white-space:nowrap;display:flex;justify-content:center;min-width:0}
+.ldr-n{font-size:14px;white-space:nowrap;display:flex;min-width:0}
 .ldr-n .nm{overflow:hidden;text-overflow:ellipsis;min-width:0}
 .ldr-n .pos{font-weight:200;flex:none;margin-left:.28em}   /* position never gets cut off */
 .cmp-lbl{font-size:12px;text-align:center;line-height:1.2}
