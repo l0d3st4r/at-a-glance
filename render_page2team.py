@@ -187,7 +187,8 @@ def injuries_body(team_page):
         if r.get("designation"):
             status = f"{status} · {r['designation']}"
         items.append(
-            f'<li><span class="inj-name">{esc(r.get("name") or "")}</span>'
+            f'<li><span class="inj-who"><span class="inj-pos">{esc(r.get("position") or "")}</span>'
+            f'<span class="inj-name">{esc(r.get("name") or "")}</span></span>'
             f'<span class="inj-s"><i class="inj-dot inj-{cls_map.get(r.get("status"), "ques")}"></i>{esc(status)}</span></li>'
         )
     return f'<ul class="l-inj full-inj">{"".join(items)}</ul>'

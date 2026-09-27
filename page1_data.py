@@ -410,7 +410,7 @@ def _depth_builder(depth, warnings):
 
 
 def _injury_builder(injuries, snaps, depth, warnings):
-    """Returns injuries_for(team, week, gameday) -> [{"name", "short", "status", "status_short", "starter"}] (top 3)."""
+    """Returns injuries_for(team, week, gameday) -> [{"name", "short", "position", "status", "status_short", "starter"}] (top 3)."""
     report = defaultdict(list)  # (team, week) -> rows
     if injuries:
         sample = injuries[0]
@@ -470,7 +470,7 @@ def _injury_builder(injuries, snaps, depth, warnings):
             out.append({**r, "starter": is_starter(team, r, week, gameday)})
         out.sort(key=lambda r: (not r["starter"], INJURY_ORDER[r["status"]], r["name"]))
         capped = out if limit is None else out[:limit]
-        return [{"name": r["name"], "short": short_name(r["name"]), "status": r["status"],
+        return [{"name": r["name"], "short": short_name(r["name"]), "position": r.get("position"), "status": r["status"],
                  "status_short": INJURY_SHORT[r["status"]], "starter": r["starter"],
                  "designation": r.get("designation")} for r in capped]
 

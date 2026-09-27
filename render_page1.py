@@ -333,11 +333,17 @@ def game_body(d, hero=""):
     )
 
 
+def inj_who_html(position, name):
+    """Position (WR, CB, ...) left of the player's name; blank when nflverse has none."""
+    return (f'<span class="inj-who"><span class="inj-pos">{esc(position or "")}</span>'
+            f'<span class="inj-name">{esc(name or "")}</span></span>')
+
+
 def injuries_html(side, full):
     """
     Status reads as a colored dot + neutral-colored text (Jason, 2026-09-20 -- was colored
-    text alone); the expanded card also shows nflverse's injury designation (Knee, Ankle, ...)
-    next to the status where there's room for it.
+    text alone). Position sits left of the name; the injury designation (Knee, Ankle, ...)
+    is left to Page 2's full report (2026-09-27).
     """
     rows = side.get("injuries") or []
     if not rows:
@@ -349,10 +355,8 @@ def injuries_html(side, full):
         cls = {"Out": "out", "Doubtful": "doubt", "Questionable": "ques"}.get(status, "ques")
         name = r.get("name") if full else r.get("short")
         label = status if full else r.get("status_short") or status
-        if full and r.get("designation"):
-            label = f"{label} · {r['designation']}"
         out.append(
-            f'<li><span class="inj-name">{esc(name or "")}</span>'
+            f'<li>{inj_who_html(r.get("position"), name)}'
             f'<span class="inj-s"><i class="inj-dot inj-{cls}"></i><span class="inj-status">{esc(label)}</span></span></li>'
         )
     return "".join(out)
@@ -381,10 +385,12 @@ def big_rank(n, label):
     """Rank number + ordinal colored on the green-to-red scale; POINTS/YARDS label stays black.
     Used on the expanded team cards and (smaller, via CSS) on the condensed ones."""
     if not isinstance(n, int):
-        return f'<div class="rank"><span class="rank-n na">{DASH}</span><span class="rank-sfx"></span><span class="rank-lbl">{label}</span></div>'
+        return (f'<div class="rank"><span class="rank-n na">{DASH}</span>'
+                f'<span class="rank-side"><span class="rank-sfx"></span><span class="rank-lbl">{label}</span></span></div>')
     c = rank_color(n)
     return (f'<div class="rank"><span class="rank-n" style="color:{c}">{n}</span>'
-            f'<span class="rank-sfx" style="color:{c}">{ordinal(n)}</span><span class="rank-lbl">{label}</span></div>')
+            f'<span class="rank-side"><span class="rank-sfx" style="color:{c}">{ordinal(n)}</span>'
+            f'<span class="rank-lbl">{label}</span></span></div>')
 
 
 def record_block(side, final):
@@ -556,7 +562,7 @@ def render_p1_block(d, prefix="../"):
     a_score, h_score = header_scores(d)
     game_scope = d.get("leaders_scope") == "game"
     final = bool(d.get("final"))
-    leaders_name = "Game Leaders" if game_scope else "Leaders"
+    leaders_name = "Game Leaders" if game_scope else "Season Leaders"
 
     when_day, when_time = fmt_when(d)
     # One header row, drawn twice (top bar + the middle of the Game Info card) and morphed between the two.
@@ -1513,10 +1519,12 @@ a.card.c-team{padding:var(--ctitle) 10px clamp(8px,1.4vh,14px);display:flex;flex
 /* (2026-09-21, Jason) name/dot/status as one centered block instead of spread edge to edge:
    a 3-column grid (li and .inj-s both unboxed via display:contents so the dot gets its own
    column) with names flush left, statuses flush right, dots in a shared middle column. */
-.c-inj{font-size:12px;line-height:1.28;width:fit-content;max-width:calc(100% - 24px);margin:0 auto;
-  display:grid;grid-template-columns:auto auto auto;column-gap:10px;row-gap:6px;align-items:center}
-.c-inj li:not(.inj-none){display:contents}
-.c-inj .inj-name{overflow:hidden;text-overflow:ellipsis;text-align:left}
+/* (2026-09-27) position column added left of the name; gaps and side margin tightened so the
+   extra column doesn't squeeze names into ellipses on phone-width cards. */
+.c-inj{font-size:12px;line-height:1.28;width:fit-content;max-width:100%;margin:0 auto;
+  display:grid;grid-template-columns:auto auto auto auto;column-gap:8px;row-gap:6px;align-items:center}
+.c-inj li:not(.inj-none),.c-inj .inj-who{display:contents}
+.c-inj .inj-pos{font-size:10px;min-width:0;margin-right:-4px}.c-inj .inj-name{overflow:hidden;text-overflow:ellipsis;text-align:left}
 .c-inj .inj-s{display:contents}
 .c-inj .inj-dot{justify-self:center}
 .c-inj .inj-status{text-align:right;color:var(--text-2)}
@@ -1528,11 +1536,11 @@ a.card.c-team{padding:var(--ctitle) 10px clamp(8px,1.4vh,14px);display:flex;flex
 .c-team .ranks{column-gap:clamp(12px,4cqi,26px)}
 .c-team .rank-col{gap:clamp(2px,.7vh,7px)}
 .c-team .rank-col h3{font-size:13px}
-.c-team .rank{width:auto;column-gap:3px}
 /* (2026-09-21) grown to actually span the ordinal + label stacked beside it, matching the
    expanded card's proportions instead of reading small and cramped */
-.c-team .rank-n{font-size:clamp(28px,3.8vh,36px);min-width:1.25em}
-.c-team .rank-sfx{font-size:13px;padding-top:2px}
+.c-team .rank{--n:clamp(28px,3.8vh,36px);width:auto;column-gap:3px}
+.c-team .rank-n{min-width:1.25em}
+.c-team .rank-sfx{font-size:13px}
 .c-team .rank-lbl{font-size:10px;letter-spacing:.05em}
 
 /* Leaders: bigger numbers, columns pulled toward the center, league-rank crowns */
@@ -1589,10 +1597,10 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
    only what's painted, so that growth eats directly into this margin). Past 680px the card is
    capped at --col (600px) and the gutter opens right up, so the icon grows to something more
    legible there with room to spare. Gap is inverted on purpose: the smaller the icon, the more
-   room it gets, so a tight cluster of small marks doesn't read as one blob -- 18px apart at the
-   small mobile size, down to 14px once the icons are big enough to stay legible closer
-   together. */
-.p1 > .dots{right:3px;gap:18px}
+   room it gets, so a tight cluster of small marks doesn't read as one blob -- 36px apart at the
+   small mobile size, down to 28px once the icons are big enough to stay legible closer
+   together (both doubled 2026-09-27, were 18px / 14px). */
+.p1 > .dots{right:3px;gap:36px}
 .p1 > .dots .dot{width:10px;height:10px;border-radius:0;background:none;opacity:.4;
   display:flex;align-items:center;justify-content:center;transition:opacity .2s}
 .p1 > .dots .dot svg{display:block;width:10px;height:auto;color:#000;transition:transform .2s}
@@ -1601,7 +1609,7 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .p1 > .dots .dot:not(.on):hover{opacity:.7}
 @media (min-width:680px){
   .dots{right:calc(50% - 300px - 22px)}
-  .p1 > .dots{gap:14px}
+  .p1 > .dots{gap:28px}
   .p1 > .dots .dot{width:24px;height:24px}
   .p1 > .dots .dot svg{width:22px}
   .p1 > .dots .dot.on{height:24px}
@@ -1654,6 +1662,9 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .team .injuries{font-size:16px;line-height:1.3}
 .injuries li{display:flex;gap:5px;white-space:nowrap}
 .inj-name{overflow:hidden;text-overflow:ellipsis}
+/* position left of the name (2026-09-27): muted, fixed width so names line up down the list */
+.inj-who{display:flex;align-items:baseline;gap:6px;min-width:0}
+.inj-pos{flex:none;min-width:2.1em;text-align:left;font-weight:400;color:var(--text-2)}
 .inj-s{flex:none;display:inline-flex;align-items:center;gap:5px;color:var(--ink)}
 /* Status reads as a colored dot, not colored text (Jason, 2026-09-20) */
 .inj-dot{width:8px;height:8px;border-radius:50%;flex:none}
@@ -1662,15 +1673,21 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .ranks{display:grid;grid-template-columns:1fr 1fr}
 .rank-col{display:flex;flex-direction:column;align-items:center;gap:12px}
 .rank-col h3{font-size:24px;font-weight:700;line-height:1.2}
-/* row2 is 1fr (2026-09-21, was auto) so it absorbs the extra height rank-n's span needs, which
-   pushes rank-lbl (align-self:end below) down to sit right at rank-n's own bottom edge instead
-   of floating in a gap above it. */
-.rank{display:grid;grid-template-columns:auto auto;grid-template-rows:auto 1fr;column-gap:3px;align-items:start;width:112px}
+/* (2026-09-27) ordinal and label are pinned to the number's *glyphs*, not its line box: Teko's
+   line box runs well past the digits (ascent .96em, descent .48em, digits .65em tall), which left
+   the label sitting ~10px below the digits' baseline. .rank-side is exactly the digit height
+   (--n * .65), offset down by the gap between line-box top and digit top (--n * .09); inside it
+   the ordinal's letter tops sit on its top edge and the label's baseline on its bottom edge.
+   The -.07em / -.135em margins are Teko's and Inter's own line-box-to-glyph offsets at
+   line-height 1. Same rules in both views -- the condensed card only changes --n and sizes. */
+.rank{--n:44px;display:flex;align-items:flex-start;column-gap:3px;width:112px}
 /* Ranks are stats -> Teko (Jason, 2026-09-18); the PTS/YDS labels stay Inter. */
-.rank-n{grid-row:1/3;font-size:44px;line-height:1;text-align:right;min-width:52px;
+.rank-n{font-size:var(--n);line-height:1;text-align:right;min-width:52px;
   font-family:Teko,Inter,system-ui,sans-serif;font-weight:700}
-.rank-sfx{font-size:16px;line-height:1;padding-top:3px;font-family:Teko,Inter,system-ui,sans-serif;font-weight:700}
-.rank-lbl{font-size:12px;font-weight:300;line-height:1;align-self:end;letter-spacing:.02em}
+.rank-side{display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;
+  height:calc(var(--n) * .65);margin-top:calc(var(--n) * .09)}
+.rank-sfx{font-size:16px;line-height:1;margin-top:-.07em;font-family:Teko,Inter,system-ui,sans-serif;font-weight:700}
+.rank-lbl{font-size:12px;font-weight:300;line-height:1;margin-bottom:-.135em;letter-spacing:.02em}
 
 .compare .body{padding:46px 0 20px;justify-content:space-evenly;align-items:center}
 .compare .body>.cmp-row{width:90%}
