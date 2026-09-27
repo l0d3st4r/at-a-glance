@@ -35,10 +35,9 @@ LIGHT = {
     "out": "#A00000", "doubt": "#A52800", "ques": "#B58900",   # injury statuses
     "win": "#1E8A3C", "loss": "#A00000", "tie": "#B58900",
     "theme-color": "#ffffff",            # the browser's address-bar color (read by THEME_JS)
-    # the switch: everything that differs between themes is a token, so the copy inside a
-    # shadow root flips with the rest of the page
-    "sw-track": "rgba(0,0,0,.1)", "sw-ring": "rgba(0,0,0,.06)", "sw-x": "0px",
-    "sw-sun": "1", "sw-moon": "0", "sw-sun-t": "none", "sw-moon-t": "rotate(-60deg) scale(.6)",
+    # the switch: which icon is lit is a token, so the copy inside a shadow root flips with
+    # the rest of the page
+    "sw-sun": "1", "sw-moon": ".35",
 }
 
 # Near-black ground with a slightly lifted tile, so the outlined cards still read as
@@ -53,8 +52,7 @@ DARK = dict(LIGHT, **{
     "out": "#FF6B6B", "doubt": "#FF8A5C", "ques": "#E8B93A",
     "win": "#4CC76E", "loss": "#FF6B6B", "tie": "#E8B93A",
     "theme-color": "#0B0B0C",
-    "sw-track": "rgba(255,255,255,.24)", "sw-ring": "rgba(255,255,255,.08)", "sw-x": "20px",
-    "sw-sun": "0", "sw-moon": "1", "sw-sun-t": "rotate(60deg) scale(.6)", "sw-moon-t": "none",
+    "sw-sun": ".35", "sw-moon": "1",
 })
 
 
@@ -76,32 +74,33 @@ THEME_HEAD_JS = (
     "if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}})();"
 )
 
-# The switch. Sits in the bottom bar's left corner, vertically centered on the same line
-# as the week pill and the +/- toggle (both center at y=26px in the 52px bar).
+# The switch (2026-09-27, was a pill toggle with a sliding knob): just an outline sun and an
+# outline moon side by side. The current theme's icon is lit, the other dimmed; clicking an
+# icon picks that theme. Sits in the bottom bar's left corner, vertically centered on the same
+# line as the week pill and the +/- toggle (both center at y=26px in the 52px bar).
 SWITCH_CSS = """
-.theme-switch{position:absolute;left:16px;top:12px;width:48px;height:28px;padding:0;border:0;background:none;cursor:pointer;
-  -webkit-tap-highlight-color:transparent;transition:transform .2s cubic-bezier(.22,1,.36,1)}
-.theme-switch:hover{transform:scale(1.08)}
-.theme-switch:active{transform:scale(1.14)}
-.theme-switch:focus-visible{outline:2px solid var(--aag-focus);outline-offset:3px;border-radius:999px}
-.ts-track{position:absolute;inset:0;border-radius:999px;background:var(--aag-sw-track);box-shadow:inset 0 0 0 1px var(--aag-sw-ring);
-  transition:background-color .25s ease}
-.ts-knob{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;color:#000;
-  box-shadow:0 1px 3px rgba(0,0,0,.28);transform:translateX(var(--aag-sw-x));transition:transform .3s cubic-bezier(.22,1,.36,1)}
-.ts-knob svg{position:absolute;inset:4px;width:14px;height:14px;transition:opacity .2s ease,transform .3s cubic-bezier(.22,1,.36,1)}
-.ts-sun{opacity:var(--aag-sw-sun);transform:var(--aag-sw-sun-t)}
-.ts-moon{opacity:var(--aag-sw-moon);transform:var(--aag-sw-moon-t)}
+.theme-switch{position:absolute;left:10px;top:12px;display:flex;gap:2px}
+.ts-btn{width:28px;height:28px;padding:0;border:0;background:none;cursor:pointer;color:var(--aag-text);
+  display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;
+  transition:opacity .2s ease,transform .2s cubic-bezier(.22,1,.36,1)}
+.ts-btn svg{width:18px;height:18px;display:block}
+.ts-sun{opacity:var(--aag-sw-sun)}
+.ts-moon{opacity:var(--aag-sw-moon)}
+.ts-btn[aria-pressed=false]:hover{opacity:.7;transform:scale(1.04)}
+.ts-btn:active{transform:scale(1.07)}
+.ts-btn:focus-visible{outline:2px solid var(--aag-focus);outline-offset:1px;border-radius:6px}
 """
 
 SWITCH_HTML = (
-    '<button class="theme-switch" type="button" role="switch" aria-checked="false" aria-label="Dark mode">'
-    '<span class="ts-track"></span><span class="ts-knob">'
-    '<svg class="ts-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">'
-    '<circle cx="12" cy="12" r="4.2" fill="currentColor" stroke="none"/>'
-    '<path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg>'
-    '<svg class="ts-moon" viewBox="0 0 24 24" aria-hidden="true">'
-    '<path d="M20.5 14.6A8.5 8.5 0 0 1 9.4 3.5a8.5 8.5 0 1 0 11.1 11.1Z" fill="currentColor"/></svg>'
-    "</span></button>"
+    '<div class="theme-switch" role="group" aria-label="Color theme">'
+    '<button class="ts-btn ts-sun" type="button" data-pick="light" aria-pressed="true" aria-label="Light mode">'
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">'
+    '<circle cx="12" cy="12" r="4"/>'
+    '<path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg></button>'
+    '<button class="ts-btn ts-moon" type="button" data-pick="dark" aria-pressed="false" aria-label="Dark mode">'
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">'
+    '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></svg></button>'
+    "</div>"
 )
 
 # Runs once per page (Page 0, or a standalone game page). Handles every switch on the
@@ -116,15 +115,15 @@ THEME_JS = r"""
   function system() { return mq.matches ? 'dark' : 'light'; }
   function current() { return de.getAttribute('data-theme') || system(); }
   function switches() {
-    var all = [].slice.call(document.querySelectorAll('.theme-switch'));
+    var all = [].slice.call(document.querySelectorAll('.ts-btn'));
     [].forEach.call(document.querySelectorAll('.p1-host'), function (h) {
-      if (h.shadowRoot) all = all.concat([].slice.call(h.shadowRoot.querySelectorAll('.theme-switch')));
+      if (h.shadowRoot) all = all.concat([].slice.call(h.shadowRoot.querySelectorAll('.ts-btn')));
     });
     return all;
   }
   function sync() {
-    var dark = current() === 'dark';
-    switches().forEach(function (b) { b.setAttribute('aria-checked', String(dark)); });
+    var t = current();
+    switches().forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-pick') === t)); });
     var m = document.querySelector('meta[name=theme-color]');
     if (m) m.setAttribute('content', getComputedStyle(de).getPropertyValue('--aag-theme-color').trim() || '#ffffff');
   }
@@ -137,9 +136,10 @@ THEME_JS = r"""
   document.addEventListener('click', function (e) {
     var path = e.composedPath ? e.composedPath() : [e.target];
     for (var i = 0; i < path.length && path[i] !== document; i++) {
-      if (path[i].classList && path[i].classList.contains('theme-switch')) {
+      if (path[i].classList && path[i].classList.contains('ts-btn')) {
         e.preventDefault(); e.stopPropagation();
-        choose(current() === 'dark' ? 'light' : 'dark');
+        var t = path[i].getAttribute('data-pick');
+        if (t !== current()) choose(t);
         return;
       }
     }

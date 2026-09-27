@@ -175,7 +175,7 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
 .toggle{position:absolute;right:16px;top:9px;width:34px;height:34px;border:0;background:none;color:var(--text);padding:0;
   display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;
   transition:transform .2s cubic-bezier(.22,1,.36,1)}
-.toggle:hover{transform:scale(1.18)}
+.toggle:hover{transform:scale(1.09)}
 .toggle:active{transform:scale(1.30)}
 .toggle:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px;border-radius:50%}
 .toggle .i-plus{display:none}
@@ -214,7 +214,7 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
   background:var(--tile);border:1px solid var(--tile-border);border-radius:20px;
   transition:transform .16s ease,background-color .16s ease,border-color .16s ease}
 /* (2026-09-17, Jason) hover/press scales the tile and brightens its outline -- no fill */
-.game:hover,.game:focus-visible{transform:scale(1.03);border-color:var(--tile-border-hover)}
+.game:hover,.game:focus-visible{transform:scale(1.015);border-color:var(--tile-border-hover)}
 .game:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px}
 .game.placeholder{color:var(--text-2)}
 .game.placeholder:hover{transform:none;border-color:var(--tile-border)}
@@ -289,7 +289,7 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
    between tiles. */
 [data-view=condensed] .game{flex:1;min-height:0;border-radius:12px;padding:2px 6px;
   grid-template-columns:minmax(0,34px) minmax(0,130px) 1fr minmax(0,130px) minmax(0,34px)}
-[data-view=condensed] .game:hover,[data-view=condensed] .game:focus-visible{transform:scale(1.02)}
+[data-view=condensed] .game:hover,[data-view=condensed] .game:focus-visible{transform:scale(1.01)}
 [data-view=condensed] .team img{width:30px;height:30px}
 /* A helmet can never be taller than the tile holding it. The tile is its own size container,
    so when a long week squeezes the tiles the helmets scale down with them instead of poking
