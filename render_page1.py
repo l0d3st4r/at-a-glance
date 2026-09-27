@@ -1528,9 +1528,10 @@ a.card.c-team{padding:var(--ctitle) 10px clamp(8px,1.4vh,14px);display:flex;flex
    a 3-column grid (li and .inj-s both unboxed via display:contents so the dot gets its own
    column) with names flush left, statuses flush right, dots in a shared middle column. */
 /* (2026-09-27) position column added left of the name; gaps and side margin tightened so the
-   extra column doesn't squeeze names into ellipses on phone-width cards. */
+   extra column doesn't squeeze names into ellipses on phone-width cards. Row gap cut from 6px
+   to 2px the same day -- the lines read as one tighter list (expanded card unchanged). */
 .c-inj{font-size:12px;line-height:1.28;width:fit-content;max-width:100%;margin:0 auto;
-  display:grid;grid-template-columns:auto auto auto auto;column-gap:8px;row-gap:6px;align-items:center}
+  display:grid;grid-template-columns:auto auto auto auto;column-gap:8px;row-gap:2px;align-items:center}
 .c-inj li:not(.inj-none),.c-inj .inj-who{display:contents}
 .c-inj .inj-pos{font-size:10px;min-width:0;margin-right:-4px}.c-inj .inj-name{overflow:hidden;text-overflow:ellipsis;text-align:left}
 .c-inj .inj-s{display:contents}
