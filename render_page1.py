@@ -1767,6 +1767,8 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .ldr-x{font-size:9px;line-height:1.2;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;font-variant-numeric:tabular-nums}
 .compare .ldr-x{font-size:13px;margin-top:2px}
 .compare .cmp-lbl{font-size:14px}
+/* expanded: two-word labels stack, "Passing" centered over "Yards" (min-content = one word per line) */
+.compare .cmp-row>.cmp-lbl{white-space:normal;width:min-content;justify-self:center}
 /* pills sit over their own team's edge, above that side's numbers */
 .cmp-head{grid-template-columns:1fr auto 1fr;align-items:center}
 .cmp-head>:first-child{justify-self:start}
