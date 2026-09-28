@@ -37,7 +37,9 @@ import traceback
 from datetime import date
 
 import helmets
+import player_stats
 import render_page2gameinfo
+import render_page2players
 import render_page2team
 import stadium_icons
 import theme
@@ -680,13 +682,18 @@ def render_p1_block(d, prefix="../"):
         home_page = render_page2team.render_team_block(home, "home", prefix)
     except Exception:
         home_page = ""
+    try:
+        players_page = render_page2players.render_players_block(d)
+    except Exception:
+        players_page = ""
     has_detail = " ".join(k for k, block in
-                           (("game-info", page2), ("away-team", away_page), ("home-team", home_page)) if block)
+                           (("game-info", page2), ("away-team", away_page), ("home-team", home_page),
+                            ("leaders", players_page)) if block)
     has_detail_attr = f' data-has-detail="{esc(has_detail)}"' if has_detail else ""
     win = win_side(d)
     win_attr = f' data-win="{win}"' if win else ""
     return (f'<div class="p1" data-view="large" data-head="card"{" data-final" if final else ""}{win_attr}{has_detail_attr} '
-            f'data-game="{esc(d.get("game_id"))}">{bar}{condensed}{large}{page2}{away_page}{home_page}</div>')
+            f'data-game="{esc(d.get("game_id"))}">{bar}{condensed}{large}{page2}{away_page}{home_page}{players_page}</div>')
 
 
 def render_standalone(d):
@@ -703,7 +710,7 @@ def render_standalone(d):
         "<link rel='preconnect' href='https://fonts.googleapis.com'><link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>"
         "<link href='https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;700;900&display=swap' rel='stylesheet'>"
         "<link href='https://fonts.googleapis.com/css2?family=Saira:ital,wdth,wght@1,50..125,400..900&family=Teko:wght@400..700&display=swap' rel='stylesheet'>"
-        f"<style id='p1-css'>{P1_CSS}{render_page2gameinfo.P2_CSS}{render_page2team.P3_CSS}</style>"
+        f"<style id='p1-css'>{P1_CSS}{render_page2gameinfo.P2_CSS}{render_page2team.P3_CSS}{render_page2players.P4_CSS}</style>"
         # the theme tokens sit on this page's own root (on Page 0 they come from Page 0's root)
         f"<style>{theme.THEME_CSS}html,body{{margin:0;background:var(--aag-bg)}}</style></head><body>"
         f"{render_p1_block(d)}"
@@ -715,11 +722,18 @@ def render_standalone(d):
 def write_all(data, site_dir, warnings=None):
     """Write site/game/<game_id>.html for every game in data['game_details']. Returns the count."""
     details = data.get("game_details") or {}
+    player_weeks = data.get("player_weeks") or {}
     out_dir = os.path.join(site_dir, "game")
     os.makedirs(out_dir, exist_ok=True)
     count = 0
     for gid, d in details.items():
         try:
+            # Player Stats page (render_page2players.py): each team's season to date, totaled here
+            # from the per-week rows rather than stored per game (player_stats.py)
+            if player_weeks:
+                limit = d.get("week") if d.get("game_type") == "REG" else None
+                d = dict(d, player_stats={side: player_stats.season_totals(player_weeks, (d.get(side) or {}).get("team"), limit)
+                                          for side in ("away", "home")})
             safe = "".join(ch for ch in str(gid) if ch.isalnum() or ch in "_-")
             with open(os.path.join(out_dir, f"{safe}.html"), "w", encoding="utf-8") as f:
                 f.write(render_standalone(d))
@@ -1017,13 +1031,14 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
   //         first card: Page 2 fades while a card outline shrinks back onto the Game Info card.
   // URL: "/game-info" is added to the hash (#game-<id>/game-info, or #/game-info on the standalone
   // page) and pushed to history, so back closes it and a shared link opens straight into it.
-  // Detail registry: up to three nested deep-dives can live inside this .p1 (Game Info,
-  // away team, home team -- render_page2gameinfo.py / render_page2team.py), each its own
+  // Detail registry: up to four nested deep-dives can live inside this .p1 (Game Info,
+  // away team, home team, player stats -- render_page2gameinfo.py / render_page2team.py /
+  // render_page2players.py, in Page 1's card order), each its own
   // .p2[data-page=<key>] with its own deck/slots/dots (and, Game Info only, a condensed
   // layer). Only one is ever open at a time (wrap's data-detail names which), so the
   // functions below all look it up fresh via curDetail() rather than closing over a single
   // fixed set of elements the way this used to when Game Info was the only one (2026-09-20).
-  var DETAIL_KEYS = ['game-info', 'away-team', 'home-team'];
+  var DETAIL_KEYS = ['game-info', 'away-team', 'home-team', 'leaders'];
   var p2Back = root.querySelector('.p2-back');
   var details = {};
   DETAIL_KEYS.forEach(function (key) {
@@ -1095,6 +1110,25 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     d.cond.forEach(function (c, k) {
       on(c, 'click', function (e) { e.preventDefault(); detailView('large', k); });
       on(c, 'keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); detailView('large', k); } });
+    });
+  });
+  // Player Stats (render_page2players.py): the team switch on Rushing / Receiving / Defense, and
+  // the fade on a table's right edge while it's wider than its card and not scrolled to the end.
+  // A ResizeObserver re-checks each table as it's first shown (its page and pane start hidden).
+  function psMore(tw) { tw.classList.toggle('more', tw.scrollWidth > tw.clientWidth + 2 && tw.scrollLeft + tw.clientWidth < tw.scrollWidth - 2); }
+  var psTables = [].slice.call(root.querySelectorAll('.ps-tw'));
+  psTables.forEach(function (tw) { on(tw, 'scroll', function () { psMore(tw); }, { passive: true }); });
+  var psRO = window.ResizeObserver ? new ResizeObserver(function (es) { es.forEach(function (x) { psMore(x.target); }); }) : null;
+  if (psRO) psTables.forEach(function (tw) { psRO.observe(tw); });
+  [].slice.call(root.querySelectorAll('.ps-tab')).forEach(function (b) {
+    on(b, 'click', function (e) {
+      e.preventDefault(); e.stopPropagation();   // a tab, not a tap on the card around it
+      var c = b.closest('.card'), team = b.getAttribute('data-team');
+      [].slice.call(c.querySelectorAll('.ps-tab')).forEach(function (x) {
+        x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
+      });
+      [].slice.call(c.querySelectorAll('.ps-pane')).forEach(function (p) { p.classList.toggle('on', p.getAttribute('data-team') === team); });
+      var sc = c.querySelector('.ps-scroll'); if (sc) sc.scrollTop = 0;
     });
   });
   function detailCards(d) { return large() ? d.slots.map(function (s) { return s.querySelector('a.card'); }) : d.cond; }
@@ -1259,6 +1293,9 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     return key && details[key] ? details[key] : null;
   }
   on(wrap, 'touchstart', function (e) {
+    // a sideways swipe on a Player Stats table that's wider than its card scrolls the table instead
+    var tw = e.target && e.target.closest && e.target.closest('.ps-tw');
+    if (tw && tw.scrollWidth > tw.clientWidth + 2) { detailSwipe = null; return; }
     detailSwipe = (detailOpen() && large() && !detailBusy && e.touches.length === 1)
       ? { x0: e.touches[0].clientX, y0: e.touches[0].clientY, dx: 0, dir: 0, mode: 'pending', t0: Date.now(), neighbor: null }
       : null;
@@ -1429,12 +1466,20 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     card: function () { return lastCard; },
     head: visibleHead,
     detail: detailOpen,
-    detailAtTop: function () { var d = curDetail(); return !large() || !d || !d.deck || d.deck.scrollTop <= 1; },
+    // e (optional): the touch -- a pull that starts inside a Player Stats list scrolled down
+    // scrolls the list back up instead of closing the page
+    detailAtTop: function (e) {
+      var d = curDetail();
+      var path = e && e.composedPath ? e.composedPath() : [];
+      for (var i = 0; i < path.length; i++) if (path[i].classList && path[i].classList.contains('ps-scroll') && path[i].scrollTop > 1) return false;
+      return !large() || !d || !d.deck || d.deck.scrollTop <= 1;
+    },
     closeDetail: closeDetail,
     pullDetail: pullDetail,
     pinch: pinchToggle,
     destroy: function () {
       if (cdTimer) clearInterval(cdTimer);
+      if (psRO) psRO.disconnect();
       bound.forEach(function (b) { b[0].removeEventListener(b[1], b[2], b[3]); }); bound = [];
     }
   };

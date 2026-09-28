@@ -1218,7 +1218,7 @@ PAGE1_OVERLAY_JS = r"""
         mode = 'pinch'; d0 = dist(e.touches); scale = 1;
       } else if (e.touches.length === 1) {
         mode = 'pending'; x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0; dy = 0; t0 = Date.now();
-        canPull = detailOn(s) ? s.inst.detailAtTop() : atScrollTop(e);   // Page 2: first card, or condensed
+        canPull = detailOn(s) ? s.inst.detailAtTop(e) : atScrollTop(e);   // Page 2: first card, or condensed
         s.touching = true;   // a bounce only counts as a pull while a finger is down
       }
     }, { passive: true });

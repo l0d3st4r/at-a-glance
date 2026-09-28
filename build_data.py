@@ -30,6 +30,7 @@ from stadiums import STADIUMS
 from weather import get_kickoff_weather
 from ranks import compute_ranks
 import page1_data
+import player_stats
 import snapshot
 
 OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "data", "matchups.json")
@@ -333,7 +334,7 @@ def main():
 
     # Page 1 (matchup page) data for every game of the season. Wrapped so a
     # problem here can never break Page 0's data above.
-    game_details = {}
+    game_details, player_weeks = {}, {}
     try:
         team_weekly, err = nflverse_client.get_team_stats_weekly(season)
         if err:
@@ -341,6 +342,10 @@ def main():
         player_weekly, err = nflverse_client.get_player_stats_weekly(season)
         if err:
             warnings.append(f"get_player_stats_weekly: {err}")
+        try:   # Page 2 Player Stats (2026-09-28): stored once per team, totaled per game at render time
+            player_weeks = player_stats.build_player_weeks(player_weekly, warnings)
+        except Exception as e:
+            warnings.append(f"build_player_weeks: {e}")
         snaps, err = nflverse_client.get_snap_counts(season)
         if err:
             warnings.append(f"get_snap_counts: {err}")
@@ -371,6 +376,7 @@ def main():
         "matchups": matchups,
         "season_weeks": season_weeks,
         "game_details": game_details,
+        "player_weeks": player_weeks,
     }
 
     os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
