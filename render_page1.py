@@ -347,11 +347,15 @@ def game_body(d, hero=""):
     small = f"<small>{ampm}</small>" if ampm else ""
     headline = f'<div class="time">{esc(t)}{small}</div>'
     corner = f'<div class="network">{esc(fmt_network(d.get("networks")))}</div>'
+    final = bool(d.get("final"))
+    top = (f'<div class="game-top{" final-top" if final else ""}">'
+           f'<div>{headline}<div class="date">{esc(fmt_date(d.get("gameday")))}</div></div>'
+           f'{corner}</div>')
+    # (2026-09-27) a finished game leads with its teams/score header, then time + date, then
+    # city + weather; an upcoming game keeps time + date first with the header in the middle
+    lead = hero + top if final else top + hero
     return (
-        '<div class="game-top">'
-        f'<div>{headline}<div class="date">{esc(fmt_date(d.get("gameday")))}</div></div>'
-        f'{corner}</div>'
-        f'{hero}'
+        f'{lead}'
         f'<div class="game-bottom"><div class="city">{esc(venue.get("city") or "")}</div><div class="weather">{weather}</div></div>'
     )
 
@@ -1701,7 +1705,7 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 }
 
 .game .body{padding:44px 24px 32px;justify-content:space-between;container-type:inline-size}
-/* the header, big, in the middle of the Game Info card; sized to fit the card (a final-score row is ~15.5em wide) */
+/* the header, big, in the Game Info card -- at the top for a finished game, in the middle for an upcoming one (2026-09-27); sized to fit the card (a final-score row is ~15.5em wide) */
 .hero{display:flex;justify-content:center}
 .hero .teams{gap:.5em;font-size:min(38px,12cqi)}   /* the stacked row is ~7.5em wide, so it can fill the card */
 .game-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
@@ -1709,6 +1713,10 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .time small{font-size:16px;font-weight:400;letter-spacing:0;margin-left:6px}
 .date{white-space:nowrap;font-size:34px;font-weight:700;line-height:1.15;margin-top:4px}
 .network{font-size:16px;margin-top:40px;text-align:right;min-width:0}
+/* finished games (2026-09-27): the start time matters less once there's a score, so it drops
+   to about the date's size; TV stays level with it */
+.final-top .time{font-size:38px}
+.final-top .network{margin-top:10px}
 .game-bottom{display:flex;justify-content:space-between;align-items:center}
 .city{font-size:18px;padding-left:8px}
 .weather{display:flex;align-items:center;gap:14px}
@@ -1821,7 +1829,7 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .ldr-n .pos{font-weight:200;flex:none;margin-left:.28em}   /* position never gets cut off */
 .cmp-lbl{font-size:12px;text-align:center;line-height:1.2}
 
-@media (max-width:400px){.final-lbl{font-size:11px}.view-l .time{font-size:54px}.view-l .date{font-size:29px}.team .record{font-size:62px}.team .record.rec-4{font-size:48px}.team .record.rec-5{font-size:42px}.team .record.rec-6{font-size:35px}
+@media (max-width:400px){.final-lbl{font-size:11px}.view-l .time{font-size:54px}.view-l .final-top .time{font-size:36px}.view-l .date{font-size:29px}.team .record{font-size:62px}.team .record.rec-4{font-size:48px}.team .record.rec-5{font-size:42px}.team .record.rec-6{font-size:35px}
   .game .body{padding-left:16px;padding-right:16px}.team .body>*{width:min(272px,calc(100% - 64px))}}
 @media (max-height:700px){.p1{--peek:28px}.l-id img{width:64px;height:64px}}
 /* no prefers-reduced-motion override: motion always plays (Jason, 2026-09-17) */
