@@ -99,11 +99,12 @@ def season_totals(player_weeks, team, week_limit):
 
 # ---------------------------------------------------------------- league top 3 (gold / silver / bronze)
 # The stats a player can medal in (Jason, 2026-09-28): 1st / 2nd / 3rd in the whole league over
-# the same weeks as the page. Most is best for all of them -- passing INTs included, as asked.
+# the same weeks as the page, most being best for all of them. Interceptions thrown were dropped
+# (most is worst there); defensive interceptions stay.
 # Y/A only ranks qualified passers (the NFL's 14 attempts per team game), so a backup's lone
 # 40-yard completion doesn't top the league.
 MEDAL_STATS = {
-    "pyds": lambda r: r["pyds"], "ptd": lambda r: r["ptd"], "int": lambda r: r["int"],
+    "pyds": lambda r: r["pyds"], "ptd": lambda r: r["ptd"],
     "ypa": lambda r: r["pyds"] / r["att"] if r["att"] else 0,
     "car": lambda r: r["car"], "ryds": lambda r: r["ryds"], "rtd": lambda r: r["rtd"],
     "rec": lambda r: r["rec"], "reyds": lambda r: r["reyds"], "retd": lambda r: r["retd"],

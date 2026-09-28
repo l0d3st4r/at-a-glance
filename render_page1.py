@@ -1129,15 +1129,21 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
   psTables.forEach(function (tw) { on(tw, 'scroll', function () { psMore(tw); }, { passive: true }); });
   var psRO = window.ResizeObserver ? new ResizeObserver(function (es) { es.forEach(function (x) { psMore(x.target); }); }) : null;
   if (psRO) psTables.forEach(function (tw) { psRO.observe(tw); });
+  // One switch inside an expanded card changes just that card; the condensed view's single switch
+  // changes the whole page -- every condensed card, and the expanded cards' switches with it, so
+  // tapping a condensed card opens on the same team.
+  function psTeam(scope, team) {
+    [].slice.call(scope.querySelectorAll('.ps-tab')).forEach(function (x) {
+      var onIt = x.getAttribute('data-team') === team;
+      x.classList.toggle('on', onIt); x.setAttribute('aria-pressed', onIt ? 'true' : 'false');
+    });
+    [].slice.call(scope.querySelectorAll('.ps-pane, .pc-p')).forEach(function (p) { p.classList.toggle('on', p.getAttribute('data-team') === team); });
+    [].slice.call(scope.querySelectorAll('.ps-scroll')).forEach(function (sc) { sc.scrollTop = 0; });
+  }
   [].slice.call(root.querySelectorAll('.ps-tab')).forEach(function (b) {
     on(b, 'click', function (e) {
       e.preventDefault(); e.stopPropagation();   // a tab, not a tap on the card around it
-      var c = b.closest('.card'), team = b.getAttribute('data-team');
-      [].slice.call(c.querySelectorAll('.ps-tab')).forEach(function (x) {
-        x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
-      });
-      [].slice.call(c.querySelectorAll('.ps-pane')).forEach(function (p) { p.classList.toggle('on', p.getAttribute('data-team') === team); });
-      var sc = c.querySelector('.ps-scroll'); if (sc) sc.scrollTop = 0;
+      psTeam(b.closest('.pc-sw') ? b.closest('.p2') : b.closest('.card'), b.getAttribute('data-team'));
     });
   });
   // Tap a column header to sort its table by that stat: most first, then least, then back again,
