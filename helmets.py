@@ -152,22 +152,24 @@ OUTLINE_PAD = 3
 OUTLINE_COLOR = "#fff"
 
 
-def helmet_svg(team, mirrored=False, id_prefix=None):
+def helmet_svg(team, mirrored=False, id_prefix=None, outline_width=OUTLINE_WIDTH, outline_pad=OUTLINE_PAD):
     """
     Return the SVG markup for one team's helmet: shell, ear piece and facemask, each with
     its own colour and gradient (the same three-part build as the helmet picker).
     mirrored=True flips it horizontally (used for the home team on the right, so the two
     helmets face each other).
     id_prefix keeps gradient ids unique if several helmets are inlined on one page.
+    outline_width / outline_pad: the favicon draws the same sticker outline thicker, so it
+    still reads at 16-32px (see favicon_svg).
     """
     shell, mask = TEAM_COLORS.get(team, FALLBACK_COLORS)
     ear = EAR_COLORS.get(team, FALLBACK_EAR)
     shell_top, shell_bottom = SHADING_OVERRIDES.get(team, (SHELL_LIGHTEN_TOP, SHELL_DARKEN_BOTTOM))
     pid = id_prefix or f"helmet-{team or 'x'}{'-m' if mirrored else ''}"
     flip = ' transform="translate(100 0) scale(-1 1)"' if mirrored else ""
-    box = 100 + 2 * OUTLINE_PAD
+    box = 100 + 2 * outline_pad
     return (
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{-OUTLINE_PAD} {-OUTLINE_PAD} {box} {box}" role="img" '
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{-outline_pad} {-outline_pad} {box} {box}" role="img" '
         f'aria-label="{team} helmet">'
         "<defs>"
         f'<linearGradient id="{pid}-shell" x1="0.4975" x2="0.5025" y1="0" y2="1">'
@@ -186,7 +188,7 @@ def helmet_svg(team, mirrored=False, id_prefix=None):
         "</defs>"
         f"<g{flip}>"
         # the outline: a white copy of all three parts, stroked, underneath the colored ones
-        f'<g fill="{OUTLINE_COLOR}" stroke="{OUTLINE_COLOR}" stroke-width="{2 * OUTLINE_WIDTH}" stroke-linejoin="round">'
+        f'<g fill="{OUTLINE_COLOR}" stroke="{OUTLINE_COLOR}" stroke-width="{2 * outline_width}" stroke-linejoin="round">'
         f'<path d="{SHELL_PATH}"/>'
         f'<path d="{EAR_PATH}" transform="translate(0 33.444)"/>'
         f'<path d="{MASK_PATH}" transform="translate(47.641 42.126)"/>'
@@ -216,6 +218,29 @@ def write_all(out_dir):
         with open(os.path.join(out_dir, name), "w", encoding="utf-8") as f:
             f.write(helmet_svg("_unknown", mirrored=mirrored))
     return out_dir
+
+
+# Site favicon (2026-09-27): the gray "unknown" helmet with the same white sticker outline, drawn
+# 2x thicker than on the pages -- at the site's width it would be under half a pixel in a 16-32px
+# browser tab and vanish. Browsers that don't take SVG favicons (and iPhone home screens) use the
+# PNGs in assets/, rendered from this SVG (see assets/README.md).
+FAVICON_OUTLINE_WIDTH = 5
+FAVICON_OUTLINE_PAD = 6
+
+
+def favicon_svg():
+    return helmet_svg("_unknown", id_prefix="favicon",
+                      outline_width=FAVICON_OUTLINE_WIDTH, outline_pad=FAVICON_OUTLINE_PAD)
+
+
+FAVICON_PNGS = ("favicon-32.png", "apple-touch-icon.png")  # committed in assets/, copied into site/
+
+
+def favicon_links(prefix=""):
+    """<head> tags; prefix is the path back to the site root ("../" from site/game/)."""
+    return (f"<link rel='icon' href='{prefix}favicon-32.png' type='image/png' sizes='32x32'>"
+            f"<link rel='icon' href='{prefix}favicon.svg' type='image/svg+xml'>"
+            f"<link rel='apple-touch-icon' href='{prefix}apple-touch-icon.png'>")
 
 
 def helmet_filename(team, mirrored=False):

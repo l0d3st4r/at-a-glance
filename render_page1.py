@@ -692,6 +692,7 @@ def render_standalone(d):
         "<meta name='theme-color' content='#ffffff'>"
         f"<script>{theme.THEME_HEAD_JS}</script>"
         f"<title>{esc(title)}</title>"
+        f"{helmets.favicon_links('../')}"
         "<link rel='preconnect' href='https://fonts.googleapis.com'><link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>"
         "<link href='https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;700;900&display=swap' rel='stylesheet'>"
         "<link href='https://fonts.googleapis.com/css2?family=Saira:ital,wdth,wght@1,50..125,400..900&family=Teko:wght@400..700&display=swap' rel='stylesheet'>"

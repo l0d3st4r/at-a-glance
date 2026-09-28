@@ -1371,6 +1371,7 @@ def render_page0(data):
         f"<script>{theme.THEME_HEAD_JS}</script>"
         f"<title>{esc(current_label)} · At A Glance</title>"
         "<meta name='description' content='Pro Football Upcoming Game Information'>"
+        f"{helmets.favicon_links()}"
         "<link rel='preconnect' href='https://fonts.googleapis.com'>"
         "<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>"
         "<link href='https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;700;900&display=swap' rel='stylesheet'>"
@@ -1443,6 +1444,13 @@ def main():
 
     os.makedirs(SITE_DIR, exist_ok=True)
     helmets.write_all(HELMET_DIR)
+    # favicon (2026-09-27): the SVG is generated like the helmets; the PNG versions are committed
+    with open(os.path.join(SITE_DIR, "favicon.svg"), "w", encoding="utf-8") as f:
+        f.write(helmets.favicon_svg())
+    for name in helmets.FAVICON_PNGS:
+        src = os.path.join(ROOT, "assets", name)
+        if os.path.exists(src):
+            shutil.copyfile(src, os.path.join(SITE_DIR, name))
 
     with open(INDEX_PATH, "w", encoding="utf-8") as f:
         f.write(render_page0(data))
