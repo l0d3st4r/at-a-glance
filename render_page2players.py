@@ -232,14 +232,15 @@ _TKL = (lambda r: r["solo"] + r["ast"] > 0, lambda r: -(r["solo"] + r["ast"]))
 _SCK = (lambda r: r["dsk"] > 0, lambda r: -r["dsk"])
 _INT = (lambda r: r["dint"] > 0, lambda r: -r["dint"])
 
-# (card id, title, section whose columns it shows, who: players -> rows, width)
+# (card id, title, section whose columns it shows, who: players -> rows, width, columns left out here)
+# Defense drops SOLO / QBH / PD / FR and Kicking drops PTS in this view (Jason, 2026-09-28).
 CONDENSED = [
-    ("passing", "Passing", PASSING, lambda ps: _top(ps, PASSING[1], lambda r: -r["pyds"], 1), "row"),
-    ("rushing", "Rushing", RUSHING, lambda ps: _top(ps, RUSHING[1], lambda r: -r["ryds"], 2), "row"),
-    ("receiving", "Receiving", RECEIVING, lambda ps: _top(ps, RECEIVING[1], lambda r: -r["reyds"], 3), "row"),
-    ("defense", "Defense", DEFENSE, lambda ps: _leaders(ps, (_TKL, _SCK, _INT)), "row"),
-    ("kicking", "Kicking", KICKING[0], lambda ps: _top(ps, lambda r: r["fga"] > 0, lambda r: (-r["fga"], -r["fgm"]), 1), "half"),
-    ("returns", "Punt Returns", RETURNS[1], lambda ps: _top(ps, RETURNS[1][1], lambda r: (-r["pryds"], -r["pr"]), 1), "half"),
+    ("passing", "Passing", PASSING, lambda ps: _top(ps, PASSING[1], lambda r: -r["pyds"], 1), "row", ()),
+    ("rushing", "Rushing", RUSHING, lambda ps: _top(ps, RUSHING[1], lambda r: -r["ryds"], 2), "row", ()),
+    ("receiving", "Receiving", RECEIVING, lambda ps: _top(ps, RECEIVING[1], lambda r: -r["reyds"], 3), "row", ()),
+    ("defense", "Defense", DEFENSE, lambda ps: _leaders(ps, (_TKL, _SCK, _INT)), "row", ("SOLO", "QBH", "PD", "FR")),
+    ("kicking", "Kicking", KICKING[0], lambda ps: _top(ps, lambda r: r["fga"] > 0, lambda r: (-r["fga"], -r["fgm"]), 1), "half", ("PTS",)),
+    ("returns", "Punt Returns", RETURNS[1], lambda ps: _top(ps, RETURNS[1][1], lambda r: (-r["pryds"], -r["pr"]), 1), "half", ()),
 ]
 
 
@@ -259,8 +260,9 @@ def condensed_view(teams, stats):
         f'<button type="button" class="ps-tab{" on" if i == 0 else ""}" data-team="{esc(t)}" aria-pressed="{"true" if i == 0 else "false"}">'
         f'{_pill(t)}<span class="abbr">{esc(t)}</span></button>' for i, t in enumerate(teams))
     cards = []
-    for cid, title, section, who, width in CONDENSED:
+    for cid, title, section, who, width, left_out in CONDENSED:
         _h, _keep, _order, cols, medals = section
+        cols = [c for c in cols if c[0] not in left_out]
         panes = "".join(
             f'<div class="pc-p{" on" if i == 0 else ""}" data-team="{esc(t)}">'
             + (_table(who(stats.get(t) or []), cols, empty, medals, sortable=False) if width == "row"
@@ -335,7 +337,7 @@ P4_CSS = r"""
    Each card shows the chosen team's pane (.pc-p.on). */
 .p2-c.pc{grid-template-columns:1fr 1fr;overflow-y:auto;-webkit-overflow-scrolling:touch;
   grid-template-rows:auto minmax(min-content,1.1fr) minmax(min-content,1.5fr) minmax(min-content,2fr)
-    minmax(min-content,2fr) minmax(min-content,1.9fr)}
+    minmax(min-content,2fr) minmax(min-content,1.2fr)}
 .pc-sw{grid-column:1/-1}
 .p2-c.pc a.card.cc{justify-content:flex-start;padding:var(--ctitle) 12px 6px;gap:0}
 .p2-c.pc a.card.pc-row{grid-column:1/-1}
@@ -354,9 +356,11 @@ P4_CSS = r"""
 .pc-who{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px}
 .pc-who .ps-nm{display:inline;font-weight:700}
 .pc-who .ps-pos{display:inline;margin-left:4px}
-.pc-sts{display:flex;flex-wrap:wrap;gap:3px 10px}
-.pc-st{display:flex;flex-direction:column;line-height:1.1}
+/* Kicking / Punt Returns: the stats always on one line (Jason, 2026-09-28), spread across the card */
+.pc-sts{display:flex;flex-wrap:nowrap;justify-content:space-between;gap:6px}
+.pc-st{display:flex;flex-direction:column;line-height:1.1;white-space:nowrap}
 .pc-st b{font-size:14px;font-variant-numeric:tabular-nums}
+@media (max-width:370px){.pc-st b{font-size:13px}.pc .ps-t{font-size:11px}.pc .ps-t td{padding:3px 2px}.pc .ps-t tbody th{padding-right:3px}}
 .pc-st small{font-size:9px;font-weight:700;letter-spacing:.05em;color:var(--text-2)}
 .pc .ps-empty{padding:0;font-size:12px}
 /* The table: player column pinned on the left; a table wider than the card scrolls sideways,
