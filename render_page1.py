@@ -523,7 +523,7 @@ def leader_extra(x):
         return ""
     if "attempts" in x:
         a = x.get("attempts") or 0
-        parts = [f'{x.get("completions", 0) / a * 100:.1f}%' if a else None,
+        parts = [f'{x.get("completions", 0) / a * 100:.0f}%' if a else None,   # whole percent (2026-09-27)
                  f'{x["passing_tds"]} TD' if x.get("passing_tds") else None,
                  f'{x["passing_ints"]} INT' if x.get("passing_ints") else None]
     elif "carries" in x:
