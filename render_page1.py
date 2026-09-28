@@ -1131,7 +1131,8 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
       var sc = c.querySelector('.ps-scroll'); if (sc) sc.scrollTop = 0;
     });
   });
-  // Tap a column header to sort its table by that stat: most first, then least, then back again.
+  // Tap a column header to sort its table by that stat: most first, then least, then back again,
+  // and highlight that column.
   // Cells carry their number in data-v; a cell without one ("—") always goes last, and ties
   // keep the table's starting order (data-i).
   [].slice.call(root.querySelectorAll('.ps-sort')).forEach(function (btn) {
@@ -1142,6 +1143,10 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
       [].slice.call(th.parentNode.children).forEach(function (h) { if (h !== th && h.hasAttribute('aria-sort')) h.setAttribute('aria-sort', 'none'); });
       th.setAttribute('aria-sort', dir);
       var body = table.tBodies[0], rows = [].slice.call(body.rows);
+      // the sorted column is highlighted (.ps-on), like the division table's own-team row
+      [].slice.call(table.querySelectorAll('.ps-on')).forEach(function (c) { c.classList.remove('ps-on'); });
+      th.classList.add('ps-on');
+      rows.forEach(function (r) { r.cells[col].classList.add('ps-on'); });
       function val(r) { var v = r.cells[col].getAttribute('data-v'); return v === null ? null : parseFloat(v); }
       rows.sort(function (a, b) {
         var va = val(a), vb = val(b);

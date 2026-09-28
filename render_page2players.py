@@ -140,23 +140,24 @@ def _sort_value(label, shown, r):
         return None
 
 
-def _cell(label, f, r):
+def _cell(label, f, r, on):
     shown = f(r)
     v = _sort_value(label, shown, r)
-    return f'<td data-v="{v:g}">{esc(shown)}</td>' if v is not None else f"<td>{esc(shown)}</td>"
+    cls = ' class="ps-on"' if on else ""
+    return f'<td{cls} data-v="{v:g}">{esc(shown)}</td>' if v is not None else f"<td{cls}>{esc(shown)}</td>"
 
 
 def _table(rows, cols, empty, sorted_by):
     if not rows:
         return f'<p class="ps-empty">{esc(empty)}</p>'
     head = "".join(
-        f'<th scope="col" aria-sort="{"descending" if label == sorted_by else "none"}">'
+        f'<th scope="col"{" class=ps-on" if label == sorted_by else ""} aria-sort="{"descending" if label == sorted_by else "none"}">'
         f'<button type="button" class="ps-sort">{esc(label)}</button></th>'
         for label, _f in cols)
     body = "".join(
         f'<tr data-i="{i}"><th scope="row"><span class="ps-nm">{esc(short_name(r["name"]))}</span>'
         f'<span class="ps-pos">{esc(r["pos"])}</span></th>'
-        + "".join(_cell(label, f, r) for label, f in cols) + "</tr>"
+        + "".join(_cell(label, f, r, label == sorted_by) for label, f in cols) + "</tr>"
         for i, r in enumerate(rows))
     return (f'<div class="ps-tw"><table class="ps-t"><thead><tr><th scope="col"><span class="vh">Player</span></th>{head}</tr></thead>'
             f"<tbody>{body}</tbody></table></div>")
@@ -249,12 +250,17 @@ P4_CSS = r"""
    and fades out at the right edge while there's more to see (.more, set by P1_JS) */
 .ps-tw{overflow-x:auto;margin:0 -14px;padding:0 14px}
 .ps-tw.more{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent)}
-.ps-t{border-collapse:collapse;width:100%;font-size:12px;font-variant-numeric:tabular-nums}
+.ps-t{border-collapse:separate;border-spacing:0;width:100%;font-size:12px;font-variant-numeric:tabular-nums}
 .ps-t thead th{font-size:10px;font-weight:700;letter-spacing:.05em;color:var(--text-2);text-align:right;padding:0;white-space:nowrap}
 /* Column headers are sort buttons (P1_JS): the sorted one is full strength with an arrow --
    down for most first, up for least first */
 .ps-sort{background:none;border:0;margin:0;padding:4px;font:inherit;letter-spacing:inherit;color:inherit;cursor:pointer;white-space:nowrap}
 .ps-t th[aria-sort=descending],.ps-t th[aria-sort=ascending]{color:var(--text)}
+/* The sorted column is highlighted the way the division table highlights a team's own row
+   (render_page2team .st-row.is-you): tinted, bold, rounded ends (Jason, 2026-09-28) */
+.ps-t .ps-on{background:var(--tile-hover);font-weight:700}
+.ps-t thead .ps-on{border-radius:8px 8px 0 0}
+.ps-t tbody tr:last-child .ps-on{border-radius:0 0 8px 8px}
 .ps-t th[aria-sort=descending] .ps-sort::after{content:"\25BE";margin-left:2px}
 .ps-t th[aria-sort=ascending] .ps-sort::after{content:"\25B4";margin-left:2px}
 .ps-t td{text-align:right;padding:6px 4px;white-space:nowrap;border-top:1px solid var(--tile-border-soft)}
