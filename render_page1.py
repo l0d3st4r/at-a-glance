@@ -39,6 +39,7 @@ from datetime import date
 import helmets
 import render_page2gameinfo
 import render_page2team
+import stadium_icons
 import theme
 
 MONTHS_UPPER = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
@@ -245,7 +246,6 @@ WEATHER_ICONS = {
     "storm": _wx(_CLOUD_HIGH + '<path d="M34 34l-6 8h8l-5 6"/>', "Thunderstorms"),
     "fog": _wx('<path d="M8 16h40M16 26h40M8 36h36"/>', "Fog"),
     "wind": _wx('<path d="M4 14h34a7 7 0 1 0-7-7"/><path d="M4 24h48a7 7 0 1 1-7 7"/><path d="M4 34h26a6 6 0 1 1-6 6"/>', "Windy"),
-    "indoor": _wx('<path d="M8 38a24 24 0 0 1 48 0M4 38h56M32 14v24M20 18l4 20M44 18l-4 20"/>', "Indoors"),
 }
 
 
@@ -316,7 +316,12 @@ def fmt_when(d):
 def weather_html(d):
     w = d.get("weather") or {}
     if w.get("indoor"):
-        return f'<span class="temp temp-word">Indoors</span>{WEATHER_ICONS["indoor"]}'
+        # No forecast indoors, so the slot says what kind of indoors instead (Jason, 2026-09-28):
+        # a retractable roof only counts as indoors once it's recorded closed.
+        roof = (((d.get("info") or {}).get("stadium")) or {}).get("roof_type")
+        kind, word = ("roof_closed", "Roof Closed") if roof == "retractable" else ("dome", "Dome")
+        cls = "temp temp-word temp-word-long" if " " in word else "temp temp-word"
+        return f'<span class="{cls}">{word}</span>{stadium_icons.svg(kind, "wx")}'
     if w.get("available") and w.get("temp_f") is not None:
         return f'<span class="temp">{esc(w["temp_f"])}°</span>{WEATHER_ICONS.get(w.get("condition"), "")}'
     return f'<span class="temp temp-na" title="Forecast not available yet">{DASH}°</span>'
@@ -326,7 +331,7 @@ def game_body_compact(d):
     """Condensed Game Info (2026-09-27): two lines instead of a spread-out block, to give the
     Leaders card more height -- time + date/day left, weather right; then city left, TV right.
     The date uses the top bar's short form ('SUN SEP 27'): spelled out ('SEP 27 Wednesday') it
-    didn't fit beside the time and an 'Indoors' forecast on narrow phones."""
+    didn't fit beside the time and an indoor game's 'Roof Closed' on narrow phones."""
     t, ampm = fmt_time(d.get("gametime"))
     small = f"<small>{ampm}</small>" if ampm else ""
     venue = d.get("venue") or {}
@@ -1556,7 +1561,7 @@ a.card.c-game{padding:var(--ctitle) clamp(16px,5%,28px) 10px;display:flex;flex-d
 .c-game .city{font-size:13px;padding-left:0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .c-game .network{font-size:12px;margin:0;flex:none;color:var(--text-2)}
 .c-game .temp{font-size:clamp(20px,3vh,28px)}
-.c-game .weather{gap:6px;flex:none} .c-game .weather svg{width:28px;height:21px}
+.c-game .weather{gap:6px;flex:none} .c-game .weather svg{width:28px;height:21px} .c-game .weather svg.stad{height:15px;width:auto}
 
 /* Team cards: centered column — trend + record, 3 injuries, spaced ranks */
 .c-teams{display:grid;grid-template-columns:1fr 1fr;gap:8px;min-height:0}
@@ -1723,6 +1728,8 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .game-bottom{display:flex;justify-content:space-between;align-items:center}
 .city{font-size:18px;padding-left:8px}
 .weather{display:flex;align-items:center;gap:14px}
+/* Stadium icons (stadium_icons.py) are sized by height; each drawing keeps its own width. */
+.weather svg.stad{height:30px;width:auto}
 .temp{font-size:43px;font-weight:700;line-height:1}
 
 .team .body{padding:44px 0 30px;justify-content:space-evenly;align-items:center}
@@ -1850,6 +1857,13 @@ a.card{cursor:pointer}
 .morph>.card{position:absolute;left:0;top:0;border:0;border-radius:0;background:transparent;transform:none;transition:none}
 .temp-word{font-size:26px}
 .c-game .temp-word{font-size:clamp(15px,2vh,20px)}   /* shares line 1 with time + date (2026-09-27) */
+/* "Roof Closed" (2026-09-28): one line a step smaller than "Dome" on the expanded card; on the
+   condensed card, where it shares line 1 with the time and date, it stacks "Roof" over
+   "Closed" so the date isn't cut down to its first letters on narrow phones. */
+.temp-word{white-space:nowrap}
+.temp-word-long{font-size:22px}
+.c-game .temp-word-long{white-space:normal;width:min-content;text-align:right;line-height:1.05;
+  font-size:clamp(12px,1.6vh,15px)}
 .temp-na,.rank-n.na,.crank b.na,.ldr-v.na{color:var(--text-3)}
 .inj-none{color:var(--text-2)}
 .l-inj .inj-none{font-weight:400}

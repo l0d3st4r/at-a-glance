@@ -1,6 +1,12 @@
 """
 Stadium icons mockup (2026-09-28) -- NOT part of the live build.
 
+SNAPSHOT: this was the design mockup. The approved version now lives in the real build
+(stadium_icons.py, render_page1.weather_html, render_page2gameinfo), with two changes from
+what's below: Page 1 says "Dome" / "Roof Closed" instead of "Indoors", and a retractable roof
+before kickoff keeps the roof-open icon (approved as mocked). This script only works against
+a site/ built from before that change (commit 2153039); kept for reference.
+
 Jason's four stadium icons (assets/dome.svg, "open air.svg", "roof closed.svg",
 "roof open.svg") swapped in for today's two generic ones:
 

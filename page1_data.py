@@ -25,7 +25,7 @@ before the game):
   - weather ........................ upcoming outdoor games inside the NWS 7-day window:
                                      average temp over kickoff..+3h + most common
                                      condition. Finished games: nflverse's recorded
-                                     temp/wind. Domes: "Indoors".
+                                     temp/wind. Indoors: "Dome" / "Roof Closed".
 Playoff games use the full regular season for ranks/leaders.
 
 Column names come from the live site's raw dump (checked 2026-09-16):

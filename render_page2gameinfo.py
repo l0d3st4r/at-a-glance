@@ -21,7 +21,9 @@ standards already on the site about fonts, layout, interaction"):
                  and amount, wind range + direction, humidity. NOT shown for indoor games
                  (domes, and retractable roofs recorded as closed).
   3. Stadium  -- name, city + state (or country), playing surface, and the roof status
-                 ONLY for retractable roofs (Open / Closed, "TBD" before the game).
+                 ONLY for retractable roofs (Open / Closed, "TBD" before the game). Its icon
+                 is the stadium's type (stadium_icons.py): open air, dome, roof open or roof
+                 closed -- a retractable roof shows open until it's recorded closed.
 
 Site standards applied instead of the Framer mock's literal values: 600px column with
 16px gutters, Page 1's card tokens (white, 1px rgba(0,0,0,.12) border, 20px radius),
@@ -35,6 +37,8 @@ Data: data/matchups.json -> game_details[<id>]["info"] (page1_data.game_info).
 import html
 from datetime import date, datetime, timezone
 
+import stadium_icons
+
 DASH = "—"
 MONTHS_UPPER = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -42,19 +46,6 @@ DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
 
 def esc(v):
     return html.escape(str(v), quote=True)
-
-
-# A generic open bowl with two flags -- drawn for this page, same line weight as the weather icons.
-STADIUM_ICON = (
-    '<svg class="st-icon" viewBox="0 0 64 48" width="88" height="66" fill="none" stroke="currentColor" stroke-width="2.6" '
-    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-    '<ellipse cx="32" cy="22" rx="24" ry="7"/>'
-    '<path d="M8 22v12c0 4 10.7 7 24 7s24-3 24-7V22"/>'
-    '<path d="M14 28v8M22 30v9M32 30.5v10M42 30v9M50 28v8"/>'
-    '<path d="M27 41v-6h10v6"/>'
-    '<path d="M24 15V4l6 2.5-6 2.5M40 15V4l6 2.5-6 2.5"/>'
-    "</svg>"
-)
 
 
 # ---------------------------------------------------------------- formatting
@@ -273,7 +264,7 @@ def stadium_body(st):
         facts.append(f'<div class="fact"><b{" class=na" if roof == "TBD" else ""}>{roof}</b><span>Roof</span></div>')
     place = _place(st)
     return (
-        f'<div class="st-head"><h2 class="st-name">{esc(st.get("name") or "Stadium TBD")}</h2>{STADIUM_ICON}</div>'
+        f'<div class="st-head"><h2 class="st-name">{esc(st.get("name") or "Stadium TBD")}</h2>{stadium_icons.svg(stadium_icons.kind_for(st), "st-icon")}</div>'
         f'{f"<div class=st-city>{place}</div>" if place else ""}'
         f'<div class="st-facts{" one" if len(facts) == 1 else ""}">{"".join(facts)}</div>'
     )
@@ -338,7 +329,7 @@ def stadium_condensed(st):
     place = _place(st)
     return (
         f'<div class="cc-top"><div class="cc-stn"><div class="st-name">{esc(st.get("name") or "Stadium TBD")}</div>'
-        f'{f"<div class=cc-city>{place}</div>" if place else ""}</div>{STADIUM_ICON}</div>'
+        f'{f"<div class=cc-city>{place}</div>" if place else ""}</div>{stadium_icons.svg(stadium_icons.kind_for(st), "st-icon")}</div>'
         f'<div class="strip">{facts}</div>'
     )
 
@@ -433,7 +424,8 @@ P2_CSS = r"""
 .st-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:12px 20px;text-align:center}
 .st-name{font-size:38px;font-weight:700;line-height:1.1;letter-spacing:-.01em}
 .st-icon{display:block;flex:none}
-.p2-l .st-icon{width:104px;height:78px}
+/* Sized by height; each stadium drawing keeps its own width (stadium_icons.py). */
+.p2-l .st-icon{height:54px;width:auto}
 .st-city{font-size:30px;font-weight:700;line-height:1.15;text-align:center}
 .nb{display:inline-block}
 .st-facts{display:grid;grid-template-columns:1fr 1fr;gap:16px;text-align:center}
@@ -471,7 +463,7 @@ a.card.cc{display:flex;flex-direction:column;justify-content:space-evenly;gap:6p
 .cc-stn{min-width:0}
 .cc .st-name{font-size:clamp(20px,3vh,26px);line-height:1.1}
 .cc-city{font-size:14px;margin-top:4px}
-.cc .st-icon{width:64px;height:48px}
+.cc .st-icon{height:34px;width:auto}
 
 @media (max-width:400px){
   .p2 .slot .body{padding-left:18px;padding-right:18px}
@@ -495,7 +487,7 @@ a.card.cc{display:flex;flex-direction:column;justify-content:space-evenly;gap:6p
   .cc .time{font-size:28px}.cc-date{font-size:14px;margin-top:2px}.cd-c .cd-n{font-size:16px}
   .cc .wx-t b{font-size:30px}.cc .wx-ic svg{width:44px;height:33px}
   .cc .st-name{font-size:18px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-  .cc-city{font-size:12px;margin-top:2px}.cc .st-icon{width:48px;height:36px}
+  .cc-city{font-size:12px;margin-top:2px}.cc .st-icon{height:28px;width:auto}
   .sf b{font-size:13px}.sf>span{margin-bottom:2px}
 }
 @media (min-width:601px){
