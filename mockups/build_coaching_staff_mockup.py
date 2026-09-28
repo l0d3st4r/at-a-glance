@@ -13,11 +13,10 @@ The four teams cover the four cases:
   * BAL -- head coach (Minter) calls the defense
   * NYG -- head coach calls neither side (both coordinators call)
 
-Controls at the top switch the theme, the phone size, and the layout:
-  * A "Columns" -- what's built: three columns under the next-game row
-  * B "Rows"    -- the alternative: one line each, label left and name right, which never
-                   has to wrap a name but repeats the head coach's name on its own line
-Option B is CSS injected into the frames only; the live build is option A.
+Controls at the top switch the theme and the phone size. The layout is the one on the
+branch: one row per person, name left and everything they do on the right ("HC, Off. plays"),
+so no name is ever listed twice (Jason, 2026-09-28 -- replaced an earlier three-column
+layout and a label-left/name-right rows option).
 
 Each frame loads from a blob: URL ending in #/away-team or #/home-team -- the page's own
 hash routing then opens that team page, same as tapping the team card. Helmet images are
@@ -45,20 +44,12 @@ FRAMES = [
     ("NYG", "2026_04_ARI_NYG", "home", "HC calls neither side"),
 ]
 
-# Option B, injected into each frame's #p1-css when the Rows layout is picked.
-ROWS_CSS = """
-html[data-mock-layout=rows] .ov-staff{display:flex;flex-direction:column;gap:5px}
-html[data-mock-layout=rows] .ov-coach{flex-direction:row;justify-content:space-between;align-items:baseline;gap:10px}
-html[data-mock-layout=rows] .ov-coach-lbl{font-size:10px;white-space:nowrap}
-html[data-mock-layout=rows] .ov-coach-name{font-size:13px;text-align:right}
-"""
-
-# Runs inside each frame: applies the parent page's theme/layout picks, which ride on the
+# Runs inside each frame: applies the parent page's theme pick, which ride on the
 # iframe's name (window.name) since a blob: URL can't carry a query string.
 FRAME_JS = """
 (function(){try{var o=JSON.parse(window.name||'{}');
 if(o.theme)document.documentElement.setAttribute('data-theme',o.theme);
-if(o.layout)document.documentElement.setAttribute('data-mock-layout',o.layout);}catch(e){}})();
+}catch(e){}})();
 """
 
 SHELL = """<!doctype html>
@@ -87,12 +78,10 @@ figcaption b{display:block;font-size:14px}
 figcaption span{color:var(--text-2);font-size:12px}
 </style></head><body>
 <h1>Overview card: coaching staff</h1>
-<p class="lede">Head coach plus who actually calls each side's plays, under the next-game row. The tag by each
-label says whether that's the head coach (HC) or a coordinator (OC / DC). These are the real rendered pages; swipe
-or scroll inside a phone as usual. <b>A (Columns)</b> is what's built on the branch; <b>B (Rows)</b> is an alternative.</p>
+<p class="lede">Head coach plus who actually calls each side's plays, under the next-game row: one row per person,
+name first, then everything they do, so no name appears twice. These are the real rendered pages; swipe or scroll
+inside a phone as usual.</p>
 <div class="controls">
-  <div class="ctl"><span>Layout</span><div class="seg" data-ctl="layout">
-    <button data-v="cols" aria-pressed="true">A · Columns</button><button data-v="rows" aria-pressed="false">B · Rows</button></div></div>
   <div class="ctl"><span>Theme</span><div class="seg" data-ctl="theme">
     <button data-v="light" aria-pressed="true">Light</button><button data-v="dark" aria-pressed="false">Dark</button></div></div>
   <div class="ctl"><span>Phone</span><div class="seg" data-ctl="size">
@@ -103,7 +92,7 @@ or scroll inside a phone as usual. <b>A (Columns)</b> is what's built on the bra
 <!--MOCK_DATA-->
 <script>
 (function(){
-  var state = {layout:'cols', theme:'light', size:'390x844'};
+  var state = {theme:'light', size:'390x844'};
   var urls = {};
   function url(f){ if(!urls[f.key]) urls[f.key] = URL.createObjectURL(new Blob([MOCK_PAGES[f.key]], {type:'text/html'})); return urls[f.key] + '#/' + f.which + '-team'; }
   function render(){
@@ -113,7 +102,7 @@ or scroll inside a phone as usual. <b>A (Columns)</b> is what's built on the bra
       var fig = document.createElement('figure');
       var ph = document.createElement('div'); ph.className = 'phone';
       var fr = document.createElement('iframe'); fr.width = w; fr.height = h; fr.title = f.label + ' team page';
-      fr.name = JSON.stringify({theme: state.theme, layout: state.layout});
+      fr.name = JSON.stringify({theme: state.theme});
       fr.src = url(f);
       ph.appendChild(fr); fig.appendChild(ph);
       var cap = document.createElement('figcaption');
@@ -151,9 +140,6 @@ def helmet_uri(name, cache={}):
 
 def dress(html):
     html = re.sub(r'(["\'])\.\./helmets/([^"\']+\.svg)\1', lambda m: m.group(1) + helmet_uri(m.group(2)) + m.group(1), html)
-    html, n = re.subn(r"(<style id='p1-css'>.*?)(</style>)", lambda m: m.group(1) + ROWS_CSS + m.group(2), html, count=1, flags=re.S)
-    if not n:
-        raise SystemExit("game page has no #p1-css -- has the markup changed?")
     if 'class="ov-staff"' not in html:
         raise SystemExit("no staff row on the team pages -- build from the branch with coaches.py")
     # FRAME_JS goes after the page's own theme script so the mockup's theme pick wins

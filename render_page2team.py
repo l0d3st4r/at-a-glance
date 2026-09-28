@@ -152,23 +152,38 @@ def _standings_block(standings, team):
 
 
 def _staff_block(coaches):
-    """Head coach plus who actually calls each side's plays (coaches.py). The role tag next to
-    each play-caller's label says whether that's the head coach himself or a coordinator,
-    since the head coach's title alone doesn't tell you (Payton, for one, hands his calls to
-    his OC)."""
+    """Head coach plus whoever calls each side's plays (coaches.py), one row per person --
+    name first, then everything that person does (Jason, 2026-09-28: no name listed twice).
+    So a play-calling head coach is one row, "HC, Off. plays", and a coordinator who calls
+    his side reads "OC, Off. plays" / "DC, Def. plays"."""
     if not coaches:
         return ""
-    cells = [("HEAD COACH", coaches.get("head_coach"), None)]
-    for key, lbl in (("off_caller", "OFF. PLAYS"), ("def_caller", "DEF. PLAYS")):
+    people = []   # [name, [roles]] in order: head coach, offense, defense
+
+    def add(name, role):
+        if not name:
+            return
+        for p in people:
+            if p[0] == name:
+                if role not in p[1]:
+                    p[1].append(role)
+                return
+        people.append([name, [role]])
+
+    add(coaches.get("head_coach"), "HC")
+    for key, duty in (("off_caller", "Off. plays"), ("def_caller", "Def. plays")):
         c = coaches.get(key) or {}
-        cells.append((lbl, c.get("name"), c.get("role")))
-    html_cells = "".join(
-        f'<div class="ov-coach"><span class="ov-coach-lbl"><span>{esc(lbl)}</span>'
-        + (f' <span class="ov-coach-role">· {esc(role)}</span>' if role and name else "")
-        + f'</span><b class="ov-coach-name">{esc(name or DASH)}</b></div>'
-        for lbl, name, role in cells
+        if c.get("role") and c.get("role") != "HC":
+            add(c.get("name"), c["role"])
+        add(c.get("name"), duty)
+    if not people:
+        return ""
+    rows = "".join(
+        f'<li class="ov-coach"><b class="ov-coach-name">{esc(name)}</b>'
+        f'<span class="ov-coach-role">{esc(", ".join(roles))}</span></li>'
+        for name, roles in people
     )
-    return f'<div class="ov-staff">{html_cells}</div>'
+    return f'<ul class="ov-staff">{rows}</ul>'
 
 
 def overview_body(side, team_page, which, prefix):
@@ -410,19 +425,13 @@ P3_CSS = r"""
 .ov-fact b{font-size:15px;font-family:Teko,Inter,system-ui,sans-serif;font-weight:700}
 .ov-fact b small{font-size:9px;font-weight:400;font-family:Inter,sans-serif}
 .ov-fact span{font-size:9px;color:var(--text-2);letter-spacing:.04em}
-/* Coaching staff: head coach + each side's actual play-caller, three columns under the
-   next-game row (Jason, 2026-09-28). Columns size to their content rather than splitting
-   evenly, so a long surname (Schottenheimer) gets the room it needs instead of breaking
-   mid-word; names wrap between first and last name when they have to. */
-.ov-staff{display:grid;grid-template-columns:repeat(3,auto);justify-content:space-between;gap:10px;
-  padding:0 4px 12px;border-bottom:1px solid var(--tile-border-soft);margin-bottom:10px}
-.ov-coach{display:flex;flex-direction:column;gap:2px}
-/* Label and role tag each stay whole, but the tag drops under the label when a column is
-   tight (Dallas's two Schottenheimers on a 375px phone). */
-.ov-coach-lbl{font-size:9px;font-weight:700;letter-spacing:.06em;color:var(--text-2)}
-.ov-coach-lbl > span{white-space:nowrap}
-.ov-coach-role{font-weight:400;display:inline-block;white-space:nowrap}
-.ov-coach-name{font-size:13px;font-weight:700;line-height:1.2}
+/* Coaching staff: one row per person, name left and roles right, under the next-game row
+   (Jason, 2026-09-28). */
+.ov-staff{list-style:none;display:flex;flex-direction:column;gap:6px;padding:0 4px 12px;
+  border-bottom:1px solid var(--tile-border-soft);margin-bottom:10px}
+.ov-coach{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.ov-coach-name{font-size:14px;font-weight:700}
+.ov-coach-role{font-size:12px;color:var(--text-2);white-space:nowrap}
 .ov-h{font-size:13px;font-weight:700;padding:4px 4px 6px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-2)}
 .ov-empty{padding:8px 4px;color:var(--text-2);font-size:13px}
 .rg-list,.st-list,.sc-list{list-style:none;display:flex;flex-direction:column}
@@ -511,7 +520,7 @@ P3_CSS = r"""
   .ov-head{padding:2px 4px 0}
   .ov-head img{width:48px;height:48px}
   .ov-top{padding:8px 4px;margin:6px 0 8px}
-  .ov-staff{padding-bottom:8px;margin-bottom:6px}
+  .ov-staff{gap:4px;padding-bottom:8px;margin-bottom:6px}
   .rg-row{padding:4px}
   .ov-standings{margin-top:6px}
   .st-row{padding:3px 4px}
@@ -523,14 +532,7 @@ P3_CSS = r"""
   .stat-head{grid-template-columns:62px 1fr 62px}
   .stat-row{grid-template-columns:62px 1fr 62px}
   .ov-facts{gap:10px}
-  .ov-staff{gap:6px}
-  .ov-coach-lbl{letter-spacing:.02em}
-  .ov-coach-name{font-size:12px}
   .st-row{grid-template-columns:20px 1fr 20px 20px 20px 46px}
   .sc-row{grid-template-columns:14px 44px 10px 18px 1fr auto 38px;gap:4px;font-size:11px;padding:3px 2px}
-}
-/* 360px-class phones: one step smaller so the widest staff row (DAL) still fits. */
-@media (max-width:370px){
-  .ov-coach-name{font-size:11px}
 }
 """
