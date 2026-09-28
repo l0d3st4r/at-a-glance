@@ -1512,7 +1512,8 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
       var d = curDetail();
       var path = e && e.composedPath ? e.composedPath() : [];
       for (var i = 0; i < path.length; i++) if (path[i].classList && path[i].classList.contains('ps-scroll') && path[i].scrollTop > 1) return false;
-      return !large() || !d || !d.deck || d.deck.scrollTop <= 1;
+      if (!large()) { var c = d && d.el.querySelector('.p2-c'); return !c || c.scrollTop <= 1; }   // a condensed view can scroll on short phones
+      return !d || !d.deck || d.deck.scrollTop <= 1;
     },
     closeDetail: closeDetail,
     pullDetail: pullDetail,

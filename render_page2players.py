@@ -163,12 +163,12 @@ def _cell(label, f, r, medal_stat):
     return f'<td data-v="{v:g}">{inner}</td>' if v is not None else f"<td>{inner}</td>"
 
 
-def _table(rows, cols, empty, medals):
+def _table(rows, cols, empty, medals, sortable=True):
     if not rows:
         return f'<p class="ps-empty">{esc(empty)}</p>'
     head = "".join(
-        f'<th scope="col" aria-sort="none">'
-        f'<button type="button" class="ps-sort">{esc(label)}</button></th>'
+        f'<th scope="col" aria-sort="none"><button type="button" class="ps-sort">{esc(label)}</button></th>' if sortable
+        else f'<th scope="col"><span class="ps-lbl">{esc(label)}</span></th>'
         for label, _f in cols)
     body = "".join(
         f'<tr data-i="{i}"><th scope="row"><span class="ps-nm">{esc(short_name(r["name"]))}</span>'
@@ -208,54 +208,68 @@ def card_body(sections, layout, teams, stats):
 
 
 # ---------------------------------------------------------------- condensed view
-# All six cards on one screen (Jason, 2026-09-28): each team's top players, one team at a time
-# behind a single switch at the top. Tapping a card opens it in the expanded view.
-# (card id, title, rows) -- a row: (who's eligible, best first, value shown, unit, medal stat)
+# Everything on one screen (Jason, 2026-09-28), one team at a time behind a single switch at the
+# top. Passing, Rushing, Receiving and Defense are full-width cards, one per row, each a small
+# version of the expanded card's table (the same columns, top-3 bars included) holding just the
+# team's top players; Kicking and Returns sit side by side, the one player's every stat as a
+# wrap of number-over-label pairs. Tapping a card opens it expanded; headers don't sort here.
 
 def _top(players, keep, order, n):
     return sorted((r for r in players if keep(r)), key=order)[:n]
 
 
+def _leaders(players, picks):
+    """One row per pick (the top player by each), a player listed once even if he leads twice."""
+    out = []
+    for keep, order in picks:
+        for r in _top(players, keep, order, 1):
+            if r not in out:
+                out.append(r)
+    return out
+
+
+_TKL = (lambda r: r["solo"] + r["ast"] > 0, lambda r: -(r["solo"] + r["ast"]))
+_SCK = (lambda r: r["dsk"] > 0, lambda r: -r["dsk"])
+_INT = (lambda r: r["dint"] > 0, lambda r: -r["dint"])
+
+# (card id, title, section whose columns it shows, who: players -> rows, width)
 CONDENSED = [
-    ("passing", "Passing", [(lambda r: r["att"] > 0, lambda r: -r["pyds"], lambda r: _n(r["pyds"]), "YDS", "pyds", 1)]),
-    ("rushing", "Rushing", [(lambda r: r["car"] > 0, lambda r: -r["ryds"], lambda r: _n(r["ryds"]), "YDS", "ryds", 2)]),
-    ("receiving", "Receiving", [(lambda r: r["rec"] > 0 or r["tgt"] > 0, lambda r: -r["reyds"], lambda r: _n(r["reyds"]), "YDS", "reyds", 3)]),
-    ("defense", "Defense", [
-        (lambda r: r["solo"] + r["ast"] > 0, lambda r: -(r["solo"] + r["ast"]), lambda r: _n(r["solo"] + r["ast"]), "TKL", "tkl", 1),
-        (lambda r: r["dsk"] > 0, lambda r: -r["dsk"], lambda r: _sacks(r["dsk"]), "SCK", "dsk", 1),
-        (lambda r: r["dint"] > 0, lambda r: -r["dint"], lambda r: _n(r["dint"]), "INT", "dint", 1)]),
-    ("kicking", "Kicking", [(lambda r: r["fga"] > 0, lambda r: (-r["fga"], -r["fgm"]), lambda r: f'{_n(r["fgm"])}/{_n(r["fga"])}', "FG", None, 1)]),
-    ("returns", "Returns", [(lambda r: r["pr"] > 0, lambda r: (-r["pryds"], -r["pr"]), lambda r: _n(r["pryds"]), "PR YDS", None, 1)]),
+    ("passing", "Passing", PASSING, lambda ps: _top(ps, PASSING[1], lambda r: -r["pyds"], 1), "row"),
+    ("rushing", "Rushing", RUSHING, lambda ps: _top(ps, RUSHING[1], lambda r: -r["ryds"], 2), "row"),
+    ("receiving", "Receiving", RECEIVING, lambda ps: _top(ps, RECEIVING[1], lambda r: -r["reyds"], 3), "row"),
+    ("defense", "Defense", DEFENSE, lambda ps: _leaders(ps, (_TKL, _SCK, _INT)), "row"),
+    ("kicking", "Kicking", KICKING[0], lambda ps: _top(ps, lambda r: r["fga"] > 0, lambda r: (-r["fga"], -r["fgm"]), 1), "half"),
+    ("returns", "Punt Returns", RETURNS[1], lambda ps: _top(ps, RETURNS[1][1], lambda r: (-r["pryds"], -r["pr"]), 1), "half"),
 ]
 
 
-def _c_rows(players, rows):
-    out = []
-    for keep, order, value, unit, medal_stat, n in rows:
-        top = _top(players, keep, order, n)
-        if not top:
-            out.append(f'<div class="pc-r pc-none"><span class="pc-nm">{DASH}</span>'
-                       f'<span class="pc-v"><small>{esc(unit)}</small></span></div>')
-        for r in top:
-            place = (r.get("medals") or {}).get(medal_stat) if medal_stat else None
-            shown = esc(value(r))
-            num = f'<span class="ps-md ps-md{place}" title="{PLACES[place]} in the NFL">{shown}</span>' if place else shown
-            out.append(f'<div class="pc-r"><span class="pc-nm">{esc(short_name(r["name"]))}<i>{esc(r["pos"])}</i></span>'
-                       f'<span class="pc-v"><b>{num}</b><small>{esc(unit)}</small></span></div>')
-    return "".join(out)
+def _pairs(rows, cols, empty):
+    """A half-width card: the player's name, then every stat as number over label."""
+    if not rows:
+        return f'<p class="ps-empty">{esc(empty)}</p>'
+    r = rows[0]
+    stats = "".join(f'<span class="pc-st"><b>{esc(f(r))}</b><small>{esc(label)}</small></span>' for label, f in cols)
+    return (f'<div class="pc-who"><span class="ps-nm">{esc(short_name(r["name"]))}</span>'
+            f'<span class="ps-pos">{esc(r["pos"])}</span></div><div class="pc-sts">{stats}</div>')
 
 
 def condensed_view(teams, stats):
+    empty = "None this season" if any(stats.values()) else "No games played yet"
     tabs = "".join(
         f'<button type="button" class="ps-tab{" on" if i == 0 else ""}" data-team="{esc(t)}" aria-pressed="{"true" if i == 0 else "false"}">'
         f'{_pill(t)}<span class="abbr">{esc(t)}</span></button>' for i, t in enumerate(teams))
-    cards = "".join(
-        f'<a class="card cc pc-{cid}" tabindex="0" aria-label="{esc(title)}"><span class="card-title">{esc(title)}</span>'
-        + "".join(f'<div class="pc-p{" on" if i == 0 else ""}" data-team="{esc(t)}">{_c_rows(stats.get(t) or [], rows)}</div>'
-                  for i, t in enumerate(teams))
-        + "</a>"
-        for cid, title, rows in CONDENSED)
-    return f'<div class="p2-view p2-c pc"><div class="ps-sw pc-sw">{tabs}</div>{cards}</div>'
+    cards = []
+    for cid, title, section, who, width in CONDENSED:
+        _h, _keep, _order, cols, medals = section
+        panes = "".join(
+            f'<div class="pc-p{" on" if i == 0 else ""}" data-team="{esc(t)}">'
+            + (_table(who(stats.get(t) or []), cols, empty, medals, sortable=False) if width == "row"
+               else _pairs(who(stats.get(t) or []), cols, empty))
+            + "</div>"
+            for i, t in enumerate(teams))
+        cards.append(f'<a class="card cc pc-{cid} pc-{width}" tabindex="0" aria-label="{esc(title)}">'
+                     f'<span class="card-title">{esc(title)}</span>{panes}</a>')
+    return f'<div class="p2-view p2-c pc"><div class="ps-sw pc-sw">{tabs}</div>{"".join(cards)}</div>'
 
 
 def render_players_block(d):
@@ -313,23 +327,38 @@ P4_CSS = r"""
 .ps-sec{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2);margin:12px 0 2px}
 .ps-th+.ps-sec,.ps-pane>.ps-sec:first-child{margin-top:4px}
 .ps-empty{font-size:13px;color:var(--text-2);padding:6px 0}
-/* Condensed view: the team switch across the top, then the six cards two by two; each card
-   shows the chosen team's pane (.pc-p.on) */
-.p2-c.pc{grid-template-columns:1fr 1fr;grid-template-rows:auto repeat(3,minmax(0,1fr))}
+/* Condensed view: the team switch across the top, then Passing / Rushing / Receiving / Defense
+   one per row and Kicking + Punt Returns side by side; rows share the height by how many players
+   each holds, but never get shorter than their contents -- on a short phone (iPhone SE) that's
+   more than the screen, so the view scrolls there instead of cutting rows off (P1_JS's
+   detailAtTop keeps a pull-down from closing the page until it's scrolled back to the top).
+   Each card shows the chosen team's pane (.pc-p.on). */
+.p2-c.pc{grid-template-columns:1fr 1fr;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  grid-template-rows:auto minmax(min-content,1.1fr) minmax(min-content,1.5fr) minmax(min-content,2fr)
+    minmax(min-content,2fr) minmax(min-content,1.9fr)}
 .pc-sw{grid-column:1/-1}
-.p2-c.pc a.card.cc{justify-content:flex-start;padding:var(--ctitle) 14px 10px;gap:0}
-.pc-p{display:none;flex-direction:column;justify-content:space-evenly;flex:1;min-height:0;gap:4px}
+.p2-c.pc a.card.cc{justify-content:flex-start;padding:var(--ctitle) 12px 6px;gap:0}
+.p2-c.pc a.card.pc-row{grid-column:1/-1}
+/* "safe": if a pane ever overflows, it's the bottom that's cut, never the player's name */
+.pc-p{display:none;flex-direction:column;justify-content:safe center;flex:1;min-height:0}
 .pc-p.on{display:flex}
-/* a row is the name over the number -- side by side, a half-width card cut names to a few letters */
-.pc-r{display:flex;flex-direction:column;min-width:0}
-.pc-nm{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-.pc-nm i{font-style:normal;font-weight:400;font-size:10px;color:var(--text-2);margin-left:4px;letter-spacing:.04em}
-.pc-v{white-space:nowrap;line-height:1.05}
-.pc-v b{font-size:clamp(16px,2.5vh,21px);font-weight:700;font-variant-numeric:tabular-nums}
-.pc-v small{font-size:9px;font-weight:700;letter-spacing:.05em;color:var(--text-2);margin-left:3px}
-.pc-r.pc-none{flex-direction:row;align-items:baseline;gap:4px}   /* nobody yet: "— SCK" */
-.pc-none .pc-nm{color:var(--text-3);font-weight:400}
-.pc-passing .pc-v b,.pc-kicking .pc-v b,.pc-returns .pc-v b{font-size:clamp(22px,3.4vh,30px)}
+.pc .ps-tw{margin:0 -12px;padding:0 12px}
+/* a little tighter than the expanded tables, so Defense's ten columns need less sideways scrolling */
+.pc .ps-t{font-size:11.5px}
+.pc .ps-t td{padding:3px}
+.pc .ps-t tbody th{padding:3px 6px 3px 0}
+.pc .ps-t thead th{padding:0 3px 2px;font-size:9px}
+.pc .ps-t tbody th .ps-nm{display:inline}
+.pc .ps-t tbody th .ps-pos{display:inline;margin-left:4px}
+.ps-lbl{display:block}
+.pc-who{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px}
+.pc-who .ps-nm{display:inline;font-weight:700}
+.pc-who .ps-pos{display:inline;margin-left:4px}
+.pc-sts{display:flex;flex-wrap:wrap;gap:3px 10px}
+.pc-st{display:flex;flex-direction:column;line-height:1.1}
+.pc-st b{font-size:14px;font-variant-numeric:tabular-nums}
+.pc-st small{font-size:9px;font-weight:700;letter-spacing:.05em;color:var(--text-2)}
+.pc .ps-empty{padding:0;font-size:12px}
 /* The table: player column pinned on the left; a table wider than the card scrolls sideways,
    and fades out at the right edge while there's more to see (.more, set by P1_JS) */
 .ps-tw{overflow-x:auto;margin:0 -14px;padding:0 14px}
