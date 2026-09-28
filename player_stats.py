@@ -95,3 +95,45 @@ def season_totals(player_weeks, team, week_limit):
             if v:
                 p[k] = max(p[k], v) if k in MAX_STATS else p[k] + v
     return list(players.values())
+
+
+# ---------------------------------------------------------------- league top 3 (gold / silver / bronze)
+# The stats a player can medal in (Jason, 2026-09-28): 1st / 2nd / 3rd in the whole league over
+# the same weeks as the page. Most is best for all of them -- passing INTs included, as asked.
+# Y/A only ranks qualified passers (the NFL's 14 attempts per team game), so a backup's lone
+# 40-yard completion doesn't top the league.
+MEDAL_STATS = {
+    "pyds": lambda r: r["pyds"], "ptd": lambda r: r["ptd"], "int": lambda r: r["int"],
+    "ypa": lambda r: r["pyds"] / r["att"] if r["att"] else 0,
+    "car": lambda r: r["car"], "ryds": lambda r: r["ryds"], "rtd": lambda r: r["rtd"],
+    "rec": lambda r: r["rec"], "reyds": lambda r: r["reyds"], "retd": lambda r: r["retd"],
+    "tkl": lambda r: r["solo"] + r["ast"], "tfl": lambda r: r["tfl"], "dsk": lambda r: r["dsk"],
+    "dint": lambda r: r["dint"], "ff": lambda r: r["ff"],
+}
+YPA_ATTEMPTS_PER_GAME = 14
+
+
+def league_medals(player_weeks, week_limit):
+    """{(team, player id): {stat: 1 | 2 | 3}} for everyone in the league's top 3 of a MEDAL_STATS
+    stat over regular-season weeks < week_limit. Places use competition ranking (two tied for
+    1st are both gold and the next is bronze); a zero never medals."""
+    rows = []   # (team, row, games the team has played)
+    for team in (player_weeks or {}):
+        games = len({r["wk"] for r in player_weeks[team] if week_limit is None or r["wk"] < week_limit})
+        rows += [(team, r, games) for r in season_totals(player_weeks, team, week_limit)]
+    out = defaultdict(dict)
+    for stat, value in MEDAL_STATS.items():
+        vals = []
+        for team, r, games in rows:
+            if stat == "ypa" and r["att"] < YPA_ATTEMPTS_PER_GAME * games:
+                continue
+            v = value(r)
+            if v > 0:
+                vals.append((v, team, r["id"]))
+        vals.sort(key=lambda x: -x[0])
+        for i, (v, team, pid) in enumerate(vals):
+            place = 1 + sum(1 for w, _t, _p in vals[:i] if w > v)
+            if place > 3:
+                break
+            out[(team, pid)][stat] = place
+    return dict(out)

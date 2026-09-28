@@ -723,6 +723,7 @@ def write_all(data, site_dir, warnings=None):
     """Write site/game/<game_id>.html for every game in data['game_details']. Returns the count."""
     details = data.get("game_details") or {}
     player_weeks = data.get("player_weeks") or {}
+    medals_by_limit = {}
     out_dir = os.path.join(site_dir, "game")
     os.makedirs(out_dir, exist_ok=True)
     count = 0
@@ -732,8 +733,16 @@ def write_all(data, site_dir, warnings=None):
             # from the per-week rows rather than stored per game (player_stats.py)
             if player_weeks:
                 limit = d.get("week") if d.get("game_type") == "REG" else None
-                d = dict(d, player_stats={side: player_stats.season_totals(player_weeks, (d.get(side) or {}).get("team"), limit)
-                                          for side in ("away", "home")})
+                if limit not in medals_by_limit:   # league top 3s, once per set of weeks
+                    medals_by_limit[limit] = player_stats.league_medals(player_weeks, limit)
+                medals = medals_by_limit[limit]
+                ps = {}
+                for side in ("away", "home"):
+                    team = (d.get(side) or {}).get("team")
+                    ps[side] = player_stats.season_totals(player_weeks, team, limit)
+                    for r in ps[side]:
+                        r["medals"] = medals.get((team, r["id"]), {})
+                d = dict(d, player_stats=ps)
             safe = "".join(ch for ch in str(gid) if ch.isalnum() or ch in "_-")
             with open(os.path.join(out_dir, f"{safe}.html"), "w", encoding="utf-8") as f:
                 f.write(render_standalone(d))
