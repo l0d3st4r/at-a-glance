@@ -628,6 +628,8 @@ def render_p1_block(d, prefix="../"):
     bar = (
         '<header class="bar"><div class="bar-in">'
         f'<div class="teams" aria-label="{esc(TEAM_NAMES.get(a, a))} at {esc(TEAM_NAMES.get(h, h))}">{row}</div>'
+        # each team page's own header (helmet, name, record, opponent); shown only while it's open
+        f'{render_page2team.team_bar_heads(away, home, prefix)}'
         "</div></header>"
         # back button + view toggle live at the bottom of the screen (2026-09-17)
         '<nav class="bbar" aria-label="Page controls"><div class="bbar-in">' + theme.SWITCH_HTML +

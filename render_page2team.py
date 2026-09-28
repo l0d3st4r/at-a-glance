@@ -17,9 +17,10 @@ deck, not a .p2-c layer, and the +/- toggle is hidden by CSS while one of these 
 
 Four cards, in Framer's order (from the "page2awayteam"/"page2hometeam" mocks, 2026-09-20),
 restyled to the site's standards the same way Page 2 Game Info was:
-  1. Overview  -- helmet, record; this matchup's rest days / miles traveled / bye week;
-                  head coach + offensive/defensive play-callers (coaches.py);
-                  last 4 games; division standings
+  1. Overview  -- head coach + offensive/defensive play-callers (coaches.py) beside a big
+                  bye-week number; this matchup's rest days / miles traveled; last 4 games;
+                  division standings with W / L / T headings. The team's helmet, location
+                  name and record live in the top bar while the page is open (team_bar_heads)
   2. Injuries  -- the full report (not Page 1's top-3), same Out/Doubtful/Questionable
                   treatment already on the site (nflverse's report has no "IR" status to
                   show -- see the Items to Address doc)
@@ -113,8 +114,42 @@ def _next_block(team_page, which, prefix):
     return f'<div class="ov-top">{opp_html}<div class="ov-facts">{fact_html}</div></div>'
 
 
-def _recent_games_block(schedule, team, prefix):
+# Full location names for the team page's top bar (Jason, 2026-09-28). The two Los Angeles and two
+# New York teams share a city, so each gets its initial. Keys are nflverse abbreviations (the
+# Rams are "LA"; "LAR" kept as an alias).
+LOCATION_NAMES = {
+    "ARI": "Arizona", "ATL": "Atlanta", "BAL": "Baltimore", "BUF": "Buffalo", "CAR": "Carolina", "CHI": "Chicago",
+    "CIN": "Cincinnati", "CLE": "Cleveland", "DAL": "Dallas", "DEN": "Denver", "DET": "Detroit", "GB": "Green Bay",
+    "HOU": "Houston", "IND": "Indianapolis", "JAX": "Jacksonville", "KC": "Kansas City", "LV": "Las Vegas",
+    "LA": "Los Angeles R", "LAR": "Los Angeles R", "LAC": "Los Angeles C", "MIA": "Miami", "MIN": "Minnesota",
+    "NE": "New England", "NO": "New Orleans", "NYG": "New York G", "NYJ": "New York J", "PHI": "Philadelphia",
+    "PIT": "Pittsburgh", "SEA": "Seattle", "SF": "San Francisco", "TB": "Tampa Bay", "TEN": "Tennessee",
+    "WAS": "Washington",
+}
+
+
+def _team_bar_head(side, opp, which, prefix):
+    """One team page's version of the top bar: helmet, location name, record, opponent faded.
+    An away team reads left to right (helmet NEW ENGLAND 1-2 ... @ BUF); a home team's is the
+    mirror image (NE @ ... 3-0 BUFFALO helmet), its helmet facing in as home helmets do."""
     from render_page1 import helmet_img
+    team = side.get("team")
+    rec = _fmt_record(side.get("record") or {})
+    opp_abbr = f'<span class="abbr">{esc(opp or "TBD")}</span>'
+    opp_html = f"@ {opp_abbr}" if which == "away" else f"{opp_abbr} @"
+    return (f'<div class="tp-head tp-{which}" aria-hidden="true">{helmet_img(team, 46, which == "home", prefix)}'
+            f'<span class="tp-name">{esc(LOCATION_NAMES.get(team, team or "TBD"))}</span>'
+            f'<span class="tp-rec">{esc(rec)}</span><span class="tp-opp">{opp_html}</span></div>')
+
+
+def team_bar_heads(away, home, prefix="../"):
+    """Both teams' bar headers, spliced into Page 1's top bar; CSS shows the one whose team page
+    is open (Jason, 2026-09-28 -- the bar used to show the matchup with the other team faded)."""
+    return (_team_bar_head(away or {}, (home or {}).get("team"), "away", prefix)
+            + _team_bar_head(home or {}, (away or {}).get("team"), "home", prefix))
+
+
+def _recent_games_block(schedule, team, prefix):
     played = [e for e in schedule if e.get("final")]
     recent = list(reversed(played[-4:]))
     if not recent:
@@ -128,7 +163,7 @@ def _recent_games_block(schedule, team, prefix):
         rows.append(
             '<li class="rg-row">'
             f'<span class="rg-date">{esc(date_line)}</span><span class="rg-vs">{vs}</span>'
-            f'{helmet_img(e.get("opponent"), 24, prefix=prefix)}<span class="rg-opp abbr">{esc(e.get("opponent") or "")}</span>'
+            f'<span class="rg-opp abbr">{esc(e.get("opponent") or "")}</span>'
             f'<span class="rg-res rg-{cls}">{esc(res)}</span>'
             f'<span class="rg-score">{esc(_fmt_int(e["score"]["team"]))}-{esc(_fmt_int(e["score"]["opp"]))}</span>'
             "</li>"
@@ -147,8 +182,10 @@ def _standings_block(standings, team):
         f'<span class="st-pct">{esc(_fmt_pct(r))}</span></li>'
         for r in standings["rows"]
     )
+    head = ('<div class="st-headrow" aria-hidden="true"><span></span><span></span>'
+            '<span>W</span><span>L</span><span>T</span><span></span></div>')
     return (f'<div class="ov-standings"><h3>{esc(standings["division"])}</h3>'
-            f'<ul class="st-list">{rows}</ul></div>')
+            f'{head}<ul class="st-list">{rows}</ul></div>')
 
 
 def _staff_block(coaches):
@@ -190,22 +227,15 @@ def _staff_block(coaches):
 
 
 def overview_body(side, team_page, which, prefix):
-    from render_page1 import helmet_img
+    """(Jason, 2026-09-28) the team's helmet, name and record moved up into the top bar
+    (team_bar_heads), so the card opens with the coaching staff and a big bye-week number."""
     team = side.get("team")
-    rec = _fmt_record(side.get("record") or {})
     bye_week = (team_page.get("next") or {}).get("bye_week")
-    bye_html = f'<span class="ov-bye">BYE WK {bye_week}</span>' if bye_week else ""
-    header = (
-        '<div class="ov-head">'
-        f'{helmet_img(team, 64, prefix=prefix)}'
-        f'<div class="ov-head-txt"><span class="abbr">{esc(team or "TBD")}</span><span class="ov-rec">{esc(rec)}</span></div>'
-        f'{bye_html}'
-        "</div>"
-    )
+    bye_html = f'<div class="ov-byebig"><b>{esc(bye_week)}</b><span>BYE WK</span></div>' if bye_week else ""
+    lead = _staff_block(team_page.get("coaches")) + bye_html
     return (
-        header
+        (f'<div class="ov-lead">{lead}</div>' if lead else "")
         + _next_block(team_page, which, prefix)
-        + _staff_block(team_page.get("coaches"))
         + '<h3 class="ov-h">Recent Games</h3>'
         + _recent_games_block(team_page.get("schedule") or [], team, prefix)
         + _standings_block(team_page.get("standings"), team)
@@ -390,14 +420,28 @@ P3_CSS = r"""
    layout that doesn't exist. */
 .p1[data-detail="away-team"] .toggle,
 .p1[data-detail="home-team"] .toggle{display:none}
-/* Whichever team's page is open, that team's helmet+abbreviation in the shared bar/hero
-   header stays full strength and the other team's fades, so it's clear whose stats these
-   are without hiding that this is still the AWAY @ HOME matchup (Jason, 2026-09-20). */
-.p1[data-detail="away-team"] .bar .side.home,
-.p1[data-detail="away-team"] .hero .side.home,
-.p1[data-detail="home-team"] .bar .side.away,
-.p1[data-detail="home-team"] .hero .side.away{opacity:.35;transition:opacity .2s ease}
+/* The top bar names the team whose page is open (Jason, 2026-09-28, was the matchup with the
+   other team faded): helmet, location name, record, and the opponent faded at the far side.
+   The away team's reads left to right; the home team's is its mirror image, helmet at the
+   right edge facing in (markup: team_bar_heads). */
+.bar .tp-head{display:none}
+.p1[data-detail="away-team"] .bar .teams,.p1[data-detail="home-team"] .bar .teams{visibility:hidden}
+.p1[data-detail="away-team"] .bar .tp-away,.p1[data-detail="home-team"] .bar .tp-home{display:flex}
+.bar-in{position:relative}
+.tp-head{position:absolute;inset:0;align-items:center;gap:10px;padding:0 4px}
+.tp-head img{width:46px;height:46px;flex:none;display:block}
+.tp-name{font-family:Saira,Inter,system-ui,sans-serif;font-weight:800;font-style:italic;font-variation-settings:'wdth' 95;
+  font-size:18px;letter-spacing:.01em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tp-rec{font-size:16px;font-weight:700;margin-left:10px;font-variant-numeric:tabular-nums;flex:none}
+.tp-opp{margin-left:auto;padding-left:10px;color:var(--text-3);font-size:16px;white-space:nowrap;flex:none}
+.tp-opp .abbr{font-size:17px}
+.tp-home{flex-direction:row-reverse}
+.tp-home .tp-rec{margin-left:0;margin-right:10px}
+.tp-home .tp-opp{margin-left:0;margin-right:auto;padding-left:0;padding-right:10px}
 .p2-team .p2-l{padding-top:0}
+/* Overview stacks from the top (2026-09-28): the shared .p2 rule spreads a card's sections
+   evenly, which opened a gap above the division table; now it sits right under recent games */
+.p2 .slot .p2k-overview .body{justify-content:flex-start}
 /* Cards inside the team pages don't link anywhere (yet) -- no hover/focus affordance
    suggesting otherwise (Jason, 2026-09-20). The swipe-between-cards gesture and dots
    still work; only the pointer/hover/focus-ring styling is suppressed. */
@@ -405,17 +449,14 @@ P3_CSS = r"""
 .p2-team a.card:focus-visible{outline:none}
 .p2-team .slot.active a.card:hover,.p2-team .slot.active a.card:focus-visible{transform:none;border-color:var(--tile-border)}
 .p2-team .slot.below a.card:hover,.p2-team .slot.above a.card:hover{border-color:var(--tile-border-soft)}
-.ov-head{display:flex;align-items:center;gap:14px;padding:8px 4px 4px}
-.ov-head img{width:64px;height:64px;display:block}
-.ov-head-txt{display:flex;flex-direction:column;gap:2px}
-.ov-head-txt .abbr{font-size:28px;line-height:1}
-/* Record: bigger, plain Inter (not Teko) -- Jason, 2026-09-20 */
-.ov-rec{font-size:28px;font-weight:700;font-family:Inter,system-ui,sans-serif}
-/* Bye week sits with the helmet/abbreviation/record, not down in the next-game row */
-.ov-bye{margin-left:auto;align-self:flex-start;font-size:11px;font-weight:700;letter-spacing:.04em;
-  color:var(--text-2);white-space:nowrap}
+/* The card opens with the coaching staff (left) and the bye week as a big number (right) --
+   Jason, 2026-09-28; the helmet/abbreviation/record header that used to lead moved to the bar */
+.ov-lead{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 4px 14px}
+.ov-byebig{display:flex;flex-direction:column;align-items:center;flex:none;margin-left:auto}
+.ov-byebig b{font-family:Teko,Inter,system-ui,sans-serif;font-weight:700;font-size:46px;line-height:1;color:var(--text-2)}
+.ov-byebig span{font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--text-2)}
 .ov-top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 4px;
-  border-top:1px solid var(--tile-border-soft);border-bottom:1px solid var(--tile-border-soft);margin:10px 0}
+  border-top:1px solid var(--tile-border-soft);border-bottom:1px solid var(--tile-border-soft);margin:0 0 12px}
 .ov-next{display:flex;align-items:center;gap:10px;min-width:0}
 .ov-next img{width:40px;height:40px;display:block;flex:none}
 .ov-next-txt{display:flex;flex-direction:column;min-width:0}
@@ -428,26 +469,30 @@ P3_CSS = r"""
 .ov-fact b{font-size:15px;font-family:Teko,Inter,system-ui,sans-serif;font-weight:700}
 .ov-fact b small{font-size:9px;font-weight:400;font-family:Inter,sans-serif}
 .ov-fact span{font-size:9px;color:var(--text-2);letter-spacing:.04em}
-/* Coaching staff: one row per person, name left and roles right, under the next-game row
-   (Jason, 2026-09-28). */
-.ov-staff{list-style:none;display:flex;flex-direction:column;gap:6px;padding:0 4px 12px;
-  border-bottom:1px solid var(--tile-border-soft);margin-bottom:10px}
-.ov-coach{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
-.ov-coach-name{font-size:14px;font-weight:700}
-.ov-coach-role{font-size:12px;color:var(--text-2);white-space:nowrap}
+/* Coaching staff: one row per person (Jason, 2026-09-28), names in one column and roles
+   lined up in the next, at the top of the card beside the bye week */
+.ov-staff{list-style:none;display:grid;grid-template-columns:auto auto;column-gap:22px;row-gap:6px;padding:0;margin:0;min-width:0}
+.ov-coach{display:contents}
+.ov-coach-name{font-size:15px;font-weight:700}
+.ov-coach-role{font-size:12px;color:var(--text-2);white-space:nowrap;letter-spacing:.04em;align-self:center}
 .ov-h{font-size:13px;font-weight:700;padding:4px 4px 6px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-2)}
 .ov-empty{padding:8px 4px;color:var(--text-2);font-size:13px}
 .rg-list,.st-list,.sc-list{list-style:none;display:flex;flex-direction:column}
-.rg-row{display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--tile-border-soft);font-size:13px}
-.rg-date{color:var(--text-2);width:44px;flex:none}
-.rg-vs{color:var(--text-3);flex:none}
-.rg-row img{width:24px;height:24px;flex:none}
+/* Recent games (2026-09-28): no helmets, tighter rows, and the result and score each in a
+   fixed-width column at the right so W/L and the scores line up down the list */
+.rg-row{display:flex;align-items:center;gap:8px;padding:3px 4px;border-bottom:1px solid var(--tile-border-soft);font-size:13px}
+.rg-date{color:var(--text-2);width:48px;flex:none}
+.rg-vs{color:var(--text-3);width:18px;text-align:center;flex:none}
 .rg-opp{flex:1}
-.rg-res{font-weight:700;width:16px;text-align:center;flex:none}
+.rg-res{font-weight:700;width:18px;text-align:center;flex:none;margin-left:auto}
 .rg-win{color:var(--win)}.rg-loss{color:var(--loss)}.rg-tie{color:var(--tie)}
-.rg-score{color:var(--text-2);flex:none;font-variant-numeric:tabular-nums}
-.ov-standings{margin-top:12px}
+.rg-score{color:var(--text-2);width:44px;text-align:right;flex:none;font-variant-numeric:tabular-nums}
+.ov-standings{margin-top:16px}
 .ov-standings h3{font-size:13px;font-weight:700;padding:0 4px 6px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-2)}
+/* W / L / T headings over the standings columns (2026-09-28); same grid as .st-row */
+.st-headrow{display:grid;grid-template-columns:22px 1fr 24px 24px 24px 52px;gap:6px;padding:0 4px 2px;font-size:11px;
+  font-weight:700;letter-spacing:.04em;color:var(--text-3)}
+.st-headrow span{text-align:center}
 .st-row{display:grid;grid-template-columns:22px 1fr 24px 24px 24px 52px;align-items:center;gap:6px;padding:5px 4px;font-size:13px}
 .st-row.is-you{background:var(--tile-hover);border-radius:8px;font-weight:700}
 .st-row img{width:22px;height:22px}
@@ -520,11 +565,11 @@ P3_CSS = r"""
    left between the top/bottom bars, so a shorter phone leaves less room for it regardless of
    width -- tighten the row height further so all 11 rows still fit without scrolling. */
 @media (max-height:700px){
-  .ov-head{padding:2px 4px 0}
-  .ov-head img{width:48px;height:48px}
-  .ov-top{padding:8px 4px;margin:6px 0 8px}
-  .ov-staff{gap:4px;padding-bottom:8px;margin-bottom:6px}
-  .rg-row{padding:4px}
+  .ov-lead{padding:0 4px 8px}
+  .ov-byebig b{font-size:38px}
+  .ov-top{padding:8px 4px;margin:0 0 8px}
+  .ov-staff{row-gap:4px}
+  .rg-row{padding:2px 4px}
   .ov-standings{margin-top:6px}
   .st-row{padding:3px 4px}
   .stat-head{padding:4px 2px 6px}
@@ -535,7 +580,7 @@ P3_CSS = r"""
   .stat-head{grid-template-columns:62px 1fr 62px}
   .stat-row{grid-template-columns:62px 1fr 62px}
   .ov-facts{gap:10px}
-  .st-row{grid-template-columns:20px 1fr 20px 20px 20px 46px}
+  .st-row,.st-headrow{grid-template-columns:20px 1fr 20px 20px 20px 46px}
   .sc-row{grid-template-columns:14px 44px 10px 18px 1fr auto 38px;gap:4px;font-size:11px;padding:3px 2px}
 }
 """
