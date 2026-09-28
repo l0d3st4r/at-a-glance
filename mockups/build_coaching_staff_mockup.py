@@ -14,7 +14,7 @@ The four teams cover the four cases:
   * NYG -- head coach calls neither side (both coordinators call)
 
 Controls at the top switch the theme and the phone size. The layout is the one on the
-branch: one row per person, name left and everything they do on the right ("HC, Off. plays"),
+branch: one row per person, name left and everything they do on the right ("HC, Off. plays"; a play-calling coordinator just "OC" / "DC"),
 so no name is ever listed twice (Jason, 2026-09-28 -- replaced an earlier three-column
 layout and a label-left/name-right rows option).
 

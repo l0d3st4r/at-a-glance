@@ -155,7 +155,7 @@ def _staff_block(coaches):
     """Head coach plus whoever calls each side's plays (coaches.py), one row per person --
     name first, then everything that person does (Jason, 2026-09-28: no name listed twice).
     So a play-calling head coach is one row, "HC, Off. plays", and a coordinator who calls
-    his side reads "OC, Off. plays" / "DC, Def. plays"."""
+    his side just shows his title, "OC" / "DC" (Jason, 2026-09-28)."""
     if not coaches:
         return ""
     people = []   # [name, [roles]] in order: head coach, offense, defense
@@ -173,9 +173,12 @@ def _staff_block(coaches):
     add(coaches.get("head_coach"), "HC")
     for key, duty in (("off_caller", "Off. plays"), ("def_caller", "Def. plays")):
         c = coaches.get(key) or {}
+        # A coordinator only makes this list by calling his side's plays, so his title says it
+        # all ("OC"); only a head coach needs the duty spelled out ("HC, Off. plays").
         if c.get("role") and c.get("role") != "HC":
             add(c.get("name"), c["role"])
-        add(c.get("name"), duty)
+        else:
+            add(c.get("name"), duty)
     if not people:
         return ""
     rows = "".join(
