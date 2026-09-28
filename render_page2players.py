@@ -73,37 +73,43 @@ def short_name(name):
 
 
 # ---------------------------------------------------------------- the cards
-# A section: (heading or None, who's in it, sort order, columns [(label, value)]).
+# A section: (heading or None, who's in it, starting order, columns [(label, value)], the column
+# that starting order matches -- marked as sorted when the card opens).
+#
+# Tapping a column header re-sorts that table by it (P1_JS): most first, then least, then back.
+# Each cell carries its number in data-v for that; "made/attempts" cells sort by attempts,
+# like the starting order, and a "—" (no value) always sorts last.
+_SORT_BY = {"C/ATT": "att", "FG": "fga", "XP": "xpa"}
 
 PASSING = (None, lambda r: r["att"] > 0, lambda r: -r["att"], [
     ("C/ATT", lambda r: f'{_n(r["cmp"])}/{_n(r["att"])}'), ("YDS", lambda r: _n(r["pyds"])),
     ("Y/A", lambda r: _avg(r["pyds"], r["att"])), ("TD", lambda r: _n(r["ptd"])),
-    ("INT", lambda r: _n(r["int"])), ("SCK", lambda r: _n(r["sk"])), ("RTG", _rating)])
+    ("INT", lambda r: _n(r["int"])), ("SCK", lambda r: _n(r["sk"])), ("RTG", _rating)], "C/ATT")
 RUSHING = (None, lambda r: r["car"] > 0, lambda r: -r["car"], [
     ("ATT", lambda r: _n(r["car"])), ("YDS", lambda r: _n(r["ryds"])), ("AVG", lambda r: _avg(r["ryds"], r["car"])),
-    ("TD", lambda r: _n(r["rtd"])), ("1D", lambda r: _n(r["r1d"])), ("FUM", lambda r: _n(r["rfum"]))])
+    ("TD", lambda r: _n(r["rtd"])), ("1D", lambda r: _n(r["r1d"])), ("FUM", lambda r: _n(r["rfum"]))], "ATT")
 RECEIVING = (None, lambda r: r["tgt"] > 0 or r["rec"] > 0, lambda r: (-r["reyds"], -r["rec"]), [
     ("REC", lambda r: _n(r["rec"])), ("TGT", lambda r: _n(r["tgt"])), ("YDS", lambda r: _n(r["reyds"])),
-    ("AVG", lambda r: _avg(r["reyds"], r["rec"])), ("TD", lambda r: _n(r["retd"])), ("1D", lambda r: _n(r["re1d"]))])
+    ("AVG", lambda r: _avg(r["reyds"], r["rec"])), ("TD", lambda r: _n(r["retd"])), ("1D", lambda r: _n(r["re1d"]))], "YDS")
 _DEF_KEYS = ("solo", "ast", "tfl", "dsk", "qbh", "dint", "pd", "ff", "fr", "dtd")
 DEFENSE = (None, lambda r: any(r[k] for k in _DEF_KEYS), lambda r: (-(r["solo"] + r["ast"]), -r["dsk"]), [
     ("TKL", lambda r: _n(r["solo"] + r["ast"])), ("SOLO", lambda r: _n(r["solo"])), ("TFL", lambda r: _n(r["tfl"])),
     ("SCK", lambda r: _sacks(r["dsk"])), ("QBH", lambda r: _n(r["qbh"])), ("INT", lambda r: _n(r["dint"])),
-    ("PD", lambda r: _n(r["pd"])), ("FF", lambda r: _n(r["ff"])), ("FR", lambda r: _n(r["fr"])), ("TD", lambda r: _n(r["dtd"]))])
+    ("PD", lambda r: _n(r["pd"])), ("FF", lambda r: _n(r["ff"])), ("FR", lambda r: _n(r["fr"])), ("TD", lambda r: _n(r["dtd"]))], "TKL")
 KICKING = [
     ("Field Goals & PATs", lambda r: r["fga"] > 0 or r["xpa"] > 0, lambda r: (-r["fga"], -r["xpa"]), [
         ("FG", lambda r: f'{_n(r["fgm"])}/{_n(r["fga"])}'), ("PCT", lambda r: _pct(r["fgm"], r["fga"])),
         ("LNG", lambda r: _n(r["fglng"]) if r["fglng"] else DASH), ("XP", lambda r: f'{_n(r["xpm"])}/{_n(r["xpa"])}'),
-        ("PTS", lambda r: _n(r["fgm"] * 3 + r["xpm"]))]),
+        ("PTS", lambda r: _n(r["fgm"] * 3 + r["xpm"]))], "FG"),
     ("Punting", lambda r: r["p"] > 0, lambda r: -r["p"], [
         ("P", lambda r: _n(r["p"])), ("YDS", lambda r: _n(r["pyd"])), ("AVG", lambda r: _avg(r["pyd"], r["p"])),
-        ("NET", lambda r: _avg(r["pnet"], r["p"])), ("IN20", lambda r: _n(r["p20"]))]),
+        ("NET", lambda r: _avg(r["pnet"], r["p"])), ("IN20", lambda r: _n(r["p20"]))], "P"),
 ]
 RETURNS = [
     ("Kick Returns", lambda r: r["kr"] > 0, lambda r: -r["kr"], [
-        ("KR", lambda r: _n(r["kr"])), ("YDS", lambda r: _n(r["kryds"])), ("AVG", lambda r: _avg(r["kryds"], r["kr"]))]),
+        ("KR", lambda r: _n(r["kr"])), ("YDS", lambda r: _n(r["kryds"])), ("AVG", lambda r: _avg(r["kryds"], r["kr"]))], "KR"),
     ("Punt Returns", lambda r: r["pr"] > 0, lambda r: -r["pr"], [
-        ("PR", lambda r: _n(r["pr"])), ("YDS", lambda r: _n(r["pryds"])), ("AVG", lambda r: _avg(r["pryds"], r["pr"]))]),
+        ("PR", lambda r: _n(r["pr"])), ("YDS", lambda r: _n(r["pryds"])), ("AVG", lambda r: _avg(r["pryds"], r["pr"]))], "PR"),
 ]
 
 # (card id, title, sections, layout) -- layout "stack" = both teams on the card, "switch" = one at a time
@@ -124,26 +130,45 @@ def _pill(team):
     return f'<span class="pill" style="background:{primary}"></span>'
 
 
-def _table(rows, cols, empty):
+def _sort_value(label, shown, r):
+    """The number a column sorts by, or None for a "—"."""
+    if label in _SORT_BY:
+        return r[_SORT_BY[label]]
+    try:
+        return float(shown.replace(",", ""))
+    except ValueError:
+        return None
+
+
+def _cell(label, f, r):
+    shown = f(r)
+    v = _sort_value(label, shown, r)
+    return f'<td data-v="{v:g}">{esc(shown)}</td>' if v is not None else f"<td>{esc(shown)}</td>"
+
+
+def _table(rows, cols, empty, sorted_by):
     if not rows:
         return f'<p class="ps-empty">{esc(empty)}</p>'
-    head = "".join(f"<th>{esc(label)}</th>" for label, _f in cols)
+    head = "".join(
+        f'<th scope="col" aria-sort="{"descending" if label == sorted_by else "none"}">'
+        f'<button type="button" class="ps-sort">{esc(label)}</button></th>'
+        for label, _f in cols)
     body = "".join(
-        f'<tr><th scope="row"><span class="ps-nm">{esc(short_name(r["name"]))}</span>'
+        f'<tr data-i="{i}"><th scope="row"><span class="ps-nm">{esc(short_name(r["name"]))}</span>'
         f'<span class="ps-pos">{esc(r["pos"])}</span></th>'
-        + "".join(f"<td>{esc(f(r))}</td>" for _l, f in cols) + "</tr>"
-        for r in rows)
+        + "".join(_cell(label, f, r) for label, f in cols) + "</tr>"
+        for i, r in enumerate(rows))
     return (f'<div class="ps-tw"><table class="ps-t"><thead><tr><th scope="col"><span class="vh">Player</span></th>{head}</tr></thead>'
             f"<tbody>{body}</tbody></table></div>")
 
 
 def _team_tables(players, sections, empty):
     out = []
-    for heading, keep, order, cols in sections:
+    for heading, keep, order, cols, sorted_by in sections:
         rows = sorted((r for r in players if keep(r)), key=order)
         if heading:
             out.append(f'<h3 class="ps-sec">{esc(heading)}</h3>')
-        out.append(_table(rows, cols, empty))
+        out.append(_table(rows, cols, empty, sorted_by))
     return "".join(out)
 
 
@@ -225,7 +250,13 @@ P4_CSS = r"""
 .ps-tw{overflow-x:auto;margin:0 -14px;padding:0 14px}
 .ps-tw.more{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent)}
 .ps-t{border-collapse:collapse;width:100%;font-size:12px;font-variant-numeric:tabular-nums}
-.ps-t thead th{font-size:10px;font-weight:700;letter-spacing:.05em;color:var(--text-2);text-align:right;padding:4px;white-space:nowrap}
+.ps-t thead th{font-size:10px;font-weight:700;letter-spacing:.05em;color:var(--text-2);text-align:right;padding:0;white-space:nowrap}
+/* Column headers are sort buttons (P1_JS): the sorted one is full strength with an arrow --
+   down for most first, up for least first */
+.ps-sort{background:none;border:0;margin:0;padding:4px;font:inherit;letter-spacing:inherit;color:inherit;cursor:pointer;white-space:nowrap}
+.ps-t th[aria-sort=descending],.ps-t th[aria-sort=ascending]{color:var(--text)}
+.ps-t th[aria-sort=descending] .ps-sort::after{content:"\25BE";margin-left:2px}
+.ps-t th[aria-sort=ascending] .ps-sort::after{content:"\25B4";margin-left:2px}
 .ps-t td{text-align:right;padding:6px 4px;white-space:nowrap;border-top:1px solid var(--tile-border-soft)}
 .ps-t tbody th{text-align:left;font-weight:700;padding:6px 8px 6px 0;white-space:nowrap;border-top:1px solid var(--tile-border-soft);
   position:sticky;left:0;z-index:1;background:var(--tile)}

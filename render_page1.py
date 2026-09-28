@@ -1131,6 +1131,26 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
       var sc = c.querySelector('.ps-scroll'); if (sc) sc.scrollTop = 0;
     });
   });
+  // Tap a column header to sort its table by that stat: most first, then least, then back again.
+  // Cells carry their number in data-v; a cell without one ("—") always goes last, and ties
+  // keep the table's starting order (data-i).
+  [].slice.call(root.querySelectorAll('.ps-sort')).forEach(function (btn) {
+    on(btn, 'click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      var th = btn.parentNode, table = th.closest('table'), col = th.cellIndex;
+      var dir = th.getAttribute('aria-sort') === 'descending' ? 'ascending' : 'descending', sign = dir === 'descending' ? -1 : 1;
+      [].slice.call(th.parentNode.children).forEach(function (h) { if (h !== th && h.hasAttribute('aria-sort')) h.setAttribute('aria-sort', 'none'); });
+      th.setAttribute('aria-sort', dir);
+      var body = table.tBodies[0], rows = [].slice.call(body.rows);
+      function val(r) { var v = r.cells[col].getAttribute('data-v'); return v === null ? null : parseFloat(v); }
+      rows.sort(function (a, b) {
+        var va = val(a), vb = val(b);
+        if (va !== vb) { if (va === null) return 1; if (vb === null) return -1; return sign * (va - vb); }
+        return a.getAttribute('data-i') - b.getAttribute('data-i');
+      });
+      rows.forEach(function (r) { body.appendChild(r); });
+    });
+  });
   function detailCards(d) { return large() ? d.slots.map(function (s) { return s.querySelector('a.card'); }) : d.cond; }
   function riseIn(list) {
     list.forEach(function (el, i) {
