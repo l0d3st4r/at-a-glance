@@ -18,6 +18,7 @@ deck, not a .p2-c layer, and the +/- toggle is hidden by CSS while one of these 
 Four cards, in Framer's order (from the "page2awayteam"/"page2hometeam" mocks, 2026-09-20),
 restyled to the site's standards the same way Page 2 Game Info was:
   1. Overview  -- helmet, record; this matchup's rest days / miles traveled / bye week;
+                  head coach + offensive/defensive play-callers (coaches.py);
                   last 4 games; division standings
   2. Injuries  -- the full report (not Page 1's top-3), same Out/Doubtful/Questionable
                   treatment already on the site (nflverse's report has no "IR" status to
@@ -150,6 +151,26 @@ def _standings_block(standings, team):
             f'<ul class="st-list">{rows}</ul></div>')
 
 
+def _staff_block(coaches):
+    """Head coach plus who actually calls each side's plays (coaches.py). The role tag next to
+    each play-caller's label says whether that's the head coach himself or a coordinator,
+    since the head coach's title alone doesn't tell you (Payton, for one, hands his calls to
+    his OC)."""
+    if not coaches:
+        return ""
+    cells = [("HEAD COACH", coaches.get("head_coach"), None)]
+    for key, lbl in (("off_caller", "OFF. PLAYS"), ("def_caller", "DEF. PLAYS")):
+        c = coaches.get(key) or {}
+        cells.append((lbl, c.get("name"), c.get("role")))
+    html_cells = "".join(
+        f'<div class="ov-coach"><span class="ov-coach-lbl"><span>{esc(lbl)}</span>'
+        + (f' <span class="ov-coach-role">· {esc(role)}</span>' if role and name else "")
+        + f'</span><b class="ov-coach-name">{esc(name or DASH)}</b></div>'
+        for lbl, name, role in cells
+    )
+    return f'<div class="ov-staff">{html_cells}</div>'
+
+
 def overview_body(side, team_page, which, prefix):
     from render_page1 import helmet_img
     team = side.get("team")
@@ -166,6 +187,7 @@ def overview_body(side, team_page, which, prefix):
     return (
         header
         + _next_block(team_page, which, prefix)
+        + _staff_block(team_page.get("coaches"))
         + '<h3 class="ov-h">Recent Games</h3>'
         + _recent_games_block(team_page.get("schedule") or [], team, prefix)
         + _standings_block(team_page.get("standings"), team)
@@ -388,6 +410,19 @@ P3_CSS = r"""
 .ov-fact b{font-size:15px;font-family:Teko,Inter,system-ui,sans-serif;font-weight:700}
 .ov-fact b small{font-size:9px;font-weight:400;font-family:Inter,sans-serif}
 .ov-fact span{font-size:9px;color:var(--text-2);letter-spacing:.04em}
+/* Coaching staff: head coach + each side's actual play-caller, three columns under the
+   next-game row (Jason, 2026-09-28). Columns size to their content rather than splitting
+   evenly, so a long surname (Schottenheimer) gets the room it needs instead of breaking
+   mid-word; names wrap between first and last name when they have to. */
+.ov-staff{display:grid;grid-template-columns:repeat(3,auto);justify-content:space-between;gap:10px;
+  padding:0 4px 12px;border-bottom:1px solid var(--tile-border-soft);margin-bottom:10px}
+.ov-coach{display:flex;flex-direction:column;gap:2px}
+/* Label and role tag each stay whole, but the tag drops under the label when a column is
+   tight (Dallas's two Schottenheimers on a 375px phone). */
+.ov-coach-lbl{font-size:9px;font-weight:700;letter-spacing:.06em;color:var(--text-2)}
+.ov-coach-lbl > span{white-space:nowrap}
+.ov-coach-role{font-weight:400;display:inline-block;white-space:nowrap}
+.ov-coach-name{font-size:13px;font-weight:700;line-height:1.2}
 .ov-h{font-size:13px;font-weight:700;padding:4px 4px 6px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-2)}
 .ov-empty{padding:8px 4px;color:var(--text-2);font-size:13px}
 .rg-list,.st-list,.sc-list{list-style:none;display:flex;flex-direction:column}
@@ -473,6 +508,13 @@ P3_CSS = r"""
    left between the top/bottom bars, so a shorter phone leaves less room for it regardless of
    width -- tighten the row height further so all 11 rows still fit without scrolling. */
 @media (max-height:700px){
+  .ov-head{padding:2px 4px 0}
+  .ov-head img{width:48px;height:48px}
+  .ov-top{padding:8px 4px;margin:6px 0 8px}
+  .ov-staff{padding-bottom:8px;margin-bottom:6px}
+  .rg-row{padding:4px}
+  .ov-standings{margin-top:6px}
+  .st-row{padding:3px 4px}
   .stat-head{padding:4px 2px 6px}
   .stat-row{min-height:36px;padding:4px 2px}
 }
@@ -481,7 +523,14 @@ P3_CSS = r"""
   .stat-head{grid-template-columns:62px 1fr 62px}
   .stat-row{grid-template-columns:62px 1fr 62px}
   .ov-facts{gap:10px}
+  .ov-staff{gap:6px}
+  .ov-coach-lbl{letter-spacing:.02em}
+  .ov-coach-name{font-size:12px}
   .st-row{grid-template-columns:20px 1fr 20px 20px 20px 46px}
   .sc-row{grid-template-columns:14px 44px 10px 18px 1fr auto 38px;gap:4px;font-size:11px;padding:3px 2px}
+}
+/* 360px-class phones: one step smaller so the widest staff row (DAL) still fits. */
+@media (max-width:370px){
+  .ov-coach-name{font-size:11px}
 }
 """

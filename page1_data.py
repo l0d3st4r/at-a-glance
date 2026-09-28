@@ -49,6 +49,7 @@ try:
 except Exception:  # pragma: no cover
     EASTERN = None
 
+from coaches import coaches_for
 from divisions import DIVISIONS, get_division, normalize_abbr
 from stadiums import STADIUMS, STATE_NAMES, NEUTRAL_VENUES
 from weather import get_game_window_weather
@@ -1083,6 +1084,7 @@ def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, w
                         "stats": team_stats.get(team) or {},
                         "schedule": team_schedules.get(team) or [],
                         "standings": _standings_for(team_schedules, team, limit),
+                        "coaches": coaches_for(team),
                         "next": {
                             "opponent": opponent,
                             "gameday": g["gameday"],
