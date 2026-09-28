@@ -211,7 +211,19 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
    right edge. minmax(0,Npx) still resolves to exactly Npx whenever there's room (so the
    alignment fix above still holds) but lets every column shrink together, in the same
    proportion, when the card is too narrow to give them all their full width. */
-.game{display:grid;grid-template-columns:minmax(0,84px) minmax(0,100px) 1fr minmax(0,100px) minmax(0,84px);align-items:center;
+/* (2026-09-27) records and final scores sit halfway between their helmet and the tile's center,
+   was packed against the helmet. The middle track is exactly one helmet column wide and the two
+   record/score tracks share the rest (minmax(0,1fr) -- every other track is fixed, so they're the
+   same width in every tile and still line up tile to tile). With a middle track that narrow, the
+   center of each record/score track lands exactly halfway between the helmet's center and the
+   tile's center. The time / FINAL label is wider than that middle track, so .center spills evenly
+   into the record/score tracks on both sides (negative margins below).
+   Where the tile is too narrow for that, the middle track grows with the viewport (the max()/clamp()
+   here and at max-width:420px) just enough to keep ~8px between a record/score and the widest time
+   label ("9:30 AM ET") or FINAL, nudging them back toward the helmets -- e.g. 430-440px phones,
+   which get the big 60px scores. It depends only on the viewport, so every tile gets the same
+   columns. */
+.game{display:grid;grid-template-columns:minmax(0,84px) minmax(0,1fr) max(84px,574px - 100vw) minmax(0,1fr) minmax(0,84px);align-items:center;
   padding:16px 8px;color:inherit;text-decoration:none;
   background:var(--tile);border:1px solid var(--tile-border);border-radius:20px;
   transition:transform .16s ease,background-color .16s ease,border-color .16s ease}
@@ -233,7 +245,7 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
 .stack{display:flex;flex-direction:column;align-items:center;min-width:0;width:100%}
 .abbr-c{display:none}   /* the condensed view's copy of the abbreviation, over the record */
 .record{font-size:16px;font-weight:400;line-height:19px;color:var(--text-2);text-align:center;font-variant-numeric:tabular-nums}  /* vertically centered in the tile; tabular so "0-1" and "10-6-1" don't nudge the column (2026-09-21) */
-.center{display:flex;flex-direction:column;align-items:center;gap:4px;padding:0 8px}
+.center{display:flex;flex-direction:column;align-items:center;gap:4px;padding:0 8px;margin-inline:-40px}
 .time{font-size:20px;font-weight:700;line-height:24px;white-space:nowrap;margin-top:-6px}
 .tz{font-size:11px;font-weight:400;margin-left:3px;color:var(--text-2)}
 .network{font-size:11px;font-weight:400;line-height:13px;color:var(--text-3);white-space:nowrap}
@@ -258,7 +270,7 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
      to go but to spill sideways into the record columns next to it. 52px/56px is sized to the
      actual content -- a 3-letter abbreviation, a "10-6-1"-worst-case record -- so the center
      keeps the ~115px it needs. */
-  .game{grid-template-columns:minmax(0,52px) minmax(0,56px) 1fr minmax(0,56px) minmax(0,52px);padding:14px 4px}
+  .game{grid-template-columns:minmax(0,52px) minmax(0,1fr) clamp(52px,442px - 100vw,80px) minmax(0,1fr) minmax(0,52px);padding:14px 4px}
   .team img{width:42px;height:42px}
   .center{padding:0 4px}
   .score{font-size:42px}.final-label{font-size:11px;line-height:13px}
@@ -330,7 +342,7 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
 [data-view=condensed] .time{font-size:13px;line-height:15px;margin-top:0}
 [data-view=condensed] .tz{font-size:8px;margin-left:2px}
 [data-view=condensed] .network{display:none}          /* coverage is cut */
-[data-view=condensed] .center{gap:0;padding:0 4px}
+[data-view=condensed] .center{gap:0;padding:0 4px;margin-inline:0}
 [data-view=condensed] .score{font-size:22px}
 [data-view=condensed] .team-record{font-size:10px;line-height:11px}
 [data-view=condensed] .final-label{font-size:9px;line-height:11px}
