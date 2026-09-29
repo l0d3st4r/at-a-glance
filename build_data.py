@@ -355,8 +355,11 @@ def main():
         history, err = nflverse_client.get_schedules_all()  # Page 2's "last matchup" (2026-09-19)
         if err:
             warnings.append(f"get_schedules_all: {err} -- last matchup limited to this season")
+        quarter_scores, err = nflverse_client.get_quarter_scores(season)   # Page 1 scoring by quarter (2026-09-29)
+        if err:
+            warnings.append(f"get_quarter_scores: {err}")
         game_details = page1_data.build_game_details(schedules, team_weekly, player_weekly, injury_rows, snaps, warnings,
-                                                     depth=depth, history=history or None)
+                                                     depth=depth, history=history or None, quarter_scores=quarter_scores)
     except Exception as e:
         warnings.append(f"build_game_details: {e}")
 

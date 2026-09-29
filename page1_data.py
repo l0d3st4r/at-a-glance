@@ -1039,8 +1039,42 @@ def apply_game_snapshot(details, schedules, snapshot):
     return out
 
 
-def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, warnings, now_utc=None, depth=None, history=None):
-    """history: every season's schedule (for the last meeting on Page 2); falls back to this season's."""
+def _linescores(quarter_rows, games, warnings):
+    """{game_id: {"labels": ["1", "2", "3", "4"(, "OT")], "away": [...], "home": [...]}} for
+    finished games -- points scored in each quarter (Page 1's Game Info card, 2026-09-29), from
+    the running score at the end of each quarter in play-by-play. A game whose quarters don't add
+    up to its final score (play-by-play not caught up yet) is left out rather than shown wrong."""
+    by_game = defaultdict(dict)
+    for r in quarter_rows or []:
+        try:
+            by_game[r["game_id"]][int(r["qtr"])] = (_num(r["total_away_score"]) or 0, _num(r["total_home_score"]) or 0)
+        except (KeyError, TypeError, ValueError):
+            continue
+    out, skipped = {}, 0
+    for g in games:
+        q = by_game.get(g["game_id"])
+        if not (g["final"] and q and all(k in q for k in (1, 2, 3, 4))):
+            continue
+        n = 5 if 5 in q else 4
+        away, home, prev_a, prev_h = [], [], 0, 0
+        for k in range(1, n + 1):
+            a, h = max(q[k][0], prev_a), max(q[k][1], prev_h)   # running totals never go down
+            away.append(int(a - prev_a))
+            home.append(int(h - prev_h))
+            prev_a, prev_h = a, h
+        if sum(away) != g["away_score"] or sum(home) != g["home_score"]:
+            skipped += 1
+            continue
+        out[g["game_id"]] = {"labels": ["1", "2", "3", "4"] + (["OT"] if n == 5 else []), "away": away, "home": home}
+    if skipped:
+        warnings.append(f"scoring by quarter: {skipped} finished game(s) left out -- play-by-play doesn't match the final yet")
+    return out
+
+
+def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, warnings, now_utc=None, depth=None, history=None,
+                       quarter_scores=None):
+    """history: every season's schedule (for the last meeting on Page 2); falls back to this season's.
+    quarter_scores: nflverse_client.get_quarter_scores rows, for the finished games' scoring by quarter."""
     now_utc = now_utc or datetime.now(timezone.utc)
     games = _games(schedules)
     meetings = _meeting_index(history or schedules)
@@ -1055,6 +1089,11 @@ def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, w
     team_all_games = _team_all_games_index(games)
     team_schedules, bye_week = _team_schedule_index(games)
     team_stats_through = _team_stat_builder(games, team_weekly, warnings)
+    try:
+        linescores = _linescores(quarter_scores, games, warnings)
+    except Exception as e:
+        warnings.append(f"scoring by quarter: {e}")
+        linescores = {}
 
     details = {}
     for g in games:
@@ -1120,6 +1159,7 @@ def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, w
                 "final": g["final"],
                 "overtime": g["final"] and str(g["raw"].get("overtime") or "").strip() in ("1", "1.0", "True", "true"),
                 "score": {"away": g["away_score"], "home": g["home_score"]} if g["final"] else None,
+                "linescore": linescores.get(gid),
                 "networks": {"status": "pending"},
                 "venue": venue,
                 "weather": _weather(g, venue, stadium, now_utc),

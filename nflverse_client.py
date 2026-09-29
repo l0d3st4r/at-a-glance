@@ -149,3 +149,20 @@ def get_schedules_all():
         return _to_dicts(df), None
     except Exception as e:
         return [], str(e)
+
+
+# ---------------------------------------------------------------- scoring by quarter (added 2026-09-29)
+
+def get_quarter_scores(season):
+    """Running score at the end of each quarter, from play-by-play: one row per game and quarter
+    with the highest total_home_score / total_away_score reached in it (qtr 5 = overtime).
+    Only the four columns the page needs are kept -- the full play-by-play is ~370 columns."""
+    try:
+        import polars as pl
+        df = nfl.load_pbp(seasons=[season])
+        df = (df.select(["game_id", "qtr", "total_home_score", "total_away_score"])
+                .group_by(["game_id", "qtr"])
+                .agg(pl.col("total_home_score").max(), pl.col("total_away_score").max()))
+        return _to_dicts(df), None
+    except Exception as e:
+        return [], str(e)

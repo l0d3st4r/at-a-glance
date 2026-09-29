@@ -347,6 +347,25 @@ def game_body_compact(d):
     )
 
 
+def linescore_html(d):
+    """A finished game's scoring by quarter (Jason's mock, 2026-09-29): quarter numbers and T
+    across the top, one row per team, OT only when the game went to overtime. "" when there's
+    no linescore (upcoming, or play-by-play not caught up yet)."""
+    ls = d.get("linescore") or {}
+    labels = ls.get("labels") or []
+    score = d.get("score") or {}
+    if not labels:
+        return ""
+    head = "".join(f"<th scope=\"col\">{esc(l)}</th>" for l in labels) + '<th scope="col">T</th>'
+    rows = "".join(
+        f'<tr><th scope="row">{esc((d.get(side) or {}).get("team") or "")}</th>'
+        + "".join(f"<td>{esc(fmt_value(v))}</td>" for v in ls.get(side) or [])
+        + f'<td>{esc(fmt_value(score.get(side)))}</td></tr>'
+        for side in ("away", "home"))
+    return (f'<div class="ls"><table><thead><tr><th scope="col"><span class="vh">Team</span></th>{head}</tr></thead>'
+            f"<tbody>{rows}</tbody></table></div>")
+
+
 def game_body(d, hero=""):
     t, ampm = fmt_time(d.get("gametime"))
     venue = d.get("venue") or {}
@@ -360,7 +379,7 @@ def game_body(d, hero=""):
            f'{corner}</div>')
     # (2026-09-27) a finished game leads with its teams/score header, then time + date, then
     # city + weather; an upcoming game keeps time + date first with the header in the middle
-    lead = hero + top if final else top + hero
+    lead = hero + linescore_html(d) + top if final else top + hero
     return (
         f'{lead}'
         f'<div class="game-bottom"><div class="city">{esc(venue.get("city") or "")}</div><div class="weather">{weather}</div></div>'
@@ -1812,6 +1831,19 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .final-top .time{font-size:38px}
 .final-top .network{margin-top:10px}
 .game-bottom{display:flex;justify-content:space-between;align-items:center}
+/* Scoring by quarter, finished games (Jason's mock, 2026-09-29): between the score header and
+   the time. Quarter numbers + T in the faint text color; team abbreviations plain (not Saira)
+   and regular weight like the numbers; a line between the two teams and a fainter one under
+   the table, reaching a little wider than it. */
+.ls{margin:0 -10px;padding:0 10px 8px;border-bottom:1px solid var(--tile-border-soft)}
+.ls table{width:100%;border-collapse:collapse;table-layout:fixed;font-variant-numeric:tabular-nums}   /* even columns */
+.ls th,.ls td{font-weight:400;text-align:center;padding:0}
+.ls thead th{font-size:13px;color:var(--text-3);padding-bottom:6px}
+.ls tbody th,.ls td{font-size:15px;padding:7px 0}
+.ls tbody th{text-align:left;padding-left:6px;white-space:nowrap}
+.ls thead th:first-child{width:3.4em}
+.ls tbody tr:first-child>*{border-bottom:1px solid var(--tile-border)}
+.ls .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .city{font-size:18px;padding-left:8px}
 .weather{display:flex;align-items:center;gap:14px}
 /* Stadium icons (stadium_icons.py) are sized by height; each drawing keeps its own width. */
