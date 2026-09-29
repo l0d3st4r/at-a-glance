@@ -1834,6 +1834,38 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .final-top .time{font-size:38px}
 .final-top .network{margin-top:10px}
 .game-bottom{display:flex;justify-content:space-between;align-items:center}
+/* Finished games, expanded Game Info card (Jason, 2026-09-29): FINAL sits level with the two
+   scores instead of between the helmets; the helmets are smaller on phones; the time and date
+   share one smaller line (TV level with it); the weather row is a step smaller. The .p1[data-final]
+   prefix keeps these above the general and <=400px rules for the time, date and weather. */
+.p1[data-view=large][data-final] .hero .teams{align-items:flex-start}
+.p1[data-view=large][data-final] .hero .mid{align-self:flex-start;height:2.2em}   /* = the score's line box, so FINAL centers on it */
+@media (max-width:500px){.p1[data-view=large][data-final] .hero .side img{width:1.9em;height:1.9em}}
+.p1[data-final] .view-l .final-top{align-items:baseline}
+.p1[data-final] .view-l .final-top>div{display:flex;align-items:baseline;gap:10px;min-width:0}
+.p1[data-final] .view-l .final-top .time{font-size:22px}
+.p1[data-final] .view-l .final-top .time small{font-size:12px;margin-left:4px}
+.p1[data-final] .view-l .final-top .date{font-size:18px;margin-top:0}
+.p1[data-final] .view-l .final-top .network{margin-top:0;font-size:14px;white-space:nowrap}
+/* phones: sized so the longest line ("8:20 PM ET  SEP 9 Wednesday  TV TBD") still fits */
+@media (max-width:400px){
+  .p1[data-final] .view-l .final-top{gap:6px}
+  .p1[data-final] .view-l .final-top>div{gap:8px}
+  .p1[data-final] .view-l .final-top .date{font-size:17px}
+}
+@media (max-width:380px){
+  .p1[data-final] .view-l .final-top .time{font-size:19px}
+  .p1[data-final] .view-l .final-top .time small{font-size:11px}
+  .p1[data-final] .view-l .final-top .date{font-size:15px}
+  .p1[data-final] .view-l .final-top .network{font-size:13px}
+}
+.p1[data-final] .view-l .game-bottom .city{font-size:16px}
+.p1[data-final] .view-l .game-bottom .weather{gap:10px}
+.p1[data-final] .view-l .game-bottom .temp{font-size:30px}
+.p1[data-final] .view-l .game-bottom .temp-word{font-size:20px}
+.p1[data-final] .view-l .game-bottom .temp-word-long{font-size:17px}
+.p1[data-final] .view-l .game-bottom .weather svg.wx{width:42px;height:32px}
+.p1[data-final] .view-l .game-bottom .weather svg.stad{height:22px;width:auto}
 /* Scoring by quarter, finished games (Jason's mock, 2026-09-29): between the score header and
    the time. Quarter numbers + T in the faint text color; team abbreviations plain (not Saira)
    and regular weight like the numbers; a line between the two teams and a fainter one under
