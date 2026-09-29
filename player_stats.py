@@ -80,11 +80,15 @@ def build_player_weeks(player_weekly, warnings):
     return dict(out)
 
 
-def season_totals(player_weeks, team, week_limit):
-    """One totals row per player for `team` over regular-season weeks < week_limit (None = all)."""
+def season_totals(player_weeks, team, week_limit, week=None):
+    """One totals row per player for `team` over regular-season weeks < week_limit (None = all) --
+    or, given `week`, that one week only (a finished game's own stats, 2026-09-29)."""
     players = {}
     for r in (player_weeks or {}).get(team) or []:
-        if week_limit is not None and r["wk"] >= week_limit:
+        if week is not None:
+            if r["wk"] != week:
+                continue
+        elif week_limit is not None and r["wk"] >= week_limit:
             continue
         p = players.get(r["id"])
         if p is None:
@@ -114,14 +118,18 @@ MEDAL_STATS = {
 YPA_ATTEMPTS_PER_GAME = 14
 
 
-def league_medals(player_weeks, week_limit):
+def league_medals(player_weeks, week_limit, week=None):
     """{(team, player id): {stat: 1 | 2 | 3}} for everyone in the league's top 3 of a MEDAL_STATS
-    stat over regular-season weeks < week_limit. Places use competition ranking (two tied for
-    1st are both gold and the next is bronze); a zero never medals."""
+    stat over regular-season weeks < week_limit -- or, given `week`, among that week's games only
+    (a finished game's page). Places use competition ranking (two tied for 1st are both gold and
+    the next is bronze); a zero never medals."""
     rows = []   # (team, row, games the team has played)
     for team in (player_weeks or {}):
-        games = len({r["wk"] for r in player_weeks[team] if week_limit is None or r["wk"] < week_limit})
-        rows += [(team, r, games) for r in season_totals(player_weeks, team, week_limit)]
+        if week is not None:
+            games = 1
+        else:
+            games = len({r["wk"] for r in player_weeks[team] if week_limit is None or r["wk"] < week_limit})
+        rows += [(team, r, games) for r in season_totals(player_weeks, team, week_limit, week)]
     out = defaultdict(dict)
     for stat, value in MEDAL_STATS.items():
         vals = []

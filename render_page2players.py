@@ -28,8 +28,13 @@ or bronze bar under it (Jason, 2026-09-28).
 Data: game_details[<id>]["player_stats"] = {"away": [...], "home": [...]}, attached by
 render_page1.write_all from data/matchups.json's "player_weeks" (player_stats.py), each
 player's row carrying "medals" = {stat: 1 | 2 | 3} (player_stats.league_medals).
+A finished regular-season game shows that game's stats instead of the season's (Jason,
+2026-09-29): same cards, columns and rules, top-3 bars ranked among that week's games
+(player_stats.season_totals / league_medals with week=...). Until nflverse publishes the game's
+player stats, and for playoff games, it stays season to date (render_page1.write_all).
+
 Missing data never breaks the page: a team with nobody in a card reads "None this season"
-("No games played yet" in Week 1, before either team has any stats).
+("None this game" on a finished game; "No games played yet" in Week 1).
 """
 
 import html
@@ -189,10 +194,17 @@ def _team_tables(players, sections, empty):
     return "".join(out)
 
 
-def card_body(sections, layout, teams, stats):
-    """teams = (away, home) abbreviations; stats = {abbr: [player totals]}."""
+def _empty_text(stats, scope):
+    """What a card says for a team with nobody in it. scope: "game" on a finished game, else "season"."""
+    if scope == "game":
+        return "None this game"
     # before either team has played (Week 1), say so rather than "None this season" everywhere
-    empty = "None this season" if any(stats.values()) else "No games played yet"
+    return "None this season" if any(stats.values()) else "No games played yet"
+
+
+def card_body(sections, layout, teams, stats, scope="season"):
+    """teams = (away, home) abbreviations; stats = {abbr: [player totals]}."""
+    empty = _empty_text(stats, scope)
     if layout == "stack":
         blocks = "".join(
             f'<div class="ps-team"><div class="ps-th">{_pill(t)}<span class="abbr">{esc(t)}</span></div>'
@@ -254,8 +266,8 @@ def _pairs(rows, cols, empty):
             f'<span class="ps-pos">{esc(r["pos"])}</span></div><div class="pc-sts">{stats}</div>')
 
 
-def condensed_view(teams, stats):
-    empty = "None this season" if any(stats.values()) else "No games played yet"
+def condensed_view(teams, stats, scope="season"):
+    empty = _empty_text(stats, scope)
     tabs = "".join(
         f'<button type="button" class="ps-tab{" on" if i == 0 else ""}" data-team="{esc(t)}" aria-pressed="{"true" if i == 0 else "false"}">'
         f'{_pill(t)}<span class="abbr">{esc(t)}</span></button>' for i, t in enumerate(teams))
@@ -284,16 +296,17 @@ def render_players_block(d):
         return ""
     from render_page1 import UP, DOWN
     stats = {away: ps.get("away") or [], home: ps.get("home") or []}
+    scope = ps.get("scope") or "season"
     slots = "".join(
         f'<section class="slot"><a class="card p2k p2k-ps p2k-{cid}" tabindex="-1" aria-label="{esc(title)}">'
         f'<span class="peek peek-top">{DOWN}<span>{esc(title)}</span></span>'
-        f'<div class="body">{card_body(sections, layout, (away, home), stats)}</div>'
+        f'<div class="body">{card_body(sections, layout, (away, home), stats, scope)}</div>'
         f'<span class="peek peek-bot">{UP}<span>{esc(title)}</span></span></a></section>'
         for cid, title, sections, layout in CARDS)
     dots = "".join(f'<button class="dot" type="button" aria-label="{esc(title)}"></button>' for _c, title, _s, _l in CARDS)
     return ('<div class="p2 p2-ps" data-page="leaders" aria-label="Player stats" role="region">'
             f'<div class="p2-view p2-l deck">{slots}</div><nav class="dots p2-dots" aria-label="Cards">{dots}</nav>'
-            f'{condensed_view((away, home), stats)}</div>')
+            f'{condensed_view((away, home), stats, scope)}</div>')
 
 
 # ---------------------------------------------------------------- styles

@@ -752,16 +752,26 @@ def write_all(data, site_dir, warnings=None):
     for gid, d in details.items():
         try:
             # Player Stats page (render_page2players.py): each team's season to date, totaled here
-            # from the per-week rows rather than stored per game (player_stats.py)
+            # from the per-week rows rather than stored per game (player_stats.py). A finished
+            # regular-season game shows that game's stats instead (Jason, 2026-09-29) -- once
+            # nflverse has published them (a few hours after the final whistle; until then, and
+            # for playoff games, whose player stats aren't in the data, it stays season to date,
+            # like the Leaders card's switch to Game Leaders).
             if player_weeks:
+                teams = {side: (d.get(side) or {}).get("team") for side in ("away", "home")}
                 limit = d.get("week") if d.get("game_type") == "REG" else None
-                if limit not in medals_by_limit:   # league top 3s, once per set of weeks
-                    medals_by_limit[limit] = player_stats.league_medals(player_weeks, limit)
-                medals = medals_by_limit[limit]
-                ps = {}
-                for side in ("away", "home"):
-                    team = (d.get(side) or {}).get("team")
-                    ps[side] = player_stats.season_totals(player_weeks, team, limit)
+                scope, week = "season", None
+                if d.get("final") and d.get("game_type") == "REG" and d.get("week") is not None:
+                    game = {side: player_stats.season_totals(player_weeks, t, None, week=d["week"]) for side, t in teams.items()}
+                    if any(game.values()):
+                        scope, week = "game", d["week"]
+                key = ("week", week) if scope == "game" else ("before", limit)
+                if key not in medals_by_limit:   # league top 3s, once per set of weeks
+                    medals_by_limit[key] = player_stats.league_medals(player_weeks, limit, week)
+                medals = medals_by_limit[key]
+                ps = {"scope": scope}
+                for side, team in teams.items():
+                    ps[side] = game[side] if scope == "game" else player_stats.season_totals(player_weeks, team, limit)
                     for r in ps[side]:
                         r["medals"] = medals.get((team, r["id"]), {})
                 d = dict(d, player_stats=ps)
