@@ -592,9 +592,11 @@ WIN_TRI = ('<svg viewBox="0 0 8 10" aria-hidden="true"><path d="M8 0 0 5l8 5z" f
 
 def final_label_html(d):
     """"FINAL"/"FINAL/OT" flanked by two triangle slots -- only the winner's side is visible
-    (CSS keys off data-win on .p1), same convention as Page 0."""
-    text = "FINAL/OT" if d.get("overtime") else "FINAL"
-    return (f'<span class="tri tri-a">{WIN_TRI}</span>{esc(text)}<span class="tri tri-h">{WIN_TRI}</span>')
+    (CSS keys off data-win on .p1), same convention as Page 0. "FINAL/OT" is split into spans so the
+    Game Info card can stack it as FINAL over OT (.ot-stack) -- on one line it's too wide for a phone card."""
+    text = ('<span class="fl-txt"><span>FINAL</span><span><span class="fl-sl">/</span>OT</span></span>'
+            if d.get("overtime") else "FINAL")
+    return (f'<span class="tri tri-a">{WIN_TRI}</span>{text}<span class="tri tri-h">{WIN_TRI}</span>')
 
 
 def render_p1_block(d, prefix="../"):
@@ -614,20 +616,23 @@ def render_p1_block(d, prefix="../"):
     # One header row, drawn twice (top bar + the middle of the Game Info card) and morphed between the two.
     # Each team is a unit: helmet plus its abbreviation (and final score) — side by side when condensed,
     # stacked and pushed to the edges of the screen in the expanded view (2026-09-17).
-    row = (
+    # The card's copy stacks an overtime final's label (FINAL over OT) so the row fits a 360px card; the
+    # class rides along on the clones the header animation makes of it.
+    at_cls = lambda stack: " at-final" + (" ot-stack" if stack and d.get("overtime") else "") if final else ""
+    row = lambda stack=False: (
         f'<div class="side away">{img(a, 44)}<span class="abbr">{esc(a)}</span>{a_score}</div>'
         # finished games say FINAL / FINAL/OT where the "@" was (Jason, 2026-09-19) -- same element, so every
         # header animation that moves the "@" carries the label instead. The winner triangle
         # (2026-09-21) rides along inside both copies since they're just cloned for the animation.
-        f'<div class="mid"><span class="at{" at-final" if final else ""}">{final_label_html(d) if final else "@"}</span>'
+        f'<div class="mid"><span class="at{at_cls(stack)}">{final_label_html(d) if final else "@"}</span>'
         f'<span class="when"><span>{esc(when_day)}</span><span>{esc(when_time)}</span></span>'
         f'<span class="final-lbl">{final_label_html(d)}</span></div>'
         f'<div class="side home">{h_score}<span class="abbr">{esc(h)}</span>{img(h, 44, True)}</div>'
     )
-    hero = f'<div class="hero" aria-hidden="true"><div class="teams">{row}</div></div>'
+    hero = f'<div class="hero" aria-hidden="true"><div class="teams">{row(stack=True)}</div></div>'
     bar = (
         '<header class="bar"><div class="bar-in">'
-        f'<div class="teams" aria-label="{esc(TEAM_NAMES.get(a, a))} at {esc(TEAM_NAMES.get(h, h))}">{row}</div>'
+        f'<div class="teams" aria-label="{esc(TEAM_NAMES.get(a, a))} at {esc(TEAM_NAMES.get(h, h))}">{row()}</div>'
         # each team page's own header (helmet, name, record, opponent); shown only while it's open
         f'{render_page2team.team_bar_heads(away, home, prefix)}'
         "</div></header>"
@@ -1481,6 +1486,10 @@ a.card:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px}
 .teams .at-final{font-weight:700;letter-spacing:.04em;white-space:nowrap;padding:0 .3em;
   display:inline-flex;align-items:center;gap:.22em}   /* 16px in the 20px bar = Page 0's FINAL */
 .hero .teams .at-final{font-size:.44em;padding:0 .35em}   /* in the Game Info card: label-sized (~16px), so the teams keep their room */
+/* overtime in the card: FINAL over OT (no slash), so the label is no wider than a regular FINAL */
+.fl-txt{display:inline-flex}
+.ot-stack .fl-txt{flex-direction:column;align-items:center;line-height:1.1;vertical-align:middle}
+.ot-stack .fl-sl{display:none}
 @media (max-width:400px){.bar .teams .at-final{font-size:.58em;padding:0 .2em}}   /* Page 0 drops FINAL to 11px here too */
 @media (max-width:344px){.p1:not([data-view=large]) .bar .teams{font-size:17px}}
 .teams img{display:block;width:2.2em;height:2.2em}
