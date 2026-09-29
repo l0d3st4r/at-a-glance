@@ -1,6 +1,11 @@
 """
 Condensed Game Info + scoring by quarter mockup (2026-09-29) -- NOT part of the live build.
 
+SNAPSHOT: this was the design mockup. Jason picked option A; it now lives in the real build
+(render_page1.game_body_compact / linescore_html(mini=True), with extra tightening on short
+phones), so running this script against the current code stacks a second table on option A.
+Kept for reference.
+
 The expanded Game Info card got a finished game's scoring by quarter (render_page1.linescore_html,
 Jason's mock). This tries three ways to bring it into the condensed view's Game Info card, which
 today is two lines (time + date / weather, then city / TV):

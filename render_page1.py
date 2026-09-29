@@ -333,7 +333,9 @@ def game_body_compact(d):
     """Condensed Game Info (2026-09-27): two lines instead of a spread-out block, to give the
     Leaders card more height -- time + date/day left, weather right; then city left, TV right.
     The date uses the top bar's short form ('SUN SEP 27'): spelled out ('SEP 27 Wednesday') it
-    didn't fit beside the time and an indoor game's 'Roof Closed' on narrow phones."""
+    didn't fit beside the time and an indoor game's 'Roof Closed' on narrow phones.
+    A finished game adds a small version of the scoring-by-quarter table under the two lines
+    (Jason, 2026-09-29, option A of mockups/build_linescore_condensed_mockup.py)."""
     t, ampm = fmt_time(d.get("gametime"))
     small = f"<small>{ampm}</small>" if ampm else ""
     venue = d.get("venue") or {}
@@ -344,10 +346,11 @@ def game_body_compact(d):
         f'<div class="weather">{weather_html(d)}</div></div>'
         f'<div class="gc-row gc-2"><div class="city">{esc(venue.get("city") or "")}</div>'
         f'<div class="network">{esc(fmt_network(d.get("networks")))}</div></div>'
+        + linescore_html(d, mini=True)
     )
 
 
-def linescore_html(d):
+def linescore_html(d, mini=False):
     """A finished game's scoring by quarter (Jason's mock, 2026-09-29): quarter numbers and T
     across the top, one row per team, OT only when the game went to overtime. "" when there's
     no linescore (upcoming, or play-by-play not caught up yet)."""
@@ -362,7 +365,7 @@ def linescore_html(d):
         + "".join(f"<td>{esc(fmt_value(v))}</td>" for v in ls.get(side) or [])
         + f'<td>{esc(fmt_value(score.get(side)))}</td></tr>'
         for side in ("away", "home"))
-    return (f'<div class="ls"><table><thead><tr><th scope="col"><span class="vh">Team</span></th>{head}</tr></thead>'
+    return (f'<div class="ls{" ls-mini" if mini else ""}"><table><thead><tr><th scope="col"><span class="vh">Team</span></th>{head}</tr></thead>'
             f"<tbody>{rows}</tbody></table></div>")
 
 
@@ -1843,6 +1846,23 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .ls tbody th{text-align:left;padding-left:6px;white-space:nowrap}
 .ls thead th:first-child{width:3.4em}
 .ls tbody tr:first-child>*{border-bottom:1px solid var(--tile-border)}
+/* the condensed Game Info card's smaller copy, under its two lines */
+.c-game .ls-mini{margin:4px -6px 0;padding:0 6px 2px;border-bottom:0}
+.c-game .ls-mini thead th{font-size:10px;padding-bottom:2px}
+.c-game .ls-mini tbody th,.c-game .ls-mini td{font-size:12px;padding:2px 0}
+.c-game .ls-mini thead th:first-child{width:3.2em}
+/* short phones (iPhone SE, most 360px Androids): tighter still, so the Leaders card below keeps
+   room for all of its rows */
+@media (max-height:760px){
+  .c-game .ls-mini{margin-top:2px;padding-bottom:0}
+  .c-game .ls-mini thead th{font-size:9px;padding-bottom:1px;line-height:1.1}
+  .c-game .ls-mini tbody th,.c-game .ls-mini td{font-size:11px;padding:1px 0;line-height:1.2}
+  /* and on a finished game the Leaders rows a pixel closer and the team cards 10px shorter
+     (they have room to spare), so the Leaders card still clears its last row */
+  .p1[data-final] .c-cmp-in{gap:5px}
+  .p1[data-final] .c-cmp-in>.cmp-row:not(.cmp-head){padding-top:2px}
+  .p1[data-final] .view-c{grid-template-rows:auto calc((max(100dvh, 720px) - var(--bar) - var(--bbar) - 48px) * 1.18 / 3.42 - 10px) minmax(0,1fr)}
+}
 .ls .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .city{font-size:18px;padding-left:8px}
 .weather{display:flex;align-items:center;gap:14px}
