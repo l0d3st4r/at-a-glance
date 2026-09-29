@@ -1890,6 +1890,17 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .ls tbody th{text-align:left;padding-left:6px;white-space:nowrap}
 .ls thead th:first-child{width:3.4em}
 .ls tbody tr:first-child>*{border-bottom:1px solid var(--tile-border)}
+/* Finished games, condensed Game Info card (Jason, 2026-09-29): the start time and the weather a
+   size smaller -- the card is only as tall as its content, so the height saved goes to the
+   Leaders card below (its grid row takes whatever is left). */
+.p1[data-final] .c-game .time{font-size:clamp(18px,2.5vh,24px)}
+.p1[data-final] .c-game .time small{font-size:11px}
+.p1[data-final] .c-game .temp{font-size:clamp(16px,2.1vh,20px)}
+.p1[data-final] .c-game .temp-word{font-size:clamp(13px,1.7vh,16px)}
+.p1[data-final] .c-game .temp-word-long{font-size:clamp(11px,1.4vh,13px)}
+.p1[data-final] .c-game .weather{gap:5px}
+.p1[data-final] .c-game .weather svg{width:22px;height:17px}
+.p1[data-final] .c-game .weather svg.stad{height:12px;width:auto}
 /* the condensed Game Info card's smaller copy, under its two lines */
 .c-game .ls-mini{margin:4px -6px 0;padding:0 6px 2px;border-bottom:0}
 .c-game .ls-mini thead th{font-size:10px;padding-bottom:2px}
