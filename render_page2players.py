@@ -194,6 +194,14 @@ def _team_tables(players, sections, empty):
     return "".join(out)
 
 
+SCOPE_LABELS = {"game": "Game Stats", "season": "Season Stats"}
+
+
+def _scope_label(scope, extra=""):
+    """Which numbers the page is showing (Jason, 2026-09-29): this game's, or the season's."""
+    return f'<span class="ps-scope{extra}">{esc(SCOPE_LABELS.get(scope, SCOPE_LABELS["season"]))}</span>'
+
+
 def _empty_text(stats, scope):
     """What a card says for a team with nobody in it. scope: "game" on a finished game, else "season"."""
     if scope == "game":
@@ -283,7 +291,8 @@ def condensed_view(teams, stats, scope="season"):
             for i, t in enumerate(teams))
         cards.append(f'<a class="card cc pc-{cid} pc-{width}" tabindex="0" aria-label="{esc(title)}">'
                      f'<span class="card-title">{esc(title)}</span>{panes}</a>')
-    return f'<div class="p2-view p2-c pc"><div class="ps-sw pc-sw">{tabs}</div>{"".join(cards)}</div>'
+    return (f'<div class="p2-view p2-c pc"><div class="ps-sw pc-sw">{tabs}</div>{_scope_label(scope, " pc-scope")}'
+            f'{"".join(cards)}</div>')
 
 
 def render_players_block(d):
@@ -300,7 +309,7 @@ def render_players_block(d):
     slots = "".join(
         f'<section class="slot"><a class="card p2k p2k-ps p2k-{cid}" tabindex="-1" aria-label="{esc(title)}">'
         f'<span class="peek peek-top">{DOWN}<span>{esc(title)}</span></span>'
-        f'<div class="body">{card_body(sections, layout, (away, home), stats, scope)}</div>'
+        f'<div class="body">{_scope_label(scope)}{card_body(sections, layout, (away, home), stats, scope)}</div>'
         f'<span class="peek peek-bot">{UP}<span>{esc(title)}</span></span></a></section>'
         for cid, title, sections, layout in CARDS)
     dots = "".join(f'<button class="dot" type="button" aria-label="{esc(title)}"></button>' for _c, title, _s, _l in CARDS)
@@ -349,9 +358,15 @@ P4_CSS = r"""
    detailAtTop keeps a pull-down from closing the page until it's scrolled back to the top).
    Each card shows the chosen team's pane (.pc-p.on). */
 .p2-c.pc{grid-template-columns:1fr 1fr;overflow-y:auto;-webkit-overflow-scrolling:touch;
-  grid-template-rows:auto minmax(min-content,1.1fr) minmax(min-content,1.5fr) minmax(min-content,2fr)
+  grid-template-rows:auto auto minmax(min-content,1.1fr) minmax(min-content,1.5fr) minmax(min-content,2fr)
     minmax(min-content,2fr) minmax(min-content,1.2fr)}
 .pc-sw{grid-column:1/-1}
+/* "Season Stats" / "Game Stats": a small outlined pill under each expanded card's title, and one
+   line under the condensed view's team switch (Jason, 2026-09-29) */
+.ps-scope{align-self:center;flex:none;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--text-2);border:1px solid var(--tile-border);border-radius:999px;padding:3px 9px;line-height:1.1;white-space:nowrap}
+.p2 .slot .p2k-ps .body>.ps-scope{margin-top:-14px}
+.pc-scope{grid-column:1/-1;justify-self:center;margin:-4px 0 -2px}
 .p2-c.pc a.card.cc{justify-content:flex-start;padding:var(--ctitle) 12px 6px;gap:0}
 .p2-c.pc a.card.pc-row{grid-column:1/-1}
 /* "safe": if a pane ever overflows, it's the bottom that's cut, never the player's name */
