@@ -38,6 +38,9 @@ LIGHT = {
     # the switch: which icon shows is a token, so the copy inside a shadow root flips with the
     # rest of the page -- light mode shows the moon (tap for dark)
     "sw-sun": "none", "sw-moon": "flex",
+    # temperature colors (temp_colors.py): how much of a number's light-theme shade to use --
+    # all of it here, none in dark, where its dark-theme shade shows instead
+    "tc-light": "100%",
 }
 
 # Near-black ground with a slightly lifted tile, so the outlined cards still read as
@@ -53,6 +56,7 @@ DARK = dict(LIGHT, **{
     "win": "#4CC76E", "loss": "#FF6B6B", "tie": "#E8B93A",
     "theme-color": "#0B0B0C",
     "sw-sun": "flex", "sw-moon": "none",   # dark mode shows the sun (tap for light)
+    "tc-light": "0%",
 })
 
 

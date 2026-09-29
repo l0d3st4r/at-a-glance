@@ -38,6 +38,7 @@ import html
 from datetime import date, datetime, timezone
 
 import stadium_icons
+import temp_colors
 
 DASH = "—"
 MONTHS_UPPER = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
@@ -175,7 +176,11 @@ def _weather_values(d, w):
 
 
 def _temp(v):
-    return f'{esc(fmt_int(v))}°' if v is not None else f'<span class="na">{DASH}°</span>'
+    """A temperature, colored by the temperature scale (temp_colors.py, 2026-09-29)."""
+    if v is None:
+        return f'<span class="na">{DASH}°</span>'
+    tc, style = temp_colors.tc_attrs(v)
+    return f'<span class="{tc}"{style}>{esc(fmt_int(v))}°</span>'
 
 
 def _roof(st):

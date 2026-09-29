@@ -42,6 +42,7 @@ import render_page2gameinfo
 import render_page2players
 import render_page2team
 import stadium_icons
+import temp_colors
 import theme
 
 MONTHS_UPPER = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
@@ -325,7 +326,8 @@ def weather_html(d):
         cls = "temp temp-word temp-word-long" if " " in word else "temp temp-word"
         return f'<span class="{cls}">{word}</span>{stadium_icons.svg(kind, "wx")}'
     if w.get("available") and w.get("temp_f") is not None:
-        return f'<span class="temp">{esc(w["temp_f"])}°</span>{WEATHER_ICONS.get(w.get("condition"), "")}'
+        tc, style = temp_colors.tc_attrs(w["temp_f"])   # colored by the temperature scale (2026-09-29)
+        return f'<span class="temp {tc}"{style}>{esc(w["temp_f"])}°</span>{WEATHER_ICONS.get(w.get("condition"), "")}'
     return f'<span class="temp temp-na" title="Forecast not available yet">{DASH}°</span>'
 
 
@@ -732,7 +734,7 @@ def render_standalone(d):
         "<link rel='preconnect' href='https://fonts.googleapis.com'><link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>"
         "<link href='https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;700;900&display=swap' rel='stylesheet'>"
         "<link href='https://fonts.googleapis.com/css2?family=Saira:ital,wdth,wght@1,50..125,400..900&family=Teko:wght@400..700&display=swap' rel='stylesheet'>"
-        f"<style id='p1-css'>{P1_CSS}{render_page2gameinfo.P2_CSS}{render_page2team.P3_CSS}{render_page2players.P4_CSS}</style>"
+        f"<style id='p1-css'>{P1_CSS}{render_page2gameinfo.P2_CSS}{render_page2team.P3_CSS}{render_page2players.P4_CSS}{temp_colors.TC_CSS}</style>"
         # the theme tokens sit on this page's own root (on Page 0 they come from Page 0's root)
         f"<style>{theme.THEME_CSS}html,body{{margin:0;background:var(--aag-bg)}}</style></head><body>"
         f"{render_p1_block(d)}"
