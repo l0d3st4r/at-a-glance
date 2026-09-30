@@ -5,8 +5,8 @@ for the full story). Run with: python build_data.py
 
 KNOWN GAPS in this pass (flagged, not hidden -- see field-by-field notes
 below and in the output JSON's "warnings" list):
-  - TV network / "where to watch" -- no field found in nflverse's data.
-    Left as "pending". Needs a separate small source, follow-up work.
+  - TV network / "where to watch" -- not in nflverse's data; kept by hand in
+    tv_networks.csv instead (see tv_networks.py, 2026-09-29).
   - Red zone stats specifically -- not confirmed as direct columns in
     nflverse's team stats. The FULL raw team-stats row is included per
     team in the output regardless, so once we can see real column names
@@ -32,6 +32,7 @@ from ranks import compute_ranks
 import page1_data
 import player_stats
 import snapshot
+import tv_networks
 
 OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "data", "matchups.json")
 
@@ -122,7 +123,12 @@ def _overtime(value):
         return False
 
 
-def build_season_weeks(schedules, current_week):
+def _network(networks, game_id):
+    """The game's TV network ("CBS") from tv_networks.csv, else the "pending" marker the pages show as TV TBD."""
+    return (networks or {}).get(game_id) or {"status": "pending"}
+
+
+def build_season_weeks(schedules, current_week, networks=None):
     """
     Every week of the season for the Page 0 week dropdown, built only from
     the schedule (cheap -- no per-team injuries/rosters/stats here).
@@ -178,7 +184,7 @@ def build_season_weeks(schedules, current_week):
             "gametime": g.get("gametime"),
             "final": is_final(g),
             "overtime": is_final(g) and _overtime(g.get("overtime")),
-            "networks": {"status": "pending"},
+            "networks": _network(networks, g.get("game_id")),
             "away": {"team": away, "record": record_for(g, away), "score": _score(g.get("away_score"))},
             "home": {"team": home, "record": record_for(g, home), "score": _score(g.get("home_score"))},
         }
@@ -286,6 +292,12 @@ def main():
         else:
             warnings.append(f"rosters: none of {TEAM_KEY_CANDIDATES} found as a team column -- check real column names")
 
+    networks = {}
+    try:
+        networks = tv_networks.load(schedules, warnings)
+    except Exception as e:
+        warnings.append(f"TV networks: {e}")
+
     # Filter to this week's games. Fall back to "next games with no score
     # yet" if the week number doesn't line up with what we expect.
     this_week_games = [g for g in schedules if g.get("week") == week] if week else []
@@ -318,7 +330,7 @@ def main():
             "roof": roof,
             "indoor": is_indoor,
             "surface": g.get("surface"),
-            "networks": {"status": "pending", "note": "No TV network field found in nflverse schedule data -- needs a separate source, see build_data.py docstring."},
+            "networks": _network(networks, g.get("game_id")),
             "weather": weather,
             "home": build_team_snapshot(home_abbr, schedules, team_stats_by_team, ranks_by_team, rosters_by_team_raw, injuries_by_team_raw, warnings),
             "away": build_team_snapshot(away_abbr, schedules, team_stats_by_team, ranks_by_team, rosters_by_team_raw, injuries_by_team_raw, warnings),
@@ -328,7 +340,7 @@ def main():
     # never break the existing current-week data above.
     season_weeks, current_week_key = [], None
     try:
-        season_weeks, current_week_key = build_season_weeks(schedules, week)
+        season_weeks, current_week_key = build_season_weeks(schedules, week, networks)
     except Exception as e:
         warnings.append(f"build_season_weeks: {e}")
 
@@ -369,6 +381,8 @@ def main():
                                                      rosters_weekly=rosters_weekly, injury_events=injury_events)
     except Exception as e:
         warnings.append(f"build_game_details: {e}")
+    for gid, d in game_details.items():
+        d["networks"] = _network(networks, gid)
 
     # Finished games keep the weather and surface the site last showed (2026-09-27, see snapshot.py)
     try:
