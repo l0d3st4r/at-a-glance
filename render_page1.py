@@ -736,7 +736,7 @@ def render_standalone(d):
     return (
         "<!doctype html><html lang='en'><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1,viewport-fit=cover'>"
-        "<meta name='theme-color' content='#ffffff'>"
+        "<meta name='theme-color' content='#F3F3EE'>"
         f"<script>{theme.THEME_HEAD_JS}</script>"
         f"<title>{esc(title)}</title>"
         f"{helmets.favicon_links('../')}"
@@ -803,7 +803,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
   opts = opts || {};
   var wrap = root.querySelector('.p1'); if (!wrap) return { destroy: function () {} };
   // the card outline color for the open/close animations -- read from the theme so it matches light or dark
-  function tileLine() { return getComputedStyle(wrap).getPropertyValue('--aag-tile-border').trim() || 'rgba(0,0,0,.12)'; }
+  function tileLine() { return getComputedStyle(wrap).getPropertyValue('--aag-tile-border').trim() || 'rgba(27,21,18,.12)'; }
   var deck = root.querySelector('.view-l'), slots = [].slice.call(root.querySelectorAll('.view-l > .slot')),
       dots = [].slice.call(root.querySelectorAll('.p1 > .dots .dot')), toggle = root.querySelector('.toggle'),
       week = root.querySelector('.week'), active = -1, bound = [], morphing = false;

@@ -24,17 +24,18 @@ whatever the phone is set to clears the choice, so the page follows the phone ag
 BBAR_HEIGHT = "calc(52px + env(safe-area-inset-bottom))"
 
 LIGHT = {
-    "bg": "#fff", "tile": "#fff",
-    "tile-border": "rgba(0,0,0,.12)", "tile-border-soft": "rgba(0,0,0,.07)",
-    "tile-hover": "rgba(0,0,0,.03)", "tile-border-hover": "rgba(0,0,0,.28)",
-    "text": "#000", "text-2": "rgba(0,0,0,.62)", "text-3": "rgba(0,0,0,.4)",
-    "bar-bg": "rgba(255,255,255,.94)",   # the blurred top and bottom bars
-    "pill-hover": "rgba(0,0,0,.05)",     # the week pill's hover fill
+    # softened contrast (2026-09-30): paper #F3F3EE for white, ink #1B1512 for black
+    "bg": "#F3F3EE", "tile": "#F3F3EE",
+    "tile-border": "rgba(27,21,18,.12)", "tile-border-soft": "rgba(27,21,18,.07)",
+    "tile-hover": "rgba(27,21,18,.03)", "tile-border-hover": "rgba(27,21,18,.28)",
+    "text": "#1B1512", "text-2": "rgba(27,21,18,.62)", "text-3": "rgba(27,21,18,.4)",
+    "bar-bg": "rgba(243,243,238,.94)",   # the blurred top and bottom bars
+    "pill-hover": "rgba(27,21,18,.05)",  # the week pill's hover fill
     "dot": "#CFCFCF",                    # Page 1's inactive card dots
-    "focus": "#000",                     # keyboard focus rings
+    "focus": "#1B1512",                  # keyboard focus rings
     "out": "#A00000", "doubt": "#A52800", "ques": "#B58900",   # injury statuses
     "win": "#1E8A3C", "loss": "#A00000", "tie": "#B58900",
-    "theme-color": "#ffffff",            # the browser's address-bar color (read by THEME_JS)
+    "theme-color": "#F3F3EE",            # the browser's address-bar color (read by THEME_JS)
     # the switch: which icon shows is a token, so the copy inside a shadow root flips with the
     # rest of the page -- light mode shows the moon (tap for dark)
     "sw-sun": "none", "sw-moon": "flex",
@@ -43,18 +44,19 @@ LIGHT = {
     "tc-light": "100%",
 }
 
-# Near-black ground with a slightly lifted tile, so the outlined cards still read as
-# objects. Text keeps the same three-step opacity ladder; status colors go one step
-# brighter so they hold up on black.
+# Dark ground in the same ink as light mode's text (#1B1512, a warm near-black) with a slightly
+# lifted tile, so the outlined cards still read as objects. Text is light mode's paper color
+# (#F3F3EE) on the same three-step opacity ladder; status colors go one step brighter so they
+# hold up on the dark ground.
 DARK = dict(LIGHT, **{
-    "bg": "#0B0B0C", "tile": "#161618",
-    "tile-border": "rgba(255,255,255,.12)", "tile-border-soft": "rgba(255,255,255,.07)",
-    "tile-hover": "rgba(255,255,255,.04)", "tile-border-hover": "rgba(255,255,255,.32)",
-    "text": "#F2F2F2", "text-2": "rgba(255,255,255,.62)", "text-3": "rgba(255,255,255,.4)",
-    "bar-bg": "rgba(11,11,12,.9)", "pill-hover": "rgba(255,255,255,.08)", "dot": "#3A3A3D", "focus": "#fff",
+    "bg": "#1B1512", "tile": "#26201D",
+    "tile-border": "rgba(243,243,238,.12)", "tile-border-soft": "rgba(243,243,238,.07)",
+    "tile-hover": "rgba(243,243,238,.04)", "tile-border-hover": "rgba(243,243,238,.32)",
+    "text": "#F3F3EE", "text-2": "rgba(243,243,238,.62)", "text-3": "rgba(243,243,238,.4)",
+    "bar-bg": "rgba(27,21,18,.9)", "pill-hover": "rgba(243,243,238,.08)", "dot": "#433B36", "focus": "#F3F3EE",
     "out": "#FF6B6B", "doubt": "#FF8A5C", "ques": "#E8B93A",
     "win": "#4CC76E", "loss": "#FF6B6B", "tie": "#E8B93A",
-    "theme-color": "#0B0B0C",
+    "theme-color": "#1B1512",
     "sw-sun": "flex", "sw-moon": "none",   # dark mode shows the sun (tap for light)
     "tc-light": "0%",
 })
@@ -122,7 +124,7 @@ THEME_JS = r"""
   function sync() {
     // which icon shows is pure CSS (the --aag-sw-* tokens); only the address-bar color needs script
     var m = document.querySelector('meta[name=theme-color]');
-    if (m) m.setAttribute('content', getComputedStyle(de).getPropertyValue('--aag-theme-color').trim() || '#ffffff');
+    if (m) m.setAttribute('content', getComputedStyle(de).getPropertyValue('--aag-theme-color').trim() || '#F3F3EE');
   }
   function choose(t) {
     // picking whatever the phone is set to clears the choice, so the page follows the phone again
