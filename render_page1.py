@@ -2072,9 +2072,11 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .cmp-head{grid-template-columns:1fr auto 1fr;align-items:center}
 .cmp-head>:first-child{justify-self:start}
 .cmp-head>:last-child{justify-self:end}
-/* team pills (helmets.pill_html): fill, one ring, letters -- the helmet's three colors once each */
+/* team pills (helmets.pill_html): a shaded fill inside a shaded ring (the ring is a gradient painted
+   under a transparent border), with flat white letters */
 .tpill{display:inline-flex;align-items:center;justify-content:center;height:24px;min-width:64px;padding:0 9px;
-  border-radius:999px;background:var(--pf);border:2.5px solid var(--pr);color:var(--pl);font-size:13px;white-space:nowrap}
+  border-radius:999px;border:2.5px solid transparent;color:var(--pl);font-size:13px;white-space:nowrap;
+  background:linear-gradient(var(--pf1),var(--pf2)) padding-box,linear-gradient(var(--pr1),var(--pr2)) border-box}
 .c-cmp .tpill{height:18px;min-width:46px;padding:0 6px;border-width:2px;font-size:10px}
 .ldr{min-width:0}
 /* Leader values are stats -> Teko; the player names under them stay Inter. */

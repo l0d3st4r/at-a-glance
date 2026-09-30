@@ -228,30 +228,64 @@ FAVICON_OUTLINE_WIDTH = 5
 FAVICON_OUTLINE_PAD = 6
 
 
-# Team pills (2026-09-30): the abbreviation inside a pill with one ring, using the helmet's three
-# colors (shell, facemask, ear) once each. Which color plays which part is whatever reads best:
-# the letters get the most contrast with the fill (capped at 4.5:1, then counted double), the ring
-# stands off the fill (capped at 3:1), and the shell gets a small head start as the fill.
-def pill_colors(team):
-    """(fill, ring, letters) for a team's pill."""
-    from itertools import permutations
-    from temp_colors import contrast
-    shell, mask = TEAM_COLORS.get(team, FALLBACK_COLORS)
-    colors = (shell, mask, EAR_COLORS.get(team, FALLBACK_EAR))
+# Team pills (2026-09-30): the abbreviation inside a pill with one ring. Fill and ring picked team
+# by team by Jason in the Team Pill Color Picker artifact; the letters are plain white on every team.
+PILL_COLORS = {
+    "ARI": ("#97233F", "#C8CED3"),
+    "ATL": ("#000000", "#A71930"),
+    "BAL": ("#241773", "#9E7C0C"),
+    "BUF": ("#00338D", "#C60C30"),
+    "CAR": ("#101820", "#0085CA"),
+    "CHI": ("#0B162A", "#C83803"),
+    "CIN": ("#000000", "#FB4F14"),
+    "CLE": ("#311D00", "#FF3C00"),
+    "DAL": ("#041E42", "#869397"),
+    "DEN": ("#002244", "#FB4F14"),
+    "DET": ("#0076B6", "#B0B7BC"),
+    "GB":  ("#203731", "#FFB612"),
+    "HOU": ("#03202F", "#A71930"),
+    "IND": ("#0B4FA0", "#A2AAAD"),
+    "JAX": ("#006778", "#D7A22A"),
+    "KC":  ("#E31837", "#FFB81C"),
+    "LAC": ("#0080C6", "#FFC20E"),
+    "LAR": ("#003594", "#FFA300"),
+    "LV":  ("#000000", "#A5ACAF"),
+    "MIA": ("#008E97", "#FC4C02"),
+    "MIN": ("#4F2683", "#FFC62F"),
+    "NE":  ("#002244", "#C60C30"),
+    "NO":  ("#101820", "#D3BC8D"),
+    "NYG": ("#0B2265", "#A71930"),
+    "NYJ": ("#125740", "#BFC0BF"),
+    "PHI": ("#004C54", "#ACC0C6"),
+    "PIT": ("#101820", "#FFB612"),
+    "SEA": ("#002244", "#69BE28"),
+    "SF":  ("#AA0000", "#B3995D"),
+    "TB":  ("#34302B", "#D50A0A"),
+    "TEN": ("#4495D2", "#D50A0A"),
+    "WAS": ("#5A1414", "#FFB612"),
+}
+PILL_LETTERS = "#FFFFFF"
+# Shaded like the helmet: the fill like the shell (lighter at the top, darker at the bottom), the
+# ring the other way round like the facemask's ramp, so it reads as a raised rim. Letters stay flat.
+# About half the helmet's strength (Jason, 2026-09-30: "less harsh and more subtle").
+PILL_FILL_LIGHTEN, PILL_FILL_DARKEN = 0.14, 0.20
+PILL_RING_DARKEN, PILL_RING_LIGHTEN = 0.18, 0.15
 
-    def score(order):
-        fill, ring, letters = (colors[i] for i in order)
-        return (2 * min(contrast(fill, letters), 4.5) + min(contrast(fill, ring), 3)
-                + (1.5 if order[0] == 0 else 0))
-    return tuple(colors[i] for i in max(permutations(range(3)), key=score))
+
+def pill_colors(team):
+    """(fill, ring, letters) for a team's pill -- unknown teams get the gray helmet's shell and facemask."""
+    fill, ring = PILL_COLORS.get(team, FALLBACK_COLORS)
+    return fill, ring, PILL_LETTERS
 
 
 def pill_html(team, label=None):
-    """The team pill (styled by render_page1.py's .tpill rules)."""
+    """The team pill (styled by render_page1.py's .tpill rules): two-stop gradients for the fill and the ring."""
     import html
     fill, ring, letters = pill_colors(team)
+    style = (f"--pf1:{_mix(fill, WHITE, PILL_FILL_LIGHTEN)};--pf2:{_mix(fill, BLACK, PILL_FILL_DARKEN)};"
+             f"--pr1:{_mix(ring, BLACK, PILL_RING_DARKEN)};--pr2:{_mix(ring, WHITE, PILL_RING_LIGHTEN)};--pl:{letters}")
     aria = f' role="img" aria-label="{html.escape(label)}"' if label else ""
-    return f'<span class="tpill abbr" style="--pf:{fill};--pr:{ring};--pl:{letters}"{aria}>{html.escape(team)}</span>'
+    return f'<span class="tpill abbr" style="{style}"{aria}>{html.escape(team)}</span>'
 
 
 def favicon_svg():
