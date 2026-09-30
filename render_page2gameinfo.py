@@ -256,7 +256,7 @@ def weather_body(d, w, icons):
         f'{desc}<div class="wx-top">'
         f'<div class="wx-t"><b>{_temp(v["temp"])}</b><span>Actual</span></div>'
         f'<div class="wx-t"><b>{_temp(v["feels"])}</b><span>Feels Like</span></div>'
-        f'<div class="wx-ic">{icons.get(v["condition"], "")}</div></div>'
+        f'<div class="wx-ic">{icons(v["condition"])}</div></div>'
         f'<div class="wx-rows">{precip}{_wx_row(_val(v["speed"], "MPH"), "Wind", esc(v["dir"] or ""))}'
         f'{_wx_row(_val(v["humidity"], "%"), "Humidity")}</div>{note}'
     )
@@ -321,7 +321,7 @@ def weather_condensed(d, w, icons):
     return (
         f'{desc}<div class="cc-top"><div class="cc-temps"><div class="wx-t"><b>{_temp(v["temp"])}</b><span>Actual</span></div>'
         f'<div class="wx-t"><b>{_temp(v["feels"])}</b><span>Feels Like</span></div></div>'
-        f'<div class="wx-ic">{icons.get(v["condition"], "")}</div></div>'
+        f'<div class="wx-ic">{icons(v["condition"])}</div></div>'
         f'<div class="strip">{_fact("Precip", precip)}{_fact("Wind", wind)}{_fact("Humidity", hum)}</div>'
     )
 

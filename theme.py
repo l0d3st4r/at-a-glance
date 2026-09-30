@@ -42,6 +42,10 @@ LIGHT = {
     # temperature colors (temp_colors.py): how much of a number's light-theme shade to use --
     # all of it here, none in dark, where its dark-theme shade shows instead
     "tc-light": "100%",
+    # weather icons (render_page1.py's weather_icon): a step deeper than dark mode's so they hold up
+    # on the light ground; the sun and lightning keep dark mode's yellow
+    "wx-cloud": "#7C7A77", "wx-cloud-light": "#A3A19D", "wx-wind": "#8FA2B4",
+    "wx-rain": "#3D93D6", "wx-snow": "#8AA6BE", "wx-sun": "#F2C230",
 }
 
 # Dark ground in the same ink as light mode's text (#1B1512, a warm near-black) with a slightly
@@ -59,6 +63,8 @@ DARK = dict(LIGHT, **{
     "theme-color": "#1B1512",
     "sw-sun": "flex", "sw-moon": "none",   # dark mode shows the sun (tap for light)
     "tc-light": "0%",
+    "wx-cloud": "#8E8C89", "wx-cloud-light": "#BDBBB8", "wx-wind": "#C7D3DE",
+    "wx-rain": "#7EC3F2", "wx-snow": "#FFFFFF", "wx-sun": "#F2C230",
 })
 
 

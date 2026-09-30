@@ -236,20 +236,54 @@ def _wx(paths, label):
             f'stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="{label}">{paths}</svg>')
 
 
-_CLOUD = '<path d="M17 40a9 9 0 0 1-1-17.9A13 13 0 0 1 41 18.5 10.5 10.5 0 1 1 47 40z"/>'
-_CLOUD_HIGH = '<path d="M17 32a9 9 0 0 1-1-17.9A13 13 0 0 1 41 10.5 10.5 10.5 0 1 1 47 32z"/>'
-WEATHER_ICONS = {
-    "sun": _wx('<circle cx="32" cy="24" r="9"/><path d="M32 5v5M32 38v5M13 24h5M46 24h5M18.6 10.6l3.5 3.5M41.9 33.9l3.5 3.5'
-               'M18.6 37.4l3.5-3.5M41.9 14.1l3.5-3.5"/>', "Sunny"),
-    "partly": _wx('<circle cx="22" cy="17" r="7"/><path d="M22 3v3M8 17h3M12.1 7.1l2.1 2.1M31.9 7.1l-2.1 2.1"/>'
-                  '<path d="M23 42a8 8 0 0 1-.8-16A12 12 0 0 1 45 23a9.5 9.5 0 1 1 5 19z"/>', "Partly cloudy"),
-    "cloud": _wx(_CLOUD, "Cloudy"),
-    "rain": _wx(_CLOUD_HIGH + '<path d="M22 38l-3 6M33 38l-3 6M44 38l-3 6"/>', "Rain"),
-    "snow": _wx(_CLOUD_HIGH + '<path d="M21 40h.01M32 43h.01M43 40h.01" stroke-width="5"/>', "Snow"),
-    "storm": _wx(_CLOUD_HIGH + '<path d="M34 34l-6 8h8l-5 6"/>', "Thunderstorms"),
-    "fog": _wx('<path d="M8 16h40M16 26h40M8 36h36"/>', "Fog"),
-    "wind": _wx('<path d="M4 14h34a7 7 0 1 0-7-7"/><path d="M4 24h48a7 7 0 1 1-7 7"/><path d="M4 34h26a6 6 0 1 1-6 6"/>', "Windy"),
+# Colored icons (Jason, 2026-09-30): each part is stroked with a --aag-wx-* token (theme.py), so it
+# picks the light- or dark-theme shade -- and reaches the games Page 0 opens inside a shadow root.
+def _c(token):
+    return f' style="stroke:var(--aag-wx-{token})"'
+
+
+_CLOUD_PATH = "M17 40a9 9 0 0 1-1-17.9A13 13 0 0 1 41 18.5 10.5 10.5 0 1 1 47 40z"
+_CLOUD_HIGH_PATH = "M17 32a9 9 0 0 1-1-17.9A13 13 0 0 1 41 10.5 10.5 10.5 0 1 1 47 32z"
+_PARTLY_CLOUD_PATH = "M23 42a8 8 0 0 1-.8-16A12 12 0 0 1 45 23a9.5 9.5 0 1 1 5 19z"
+_CLOUD_HIGH = f'<path d="{_CLOUD_HIGH_PATH}"{_c("cloud")}/>'
+
+
+def _behind(cloud_path, gap, mask_id):
+    """A mask hiding whatever sits behind a cloud (the sun in partly cloudy, the top of the lightning bolt);
+    gap > 3.5 also leaves a sliver of space outside the cloud's outline."""
+    return (f'<mask id="{mask_id}"><rect width="64" height="48" fill="#fff"/>'
+            f'<path d="{cloud_path}" fill="#000" stroke="#000" stroke-width="{gap}"/></mask>')
+
+
+_WEATHER_ICONS = {
+    "sun": lambda _m: _wx(f'<g{_c("sun")}><circle cx="32" cy="24" r="9"/><path d="M32 5v5M32 38v5M13 24h5M46 24h5M18.6 10.6l3.5 3.5'
+                         'M41.9 33.9l3.5 3.5M18.6 37.4l3.5-3.5M41.9 14.1l3.5-3.5"/></g>', "Sunny"),
+    "partly": lambda m: _wx(_behind(_PARTLY_CLOUD_PATH, 7, m) +
+                            f'<g{_c("sun")} mask="url(#{m})"><circle cx="22" cy="17" r="7"/>'
+                            '<path d="M22 3v3M8 17h3M12.1 7.1l2.1 2.1M31.9 7.1l-2.1 2.1"/></g>'
+                            f'<path d="{_PARTLY_CLOUD_PATH}"{_c("cloud-light")}/>', "Partly cloudy"),
+    "cloud": lambda _m: _wx(f'<path d="{_CLOUD_PATH}"{_c("cloud-light")}/>', "Cloudy"),
+    "rain": lambda _m: _wx(_CLOUD_HIGH + f'<path d="M22 38l-3 6M33 38l-3 6M44 38l-3 6"{_c("rain")}/>', "Rain"),
+    "snow": lambda _m: _wx(_CLOUD_HIGH + f'<path d="M21 40h.01M32 43h.01M43 40h.01" stroke-width="5"{_c("snow")}/>', "Snow"),
+    # the bolt starts inside the cloud and comes out of its underside
+    "storm": lambda m: _wx(_behind(_CLOUD_HIGH_PATH, 3.5, m) +
+                           f'<path d="M35 24l-8 14h9l-5 8"{_c("sun")} mask="url(#{m})"/>' + _CLOUD_HIGH, "Thunderstorms"),
+    "fog": lambda _m: _wx(f'<path d="M8 16h40M16 26h40M8 36h36"{_c("cloud-light")}/>', "Fog"),
+    # redrawn 2026-09-30 a little more compact so the top curl isn't clipped by the viewBox
+    "wind": lambda _m: _wx(f'<g{_c("wind")}><path d="M6 15h32a6 6 0 1 0-6-6"/><path d="M6 25h46a6 6 0 1 1-6 6"/>'
+                           '<path d="M6 34h24a5 5 0 1 1-5 5"/></g>', "Windy"),
 }
+_wx_ids = [0]
+
+
+def weather_icon(condition):
+    """The icon for a weather.py condition ("" for none). Each call gets its own mask id, since one
+    page can hold the same icon several times (Page 1, Page 2 expanded and condensed)."""
+    make = _WEATHER_ICONS.get(condition)
+    if not make:
+        return ""
+    _wx_ids[0] += 1
+    return make(f"wxm{_wx_ids[0]}")
 
 
 # ---------------------------------------------------------------- formatting
@@ -327,7 +361,7 @@ def weather_html(d):
         return f'<span class="{cls}">{word}</span>{stadium_icons.svg(kind, "wx")}'
     if w.get("available") and w.get("temp_f") is not None:
         tc, style = temp_colors.tc_attrs(w["temp_f"])   # colored by the temperature scale (2026-09-29)
-        return f'<span class="temp {tc}"{style}>{esc(w["temp_f"])}°</span>{WEATHER_ICONS.get(w.get("condition"), "")}'
+        return f'<span class="temp {tc}"{style}>{esc(w["temp_f"])}°</span>{weather_icon(w.get("condition"))}'
     return f'<span class="temp temp-na" title="Forecast not available yet">{DASH}°</span>'
 
 
@@ -704,7 +738,7 @@ def render_p1_block(d, prefix="../"):
     t, ampm = fmt_time(d.get("gametime"))
     time_html = f'<div class="time">{esc(t)}{f"<small>{ampm}</small>" if ampm else ""}</div>'
     try:
-        page2 = render_page2gameinfo.render_p2_block(d, time_html, WEATHER_ICONS)
+        page2 = render_page2gameinfo.render_p2_block(d, time_html, weather_icon)
     except Exception:  # Page 2 trouble never costs the game its Page 1
         page2 = ""
     try:
