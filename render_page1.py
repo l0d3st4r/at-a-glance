@@ -1828,13 +1828,19 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 /* ===== Large view: one card per screen ===== */
 .deck{position:fixed;inset:var(--bar) 0 var(--bbar);overflow-y:auto;overscroll-behavior:contain;scroll-snap-type:y mandatory;scrollbar-width:none;padding:calc(var(--peek) + var(--gap)) 0}
 .deck::-webkit-scrollbar{display:none}
-.slot{height:100%;min-height:520px;max-width:var(--col);margin:0 auto var(--gap);padding:0 16px;scroll-snap-align:center;scroll-snap-stop:always}
+/* The slivers of the cards above and below always show in full (2026-09-30): no min-height on the
+   slot (on a short screen it made the card taller than the deck and pushed its neighbours out of view),
+   and the neighbours shrink toward the active card rather than their own center -- the translate
+   cancels the 2% scale(.96) takes off each end -- so the edge that peeks in stays exactly var(--peek) tall. */
+.slot{height:100%;max-width:var(--col);margin:0 auto var(--gap);padding:0 16px;scroll-snap-align:center;scroll-snap-stop:always}
 .slot:last-child{margin-bottom:0}
 .slot a.card{height:100%;overflow:hidden;transition:transform .2s cubic-bezier(.22,1,.36,1),border-color .15s,background-color .15s}
 .body{height:100%;display:flex;flex-direction:column;transition:opacity .15s}
 .slot.active a.card{transition:transform .16s,background-color .16s,border-color .16s}
 .slot.active a.card:hover,.slot.active a.card:focus-visible{transform:scale(1.015);border-color:var(--tile-border-hover)}
 .slot:not(.active) a.card{border-color:var(--tile-border-soft);transform:scale(.96)}
+.slot.below a.card{transform:translateY(-2%) scale(.96)}
+.slot.above a.card{transform:translateY(2%) scale(.96)}
 .slot:not(.active) .body{opacity:0}
 .peek{position:absolute;left:0;right:0;height:calc(var(--peek) - 1px);display:flex;align-items:center;justify-content:center;gap:7px;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-2);opacity:0;transition:opacity .15s;pointer-events:none}
 .peek-top{top:0}.peek-bot{bottom:0}
