@@ -1640,13 +1640,14 @@ a.card:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px}
 .p1[data-view=large] .hero .side img{order:2;width:2.6em;height:2.6em}
 .p1[data-view=large] .hero .side .hscore{order:1;font-size:2.2em;margin-bottom:.14em}   /* the score sits high above the helmet (2026-09-21: bumped up from 1.6em) */
 .p1[data-view=large] .hero .side .abbr{order:3}
-/* Page 2 Game Info keeps this expanded-view top bar in its condensed view too (Jason, 2026-09-30),
-   so the header doesn't jump when switching views there -- hence the [data-detail="game-info"] twins. */
-.p1[data-view=large] .bar .teams,.p1[data-detail="game-info"] .bar .teams{font-size:17px;width:100%;padding:0 16px;justify-content:space-between}
-.p1[data-view=large] .bar .side img,.p1[data-detail="game-info"] .bar .side img{width:2.4em;height:2.4em}
-.p1[data-view=large] .bar .at,.p1[data-detail="game-info"] .bar .at{display:none}
-.p1[data-view=large]:not([data-final]) .bar .when,.p1[data-detail="game-info"]:not([data-final]) .bar .when{display:flex}
-.p1[data-view=large][data-final] .bar .final-lbl,.p1[data-detail="game-info"][data-final] .bar .final-lbl{display:inline-flex}
+/* Page 2 Game Info and Player Stats keep this expanded-view top bar in their condensed views too
+   (Jason, 2026-09-30), so the header doesn't jump when switching views there -- hence the
+   [data-detail=...] twins. (The team pages have their own header and no condensed view.) */
+.p1[data-view=large] .bar .teams,.p1[data-detail="game-info"] .bar .teams,.p1[data-detail="leaders"] .bar .teams{font-size:17px;width:100%;padding:0 16px;justify-content:space-between}
+.p1[data-view=large] .bar .side img,.p1[data-detail="game-info"] .bar .side img,.p1[data-detail="leaders"] .bar .side img{width:2.4em;height:2.4em}
+.p1[data-view=large] .bar .at,.p1[data-detail="game-info"] .bar .at,.p1[data-detail="leaders"] .bar .at{display:none}
+.p1[data-view=large]:not([data-final]) .bar .when,.p1[data-detail="game-info"]:not([data-final]) .bar .when,.p1[data-detail="leaders"]:not([data-final]) .bar .when{display:flex}
+.p1[data-view=large][data-final] .bar .final-lbl,.p1[data-detail="game-info"][data-final] .bar .final-lbl,.p1[data-detail="leaders"][data-final] .bar .final-lbl{display:inline-flex}
 /* which copy of the header shows in the expanded view: in the card (data-head=card), in the bar (bar),
    or neither while the moving copies (.head-fly) travel between them (moving) */
 .p1[data-view=large][data-head=card] .bar .teams,.p1[data-view=large][data-head=card] .when{visibility:hidden}
