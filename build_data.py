@@ -358,8 +358,15 @@ def main():
         quarter_scores, err = nflverse_client.get_quarter_scores(season)   # Page 1 scoring by quarter (2026-09-29)
         if err:
             warnings.append(f"get_quarter_scores: {err}")
+        injury_events, err = nflverse_client.get_injury_events(season)   # finished games' absences (2026-09-30)
+        if err:
+            warnings.append(f"get_injury_events: {err}")
+        rosters_weekly, err = nflverse_client.get_rosters_weekly(season)
+        if err:
+            warnings.append(f"get_rosters_weekly: {err}")
         game_details = page1_data.build_game_details(schedules, team_weekly, player_weekly, injury_rows, snaps, warnings,
-                                                     depth=depth, history=history or None, quarter_scores=quarter_scores)
+                                                     depth=depth, history=history or None, quarter_scores=quarter_scores,
+                                                     rosters_weekly=rosters_weekly, injury_events=injury_events)
     except Exception as e:
         warnings.append(f"build_game_details: {e}")
 

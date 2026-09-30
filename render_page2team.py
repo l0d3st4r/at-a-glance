@@ -244,17 +244,16 @@ def overview_body(side, team_page, which, prefix):
 
 # ---------------------------------------------------------------- injuries card
 
-def injuries_body(team_page):
-    """Status reads as a colored dot (matching Page 1's cards), plus nflverse's injury
-    designation (Knee, Ankle, ...) where it's reported."""
-    rows = team_page.get("injuries_full") or []
-    if not rows:
-        return '<p class="ov-empty">No injuries reported</p>'
-    cls_map = {"Out": "out", "Doubtful": "doubt", "Questionable": "ques"}
+def _inj_items(rows, cls_map):
     items = []
     for r in rows:
         status = r.get("status") or ""
-        if r.get("designation"):
+        if r.get("kind"):   # a game-day absence: its short status, plus the quarter / starter note
+            status = r.get("status_short") or status
+            extra = [x for x in (r.get("designation"), "Starter" if r.get("kind") == "ina" and r.get("starter") else None) if x]
+            if extra:
+                status = f"{status} · {' · '.join(extra)}"
+        elif r.get("designation"):
             status = f"{status} · {r['designation']}"
         items.append(
             f'<li><span class="inj-who"><span class="inj-pos">{esc(r.get("position") or "")}</span>'
@@ -262,6 +261,27 @@ def injuries_body(team_page):
             f'<span class="inj-s"><i class="inj-dot inj-{cls_map.get(r.get("status"), "ques")}"></i>{esc(status)}</span></li>'
         )
     return f'<ul class="l-inj full-inj">{"".join(items)}</ul>'
+
+
+def injuries_body(team_page, game_absences=None):
+    """Status reads as a colored dot (matching Page 1's cards), plus nflverse's injury
+    designation (Knee, Ankle, ...) where it's reported. A finished game (2026-09-30) leads
+    with who left injured and didn't return (DNR, red, with the quarter) and its full
+    inactive list (INA, gray, starters noted), then the pre-game report."""
+    cls_map = {"Out": "out", "Doubtful": "doubt", "Questionable": "ques", "Inactive": "ina", "Did Not Return": "out"}
+    rows = team_page.get("injuries_full") or []
+    ga = game_absences or {}
+    if not ga.get("available"):
+        if not rows:
+            return '<p class="ov-empty">No injuries reported</p>'
+        return _inj_items(rows, cls_map)
+    parts = []
+    for title, key, none in (("Left the Game", "left", "Nobody left injured"), ("Inactive", "inactive", "No inactives listed")):
+        parts.append(f'<h3 class="ov-h inj-h">{title}</h3>')
+        parts.append(_inj_items(ga.get(key), cls_map) if ga.get(key) else f'<p class="ov-empty">{none}</p>')
+    parts.append('<h3 class="ov-h inj-h">Pre-game Injury Report</h3>')
+    parts.append(_inj_items(rows, cls_map) if rows else '<p class="ov-empty">No injuries reported</p>')
+    return f'<div class="inj-sections inj-scroll">{"".join(parts)}</div>'
 
 
 # ---------------------------------------------------------------- offense/defense card
@@ -390,7 +410,7 @@ def render_team_block(side, which, prefix="../"):
     from render_page1 import UP, DOWN
     cards = [
         ("overview", "Overview", overview_body(side, team_page, which, prefix)),
-        ("injuries", "Injuries", injuries_body(team_page)),
+        ("injuries", "Injuries", injuries_body(team_page, side.get("game_absences"))),
         ("stats", "Team Stats", offense_defense_body(team_page.get("stats"))),
         ("schedule", "Schedule", schedule_body(team_page, prefix)),
     ]
@@ -499,6 +519,15 @@ P3_CSS = r"""
 .st-w,.st-l,.st-t{text-align:center;color:var(--text-2)}
 .st-pct{text-align:right;color:var(--text-2);font-variant-numeric:tabular-nums}
 .full-inj{gap:2px}
+/* a finished game's Injuries card has three lists, each under its own heading (2026-09-30); a
+   long set scrolls inside the card (P1_JS's detailAtTop keeps a pull-down from closing the
+   page until it's back at the top) */
+.p2 .slot .p2k-injuries .body{min-height:0}
+.inj-sections{width:100%}
+.inj-scroll{flex:0 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.inj-sections .full-inj li{padding:5px 2px}
+.inj-sections .inj-h{padding-top:14px}
+.inj-sections .inj-h:first-child{padding-top:0}
 .full-inj li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 2px;
   border-bottom:1px solid var(--tile-border-soft)}
 .full-inj .inj-name{font-weight:700}

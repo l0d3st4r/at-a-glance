@@ -153,16 +153,67 @@ def get_schedules_all():
 
 # ---------------------------------------------------------------- scoring by quarter (added 2026-09-29)
 
+_PBP = {}
+
+
+def _pbp(season):
+    """This season's play-by-play, downloaded once per run and shared by the functions below."""
+    if season not in _PBP:
+        _PBP[season] = nfl.load_pbp(seasons=[season])
+    return _PBP[season]
+
+
 def get_quarter_scores(season):
     """Running score at the end of each quarter, from play-by-play: one row per game and quarter
     with the highest total_home_score / total_away_score reached in it (qtr 5 = overtime).
     Only the four columns the page needs are kept -- the full play-by-play is ~370 columns."""
     try:
         import polars as pl
-        df = nfl.load_pbp(seasons=[season])
+        df = _pbp(season)
         df = (df.select(["game_id", "qtr", "total_home_score", "total_away_score"])
                 .group_by(["game_id", "qtr"])
                 .agg(pl.col("total_home_score").max(), pl.col("total_away_score").max()))
         return _to_dicts(df), None
+    except Exception as e:
+        return [], str(e)
+
+
+# ---------------------------------------------------------------- game-day absences (added 2026-09-30)
+
+_INJ_RE = None
+
+
+def get_injury_events(season):
+    """In-game injuries from play-by-play descriptions, in play order: "CHI-70-B.Jones was injured
+    during the play." and, if he comes back, "** Injury Update: CHI-70-B.Jones has returned to the
+    game." Returns (events, game_ids): events are {"game_id", "seq", "qtr", "event": "injured" |
+    "returned", "team", "jersey", "name"}; game_ids is every game play-by-play covers, so a game
+    with no injuries still counts as checked."""
+    global _INJ_RE
+    try:
+        import re
+        if _INJ_RE is None:
+            _INJ_RE = re.compile(r"\b([A-Z]{2,3})-(\d{1,2})-([A-Za-z][A-Za-z.'\- ]*?) "
+                                 r"(was injured during the play|has returned to the game)")
+        df = _pbp(season).select(["game_id", "play_id", "qtr", "desc"])
+        events, games = [], set()
+        for r in df.sort(["game_id", "play_id"]).iter_rows(named=True):
+            games.add(r["game_id"])
+            for team, jersey, name, what in _INJ_RE.findall(r["desc"] or ""):
+                events.append({"game_id": r["game_id"], "seq": r["play_id"], "qtr": r["qtr"],
+                               "event": "injured" if what.startswith("was") else "returned",
+                               "team": team, "jersey": jersey, "name": name.strip()})
+        return (events, sorted(games)), None
+    except Exception as e:
+        return ([], []), str(e)
+
+
+def get_rosters_weekly(season):
+    """Each week's roster with every player's status that week -- "INA" marks a game's inactives.
+    Trimmed to the columns the pages use."""
+    try:
+        cols = ["team", "week", "game_type", "status", "jersey_number", "gsis_id", "full_name", "position"]
+        df = nfl.load_rosters_weekly(seasons=[season])
+        return _to_dicts(df.select([c for c in cols if c in df.columns])), None
     except Exception as e:
         return [], str(e)

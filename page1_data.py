@@ -429,7 +429,7 @@ def _depth_builder(depth, warnings):
     return starters_before
 
 
-def _injury_builder(injuries, snaps, depth, warnings):
+def _injury_builder(injuries, snaps, depth, warnings, rosters_weekly=None, injury_events=None):
     """Returns injuries_for(team, week, gameday) -> [{"name", "short", "position", "status", "status_short", "starter"}] (top 3)."""
     report = defaultdict(list)  # (team, week) -> rows
     if injuries:
@@ -495,7 +495,77 @@ def _injury_builder(injuries, snaps, depth, warnings):
                  "designation": r.get("designation")} for r in capped]
 
     injuries_for.report_out = report_out
+    injuries_for.game = _absence_builder(rosters_weekly, injury_events, is_starter, warnings)
     return injuries_for
+
+
+ABSENCE_STATUS = {"ina": ("Inactive", "INA"), "dnr": ("Did Not Return", "DNR")}
+
+
+def _absence_builder(rosters_weekly, injury_events, is_starter, warnings):
+    """
+    Returns game_absences(team, week, gameday, game_id) for a finished game (Jason, 2026-09-30):
+      {"available": bool, "top": [...up to 3...], "inactive": [...], "left": [...]}
+    Rows are shaped like injuries_for's, with status "Inactive" (INA) or "Did Not Return" (DNR).
+      * inactive -- the team's game-day inactives (weekly rosters, status "INA")
+      * left     -- players play-by-play shows injured during a play with no later
+                    "has returned to the game" update (the quarter goes in "designation")
+      * top      -- Page 1's card: inactive STARTERS first, then anyone who left and didn't
+                    return (starters first), 3 at most; empty means neither happened
+    "available" is False until both sources cover the game (the roster week is posted and
+    play-by-play has the game) -- the card keeps its injury report until then.
+    """
+    roster = defaultdict(list)   # (team, week) -> rows
+    for r in rosters_weekly or []:
+        if r.get("game_type") not in (None, "REG", "POST", "WC", "DIV", "CON", "SB"):
+            continue
+        roster[(normalize_abbr(r.get("team")), _int_week(r.get("week")))].append(r)
+    events, pbp_games = (injury_events or ([], []))
+    pbp_games = set(pbp_games or [])
+    by_game = defaultdict(list)
+    for e in events or []:
+        by_game[e["game_id"]].append(e)
+    if not rosters_weekly:
+        warnings.append("game absences: no weekly rosters -- finished games keep the injury report")
+    if not pbp_games:
+        warnings.append("game absences: no play-by-play -- finished games keep the injury report")
+
+    def row(team, week, gameday, name, gsis_id, position, kind, designation=None):
+        base = {"name": name, "gsis_id": gsis_id}
+        status, short = ABSENCE_STATUS[kind]
+        return {"name": name, "short": short_name(name), "position": position, "status": status,
+                "status_short": short, "starter": is_starter(team, base, week, gameday),
+                "designation": designation, "kind": kind}
+
+    def game_absences(team, week, gameday, game_id):
+        players = roster.get((team, week)) or []
+        if not players or game_id not in pbp_games:
+            return {"available": False, "top": [], "inactive": [], "left": []}
+        inactive = [row(team, week, gameday, p.get("full_name") or "", p.get("gsis_id"), p.get("position"), "ina")
+                    for p in players if p.get("status") == "INA"]
+        by_jersey = {str(p.get("jersey_number")).split(".")[0]: p for p in players if p.get("jersey_number") is not None}
+        state = {}   # jersey -> (still out?, quarter he went out)
+        for e in sorted(by_game.get(game_id, []), key=lambda e: e["seq"]):
+            if normalize_abbr(e["team"]) != team:
+                continue
+            if e["event"] == "injured":
+                state[e["jersey"]] = (True, e["qtr"], e["name"])
+            elif e["jersey"] in state:
+                state[e["jersey"]] = (False,) + state[e["jersey"]][1:]
+        left = []
+        for jersey, (out, qtr, abbr) in state.items():
+            if not out:
+                continue
+            p = by_jersey.get(jersey) or {}
+            q = "OT" if qtr and int(qtr) >= 5 else (f"Q{int(qtr)}" if qtr else None)
+            left.append(row(team, week, gameday, p.get("full_name") or abbr, p.get("gsis_id"), p.get("position"),
+                            "dnr", f"Left in {q}" if q else None))
+        inactive.sort(key=lambda r: (not r["starter"], r["name"]))
+        left.sort(key=lambda r: (not r["starter"], r["name"]))
+        top = ([r for r in inactive if r["starter"]] + left)[:3]
+        return {"available": True, "top": top, "inactive": inactive, "left": left}
+
+    return game_absences
 
 
 # ---------------------------------------------------------------- weather + venue
@@ -1072,7 +1142,7 @@ def _linescores(quarter_rows, games, warnings):
 
 
 def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, warnings, now_utc=None, depth=None, history=None,
-                       quarter_scores=None):
+                       quarter_scores=None, rosters_weekly=None, injury_events=None):
     """history: every season's schedule (for the last meeting on Page 2); falls back to this season's.
     quarter_scores: nflverse_client.get_quarter_scores rows, for the finished games' scoring by quarter."""
     now_utc = now_utc or datetime.now(timezone.utc)
@@ -1085,7 +1155,7 @@ def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, w
     records = _game_records(games)
     ranks_through = _rank_builder(games, team_weekly, warnings)
     leaders_through = _leader_builder(player_weekly, warnings)
-    injuries_for = _injury_builder(injuries, snaps, depth, warnings)
+    injuries_for = _injury_builder(injuries, snaps, depth, warnings, rosters_weekly, injury_events)
     team_all_games = _team_all_games_index(games)
     team_schedules, bye_week = _team_schedule_index(games)
     team_stats_through = _team_stat_builder(games, team_weekly, warnings)
@@ -1117,6 +1187,8 @@ def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, w
                     "streak": pre.get("streak", 0),
                     "injuries": injuries_for(team, g["week"], g["gameday"]),
                     "injury_report_out": injuries_for.report_out(g["week"]),
+                    # a finished game: its inactives and who left injured (Page 1 card, Page 2 Injuries)
+                    "game_absences": injuries_for.game(team, g["week"], g["gameday"], gid) if g["final"] else None,
                     "ranks": ranks.get(team) or {},
                     "team_page": {
                         "injuries_full": injuries_for(team, g["week"], g["gameday"], limit=None),

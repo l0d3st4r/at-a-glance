@@ -403,16 +403,25 @@ def injuries_html(side, full):
     text alone). Position sits left of the name; the injury designation (Knee, Ankle, ...)
     is left to Page 2's full report (2026-09-27).
     """
-    rows = side.get("injuries") or []
-    if not rows:
-        text = "No injuries reported" if side.get("injury_report_out") else "Injury report not available"
-        return f'<li class="inj-none">{text}</li>'
+    ga = side.get("game_absences") or {}
+    if ga.get("available"):
+        # A finished game (Jason, 2026-09-30): its inactive starters, then anyone who left injured
+        # and didn't return, instead of the pre-game injury report -- page1_data._absence_builder.
+        # Marked by their short status in both views: INA (gray dot) / DNR (red dot).
+        rows = ga.get("top") or []
+        if not rows:
+            return '<li class="inj-none">No inactive starters or injuries</li>'
+    else:
+        rows = side.get("injuries") or []
+        if not rows:
+            text = "No injuries reported" if side.get("injury_report_out") else "Injury report not available"
+            return f'<li class="inj-none">{text}</li>'
     out = []
     for r in rows[:3]:
         status = r.get("status") or ""
-        cls = {"Out": "out", "Doubtful": "doubt", "Questionable": "ques"}.get(status, "ques")
+        cls = {"Out": "out", "Doubtful": "doubt", "Questionable": "ques", "Inactive": "ina", "Did Not Return": "out"}.get(status, "ques")
         name = r.get("name") if full else r.get("short")
-        label = status if full else r.get("status_short") or status
+        label = r.get("status_short") or status if (not full or r.get("kind")) else status
         out.append(
             f'<li>{inj_who_html(r.get("position"), name)}'
             f'<span class="inj-s"><i class="inj-dot inj-{cls}"></i><span class="inj-status">{esc(label)}</span></span></li>'
@@ -1540,12 +1549,15 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     card: function () { return lastCard; },
     head: visibleHead,
     detail: detailOpen,
-    // e (optional): the touch -- a pull that starts inside a Player Stats list scrolled down
-    // scrolls the list back up instead of closing the page
+    // e (optional): the touch -- a pull that starts inside a Player Stats list (or a finished
+    // game's Injuries lists) scrolled down scrolls the list back up instead of closing the page
     detailAtTop: function (e) {
       var d = curDetail();
       var path = e && e.composedPath ? e.composedPath() : [];
-      for (var i = 0; i < path.length; i++) if (path[i].classList && path[i].classList.contains('ps-scroll') && path[i].scrollTop > 1) return false;
+      for (var i = 0; i < path.length; i++) {
+        var cl = path[i].classList;
+        if (cl && (cl.contains('ps-scroll') || cl.contains('inj-scroll')) && path[i].scrollTop > 1) return false;
+      }
       if (!large()) { var c = d && d.el.querySelector('.p2-c'); return !c || c.scrollTop <= 1; }   // a condensed view can scroll on short phones
       return !d || !d.deck || d.deck.scrollTop <= 1;
     },
@@ -1723,6 +1735,7 @@ a.card.c-team{padding:var(--ctitle) 10px clamp(8px,1.4vh,14px);display:flex;flex
 .c-inj .inj-out+.inj-status{color:var(--out)}
 .c-inj .inj-doubt+.inj-status{color:var(--doubt)}
 .c-inj .inj-ques+.inj-status{color:var(--ques)}
+.c-inj .inj-ina+.inj-status{color:var(--text-2)}
 .c-inj .inj-none{grid-column:1/-1;text-align:center}
 /* (2026-09-17, Jason) the names were 700 like the rank headings below them; Regular separates
    the two and buys back a few pixels of height */
@@ -1964,6 +1977,7 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 /* Status reads as a colored dot, not colored text (Jason, 2026-09-20) */
 .inj-dot{width:8px;height:8px;border-radius:50%;flex:none}
 .inj-dot.inj-out{background:var(--out)}.inj-dot.inj-doubt{background:var(--doubt)}.inj-dot.inj-ques{background:var(--ques)}
+.inj-dot.inj-ina{background:var(--text-3)}   /* a game-day inactive (2026-09-30): gray, not an injury color */
 .inj-none{font-weight:400}
 .ranks{display:grid;grid-template-columns:1fr 1fr}
 .rank-col{display:flex;flex-direction:column;align-items:center;gap:12px}
