@@ -7,6 +7,10 @@ open the file, click the pencil, edit, commit) -- the next build shows it. Write
 site should show it: CBS, FOX, NBC, ESPN, ABC, ESPN/ABC, Prime Video, NFL Network, Netflix.
 A blank cell shows "TV TBD".
 
+Every Tuesday the "Check TV networks" workflow (check_tv_networks.py) compares the file with
+the published schedule and lists flexed games and newly announced networks in a GitHub issue,
+"TV networks to review". It never edits the file itself.
+
 When nflverse adds games the file doesn't have yet (the playoffs), add them with
     python tv_networks.py
 which appends a row for every missing game and never touches rows already there.

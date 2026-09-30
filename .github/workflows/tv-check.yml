@@ -1,0 +1,58 @@
+name: Check TV networks
+
+# Once a week, compares tv_networks.csv with the published schedule (check_tv_networks.py) and
+# keeps one GitHub issue, "TV networks to review", listing flexed games and newly announced
+# networks. It never edits the file: you fix the rows it lists and commit, and the next
+# weekly check closes the issue once everything matches. (2026-09-29)
+#
+# Tuesdays 14:00 UTC (10 AM ET): after Monday night, when the NFL announces flexes for the
+# coming weeks. Run it any time from the Actions tab. On a pull request that touches the TV
+# files it only runs the check and shows the report in the run summary, without an issue.
+
+on:
+  schedule:
+    - cron: "0 14 * * 2"
+  workflow_dispatch: {}
+  pull_request:
+    paths: ["tv_networks.csv", "tv_networks.py", "check_tv_networks.py", ".github/workflows/tv-check.yml"]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compare tv_networks.csv with the schedule
+        id: check
+        run: |
+          python check_tv_networks.py --out report.md
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open, update or close the review issue
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHANGES: ${{ steps.check.outputs.changes }}
+          PROBLEMS: ${{ steps.check.outputs.problems }}
+        run: |
+          title="TV networks to review"
+          open=$(gh issue list --state open --limit 100 --json number,title \
+                   --jq ".[] | select(.title == \"$title\") | .number" | head -n1)
+          if [ "${CHANGES:-0}" != "0" ] || [ "${PROBLEMS:-0}" != "0" ]; then
+            if [ -n "$open" ]; then
+              gh issue edit "$open" --body-file report.md
+              gh issue comment "$open" --body "Checked again $(date -u +%Y-%m-%d) -- the list above is current."
+            else
+              gh issue create --title "$title" --body-file report.md
+            fi
+          elif [ -n "$open" ]; then
+            gh issue close "$open" --comment "Checked $(date -u +%Y-%m-%d): tv_networks.csv matches the schedule."
+          fi
