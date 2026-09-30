@@ -238,6 +238,15 @@ def _val(n, unit=""):
     return f"{esc(n)}<small>{esc(unit)}</small>" if unit else esc(n)
 
 
+def _pp(pct, inner_html):
+    """A precipitation chance, tinted from the text color at 0% to full blue at 100% (Jason, 2026-09-30)."""
+    try:
+        p = max(0, min(100, int(pct)))
+    except (TypeError, ValueError):
+        return inner_html
+    return f'<span class="pp" style="--pp:{p}%">{inner_html}</span>'
+
+
 def weather_body(d, w, icons):
     """None for indoor games -- the card is left out entirely (Jason, 2026-09-19)."""
     if w.get("indoor"):
@@ -246,7 +255,7 @@ def weather_body(d, w, icons):
     if d.get("final"):   # after the game: how much actually fell
         precip = _wx_row(_val(v["inches"], "IN"), "Precip")
     else:
-        precip = _wx_row(_val(v["pct"], "%"), "Precip", f'{esc(v["inches"])}&quot;' if v["inches"] is not None else "")
+        precip = _wx_row(_pp(v["pct"], _val(v["pct"], "%")), "Precip", f'{esc(v["inches"])}&quot;' if v["inches"] is not None else "")
     note = ""
     if not v["ok"]:
         note = (f'<p class="wx-note">Forecast posts {esc(w.get("window_days"))} days before kickoff</p>'
@@ -312,7 +321,7 @@ def weather_condensed(d, w, icons):
     if d.get("final"):
         precip = f'{esc(v["inches"])}<small>IN</small>' if v["inches"] is not None else _na()
     elif v["pct"] is not None:
-        precip = f'{esc(v["pct"])}<small>%</small>' + (f' <em>{esc(v["inches"])}&quot;</em>' if v["inches"] is not None else "")
+        precip = _pp(v["pct"], f'{esc(v["pct"])}<small>%</small>') + (f' <em>{esc(v["inches"])}&quot;</em>' if v["inches"] is not None else "")
     else:
         precip = _na()
     wind = (f'{esc(v["speed"])}<small>MPH</small>' + (f' <em>{esc(v["dir"])}</em>' if v["dir"] else "")) if v["speed"] is not None else _na()
@@ -455,6 +464,7 @@ a.card.cc{display:flex;flex-direction:column;justify-content:space-evenly;gap:6p
 .strip{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:10px;text-align:center;align-items:start}
 .sf>span{display:block;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-2);margin-bottom:4px}
 .sf b{display:block;font-size:clamp(14px,2vh,17px);font-weight:700;line-height:1.2}
+.pp{color:color-mix(in srgb,var(--aag-precip) var(--pp),var(--aag-text))}
 .sf b small{font-size:.6em;letter-spacing:.04em;margin-left:1px}
 .sf b em{font-style:normal;font-weight:400}
 .sf i{display:block;font-style:normal;font-size:11px;color:var(--text-2);margin-top:2px}

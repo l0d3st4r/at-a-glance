@@ -46,6 +46,9 @@ LIGHT = {
     # on the light ground; the sun and lightning keep dark mode's yellow
     "wx-cloud": "#7C7A77", "wx-cloud-light": "#A3A19D", "wx-wind": "#8FA2B4",
     "wx-rain": "#3D93D6", "wx-snow": "#8AA6BE", "wx-sun": "#F2C230",
+    # Page 2's precipitation chance blends from the text color toward this as the chance rises
+    # (a deeper blue than the rain icon's, so the number stays readable at 100%)
+    "precip": "#2A7BC0",
 }
 
 # Dark ground in the same ink as light mode's text (#1B1512, a warm near-black) with a slightly
@@ -65,6 +68,7 @@ DARK = dict(LIGHT, **{
     "tc-light": "0%",
     "wx-cloud": "#8E8C89", "wx-cloud-light": "#BDBBB8", "wx-wind": "#C7D3DE",
     "wx-rain": "#7EC3F2", "wx-snow": "#FFFFFF", "wx-sun": "#F2C230",
+    "precip": "#7EC3F2",
 })
 
 
