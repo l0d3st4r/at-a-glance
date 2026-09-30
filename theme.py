@@ -24,15 +24,15 @@ whatever the phone is set to clears the choice, so the page follows the phone ag
 BBAR_HEIGHT = "calc(52px + env(safe-area-inset-bottom))"
 
 LIGHT = {
-    # softened contrast (2026-09-30): paper #F3F3EE for white, ink #1B1512 for black
+    # softened contrast (2026-09-30): paper #F3F3EE for white, ink #161510 for black
     "bg": "#F3F3EE", "tile": "#F3F3EE",
-    "tile-border": "rgba(27,21,18,.12)", "tile-border-soft": "rgba(27,21,18,.07)",
-    "tile-hover": "rgba(27,21,18,.03)", "tile-border-hover": "rgba(27,21,18,.28)",
-    "text": "#1B1512", "text-2": "rgba(27,21,18,.62)", "text-3": "rgba(27,21,18,.4)",
+    "tile-border": "rgba(22,21,16,.12)", "tile-border-soft": "rgba(22,21,16,.07)",
+    "tile-hover": "rgba(22,21,16,.03)", "tile-border-hover": "rgba(22,21,16,.28)",
+    "text": "#161510", "text-2": "rgba(22,21,16,.62)", "text-3": "rgba(22,21,16,.4)",
     "bar-bg": "rgba(243,243,238,.94)",   # the blurred top and bottom bars
-    "pill-hover": "rgba(27,21,18,.05)",  # the week pill's hover fill
+    "pill-hover": "rgba(22,21,16,.05)",  # the week pill's hover fill
     "dot": "#CFCFCF",                    # Page 1's inactive card dots
-    "focus": "#1B1512",                  # keyboard focus rings
+    "focus": "#161510",                  # keyboard focus rings
     "out": "#A00000", "doubt": "#A52800", "ques": "#B58900",   # injury statuses
     "win": "#1E8A3C", "loss": "#A00000", "tie": "#B58900",
     "theme-color": "#F3F3EE",            # the browser's address-bar color (read by THEME_JS)
@@ -51,20 +51,20 @@ LIGHT = {
     "precip": "#2A7BC0",
 }
 
-# Dark ground in the same ink as light mode's text (#1B1512, a warm near-black). Cards have no fill
+# Dark ground in the same ink as light mode's text (#161510, a near-neutral near-black with a trace of warmth; was #1B1512 until 2026-09-30). Cards have no fill
 # of their own (2026-09-30) -- same color inside as outside, like light mode -- so the outline alone
 # marks them. Text is light mode's paper color
 # (#F3F3EE) on the same three-step opacity ladder; status colors go one step brighter so they
 # hold up on the dark ground.
 DARK = dict(LIGHT, **{
-    "bg": "#1B1512", "tile": "#1B1512",
+    "bg": "#161510", "tile": "#161510",
     "tile-border": "rgba(243,243,238,.12)", "tile-border-soft": "rgba(243,243,238,.07)",
     "tile-hover": "rgba(243,243,238,.04)", "tile-border-hover": "rgba(243,243,238,.32)",
     "text": "#F3F3EE", "text-2": "rgba(243,243,238,.62)", "text-3": "rgba(243,243,238,.4)",
-    "bar-bg": "rgba(27,21,18,.9)", "pill-hover": "rgba(243,243,238,.08)", "dot": "#433B36", "focus": "#F3F3EE",
+    "bar-bg": "rgba(22,21,16,.9)", "pill-hover": "rgba(243,243,238,.08)", "dot": "#433B36", "focus": "#F3F3EE",
     "out": "#FF6B6B", "doubt": "#FF8A5C", "ques": "#E8B93A",
     "win": "#4CC76E", "loss": "#FF6B6B", "tie": "#E8B93A",
-    "theme-color": "#1B1512",
+    "theme-color": "#161510",
     "sw-sun": "flex", "sw-moon": "none",   # dark mode shows the sun (tap for light)
     "tc-light": "0%",
     "wx-cloud": "#8E8C89", "wx-cloud-light": "#BDBBB8", "wx-wind": "#C7D3DE",

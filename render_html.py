@@ -402,7 +402,7 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
   [data-view=condensed] .day{font-size:12px;line-height:14px;padding:7px 0 3px}
   [data-view=condensed] .bye-team img{width:30px;height:30px}
 }
-.error{background:#fee;color:#1B1512;padding:8px;font-size:11px;white-space:pre-wrap;border-radius:8px}
+.error{background:#fee;color:#161510;padding:8px;font-size:11px;white-space:pre-wrap;border-radius:8px}
 .empty{text-align:center;padding:40px 0;color:var(--text-2);font-size:16px}
 /* Page 1 opens on top of Page 0 (see PAGE1_OVERLAY_JS): tapping a tile zooms into it, its helmets,
    abbreviations and scores fly up into Page 1's top bar, then Page 1's cards come in. Page 1's own
@@ -804,7 +804,7 @@ PAGE1_OVERLAY_JS = r"""
   var reduce = { matches: false };
   var EASE = 'cubic-bezier(.22,1,.36,1)';
   // the card outline color for the open/close animations -- read from the theme so it matches light or dark
-  function tileLine() { return getComputedStyle(docEl).getPropertyValue('--aag-card-line').trim() || 'rgba(27,21,18,.12)'; }
+  function tileLine() { return getComputedStyle(docEl).getPropertyValue('--aag-card-line').trim() || 'rgba(22,21,16,.12)'; }
   var TILE = 'a.game[href^="#game-"]';
   var SWIPE_COMMIT = 0.22;   // drag a quarter of the screen (or flick) to change games
   var PULL_CLOSE = 0.16;     // pull down a sixth of the screen (or flick down) and Page 1 closes

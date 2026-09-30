@@ -35,7 +35,7 @@ STOPS = [
     (105.3, "#CF4232"), (108.8, "#C53D2F"), (112.4, "#BB392B"), (115.9, "#B13427"), (119.4, "#A62F24"),
     (122.9, "#9C2B1F"), (126.5, "#91271B"), (130.0, "#882217"),
 ]
-LIGHT_CARD, DARK_CARD = "#F3F3EE", "#1B1512"   # theme.py's "tile" in each theme
+LIGHT_CARD, DARK_CARD = "#F3F3EE", "#161510"   # theme.py's "tile" in each theme
 MIN_CONTRAST = 3.0
 
 

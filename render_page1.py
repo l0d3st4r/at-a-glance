@@ -836,7 +836,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
   opts = opts || {};
   var wrap = root.querySelector('.p1'); if (!wrap) return { destroy: function () {} };
   // the card outline color for the open/close animations -- read from the theme so it matches light or dark
-  function tileLine() { return getComputedStyle(wrap).getPropertyValue('--aag-card-line').trim() || 'rgba(27,21,18,.12)'; }
+  function tileLine() { return getComputedStyle(wrap).getPropertyValue('--aag-card-line').trim() || 'rgba(22,21,16,.12)'; }
   var deck = root.querySelector('.view-l'), slots = [].slice.call(root.querySelectorAll('.view-l > .slot')),
       dots = [].slice.call(root.querySelectorAll('.p1 > .dots .dot')), toggle = root.querySelector('.toggle'),
       week = root.querySelector('.week'), active = -1, bound = [], morphing = false;
