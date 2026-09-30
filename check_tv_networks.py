@@ -10,6 +10,10 @@ Sources, for games that haven't been played yet:
   - NFL.com's schedule page, which has the official networks but only for the current week;
     where the two disagree, NFL.com wins
 
+It also watches the "time_tbd" marks (games whose kickoff time the NFL hasn't set): CBS Sports
+leaves a game off its weekly schedule until its time is set, so a marked game that now appears
+there has a time, and an unmarked game that's missing may not have one.
+
 A source that only has part of a simulcast doesn't count as a change (CBS Sports shows Monday
 night ESPN/ABC games as just "ESPN"), and a game a source doesn't list or has no network for yet
 is left alone.
@@ -48,16 +52,18 @@ def _get(url):
 
 
 def cbs_week(season, week):
-    """{frozenset(teams): network} for one week of CBS Sports' schedule."""
+    """({frozenset(teams): network}, {frozenset(teams), ...} every game listed with a time) for
+    one week of CBS Sports' schedule."""
     html = _get(CBS_URL.format(season=season, week=week))
-    out = {}
+    out, listed = {}, set()
     for m in re.finditer(r'/nfl/gametracker/(?:live|preview|recap)/NFL_\d{8}_([A-Z]+)@([A-Z]+)/"[^>]*>[^<]*</a>(.*?)</td>', html, re.S):
         away, home, cell = m.groups()
         text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", cell)).strip().upper()
         net = LABELS.get(text) or ("CBS" if re.search(r"icon-moon-CBSIcon", cell) else None)
+        listed.add(frozenset((_team(home), _team(away))))
         if net:
             out[frozenset((_team(home), _team(away)))] = net
-    return out
+    return out, listed
 
 
 def nfl_current_week(season):
@@ -99,12 +105,13 @@ def main():
                 if r.get("gameday") and date.fromisoformat(r["gameday"][:10]) >= today and r.get("week", "").isdigit()]
     season = int(rows[0]["game_id"][:4]) if rows else today.year
 
-    source, problems = {}, []
+    source, problems, listed = {}, [], {}   # listed: week -> games CBS Sports shows with a time
     for week in sorted({int(r["week"]) for r in rows}):
         if week > 18:
             continue
         try:
-            for teams, net in cbs_week(season, week).items():
+            nets, listed[week] = cbs_week(season, week)
+            for teams, net in nets.items():
                 source[(week, teams)] = (net, "CBS Sports")
         except Exception as e:
             problems.append(f"CBS Sports week {week}: {e}")
@@ -118,9 +125,16 @@ def main():
     if not source:
         problems.append("no networks found in either source -- the page layout may have changed, so this check needs fixing")
 
-    changed, announced = [], []
+    changed, announced, timed, untimed = [], [], [], []
     for r in rows:
         key = (int(r["week"]), frozenset((_team(r["away"]), _team(r["home"]))))
+        marked = tv_networks._yes(r.get("time_tbd"))
+        game = f"| {r['week']} | {r['gameday']} | {r['away']} @ {r['home']} |"
+        if key[0] in listed:
+            if marked and key[1] in listed[key[0]]:
+                timed.append(game)
+            elif not marked and listed[key[0]] and key[1] not in listed[key[0]]:
+                untimed.append(game)
         if key not in source:
             continue
         net, where = source[key]
@@ -139,11 +153,18 @@ def main():
     if announced:
         parts += ["### Newly announced", "These games are blank in the file and now have a network.",
                   "\n".join([head, *announced])]
-    if not changed and not announced:
+    short = "| Week | Date (nflverse) | Game |\n|---|---|---|"
+    if timed:
+        parts += ["### Kickoff time announced", "These games are marked `time_tbd` but now have a time on the schedule. "
+                  "Clear their `time_tbd` cells so the site shows the time.", "\n".join([short, *timed])]
+    if untimed:
+        parts += ["### Kickoff time may not be set", "CBS Sports doesn't list a time for these games. If the NFL hasn't "
+                  "set one, put `yes` in their `time_tbd` cells so the site shows TBD.", "\n".join([short, *untimed])]
+    if not (changed or announced or timed or untimed):
         parts.append("Everything matches -- nothing to update.")
     if problems:
         parts += ["### Couldn't check everything", "\n".join(f"- {p}" for p in problems)]
-    parts.append("To update: open `tv_networks.csv` on GitHub, click the pencil, fix the `network` cells and commit.")
+    parts.append("To update: open `tv_networks.csv` on GitHub, click the pencil, fix the cells and commit.")
     report = "\n\n".join(parts) + "\n"
 
     print(report)
@@ -152,7 +173,7 @@ def main():
             f.write(report)
     if os.environ.get("GITHUB_OUTPUT"):   # tells the workflow whether to open/update the issue or close it
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
-            f.write(f"changes={len(changed) + len(announced)}\nproblems={len(problems)}\n")
+            f.write(f"changes={len(changed) + len(announced) + len(timed) + len(untimed)}\nproblems={len(problems)}\n")
 
 
 if __name__ == "__main__":

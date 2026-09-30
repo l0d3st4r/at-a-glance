@@ -128,6 +128,38 @@ def _network(networks, game_id):
     return (networks or {}).get(game_id) or {"status": "pending"}
 
 
+def _blank_times(tbd, matchups, season_weeks, game_details):
+    """Removes the kickoff time of every game in `tbd` from the data the pages read; they show a
+    missing time as TBD. A finished game keeps its time whatever the file says."""
+    if not tbd:
+        return
+    for m in matchups:
+        if m.get("game_id") in tbd:
+            m["gametime"] = None
+    for wk in season_weeks:
+        for g in wk.get("games") or []:
+            if g.get("game_id") in tbd and not g.get("final"):
+                g["gametime"] = None
+    seen = set()
+    for gid, d in game_details.items():
+        if gid in tbd and not d.get("final"):
+            d["gametime"] = None
+            d["time_tbd"] = True
+            if d.get("info"):
+                d["info"]["kickoff_utc"] = None
+        for side in ("away", "home"):
+            tp = (d.get(side) or {}).get("team_page") or {}
+            if gid in tbd and not d.get("final") and tp.get("next"):
+                tp["next"]["gametime"] = None
+            sched = tp.get("schedule") or []
+            if id(sched) in seen:        # each team's schedule list is shared by all its games
+                continue
+            seen.add(id(sched))
+            for e in sched:
+                if e.get("game_id") in tbd and not e.get("final"):
+                    e["gametime"] = None
+
+
 def build_season_weeks(schedules, current_week, networks=None):
     """
     Every week of the season for the Page 0 week dropdown, built only from
@@ -376,9 +408,13 @@ def main():
         rosters_weekly, err = nflverse_client.get_rosters_weekly(season)
         if err:
             warnings.append(f"get_rosters_weekly: {err}")
+        third_downs, err = nflverse_client.get_third_downs(season)   # team pages' 3rd Down % (2026-09-30)
+        if err:
+            warnings.append(f"get_third_downs: {err}")
         game_details = page1_data.build_game_details(schedules, team_weekly, player_weekly, injury_rows, snaps, warnings,
                                                      depth=depth, history=history or None, quarter_scores=quarter_scores,
-                                                     rosters_weekly=rosters_weekly, injury_events=injury_events)
+                                                     rosters_weekly=rosters_weekly, injury_events=injury_events,
+                                                     third_downs=third_downs)
     except Exception as e:
         warnings.append(f"build_game_details: {e}")
     for gid, d in game_details.items():
@@ -390,6 +426,15 @@ def main():
         snapshot.save(frozen, season)
     except Exception as e:
         warnings.append(f"game snapshot: {e}")
+
+    # Kickoff times the NFL hasn't set yet show TBD (2026-09-30): nflverse lists those games at a
+    # placeholder time, so tv_networks.csv marks them and the time is blanked everywhere it's
+    # shown. Done last, so everything worked out from the schedule above is untouched.
+    try:
+        tbd = tv_networks.load_time_tbd(schedules, datetime.now(timezone.utc).date())
+        _blank_times(tbd, matchups, season_weeks, game_details)
+    except Exception as e:
+        warnings.append(f"TBD kickoff times: {e}")
 
     output = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),

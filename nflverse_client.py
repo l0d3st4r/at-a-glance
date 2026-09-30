@@ -178,6 +178,21 @@ def get_quarter_scores(season):
         return [], str(e)
 
 
+def get_third_downs(season):
+    """Third-down conversions and failures per game and offense, from play-by-play (2026-09-30):
+    one row per game_id + posteam with the week, season type and the defense it faced."""
+    try:
+        import polars as pl
+        df = _pbp(season)
+        df = (df.filter(pl.col("posteam").is_not_null())
+                .group_by(["game_id", "season_type", "week", "posteam", "defteam"])
+                .agg(pl.col("third_down_converted").sum().alias("converted"),
+                     pl.col("third_down_failed").sum().alias("failed")))
+        return _to_dicts(df), None
+    except Exception as e:
+        return [], str(e)
+
+
 # ---------------------------------------------------------------- game-day absences (added 2026-09-30)
 
 _INJ_RE = None

@@ -422,4 +422,19 @@ P4_CSS = r"""
 .ps-nm{display:block;font-size:12px}
 .ps-pos{display:block;font-size:10px;font-weight:400;color:var(--text-2);letter-spacing:.04em}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+/* Expanded cards: the column titles stay put while a long table scrolls under them (Jason,
+   2026-09-30). position:sticky only follows the nearest scroller, so here .ps-scroll scrolls both
+   ways and .ps-tw stops scrolling sideways on its own; each team's block is as wide as its widest
+   table, and the team pill and section headings stay at the left while the tables slide. The
+   right-edge fade (.more) moves to .ps-scroll with it (P1_JS). */
+.ps-scroll{overflow:auto}
+.ps-scroll .ps-tw{overflow:visible;margin:0;padding:0}
+.ps-scroll .ps-tw.more{-webkit-mask-image:none;mask-image:none}
+.ps-scroll.more{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent)}
+.ps-scroll .ps-pane,.ps-scroll .ps-team{width:max-content;min-width:100%}
+.ps-scroll .ps-th,.ps-scroll .ps-sec,.ps-scroll .ps-empty{position:sticky;left:0;width:fit-content}
+.ps-scroll .ps-t thead th{position:sticky;top:0;z-index:2;background:var(--tile)}
+.ps-scroll .ps-t thead th:first-child{z-index:3}
+/* the sorted column's tint is see-through: over the card color, so rows don't show through it */
+.ps-scroll .ps-t thead .ps-on{background:linear-gradient(var(--tile-hover),var(--tile-hover)),var(--tile)}
 """

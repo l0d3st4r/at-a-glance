@@ -293,7 +293,7 @@ STAT_ROWS = [
     ("all_yards", "All Yards", "per game", True),
     ("pass_yards", "Passing Yards", "per game", True),
     ("rush_yards", "Rushing Yards", "per game", True),
-    ("red_zone_pct", "Red Zone %", None, True),
+    ("third_down_pct", "3rd Down %", None, True),
 ]
 SINGLE_STAT_ROWS = [
     ("turnover_margin", "Turnover Diff."),
@@ -303,12 +303,12 @@ SINGLE_STAT_ROWS = [
 ]
 
 
-def _stat_cell(value, rank, signed=False):
+def _stat_cell(value, rank, signed=False, pct=False):
     from render_page1 import rank_color, ordinal
     if value is None or rank is None:
         return f'<div class="stat"><span class="stat-v na">{DASH}</span></div>'
     c = rank_color(rank)
-    disp = _fmt_signed(value) if signed else _fmt_int(value)
+    disp = _fmt_signed(value) if signed else f"{_fmt_int(value)}%" if pct else _fmt_int(value)
     # Only the rank carries the tier color -- the raw value stays plain so it doesn't compete
     # with it (Jason, 2026-09-24).
     return (f'<div class="stat">'
@@ -333,8 +333,9 @@ def offense_defense_body(team_stats):
     rows = []
     for key, label, sub, _hb in STAT_ROWS:
         s = stats.get(key) or {}
-        left = _stat_cell(s.get("off_value"), s.get("off_rank"))
-        right = _stat_cell(s.get("def_value"), s.get("def_rank"))
+        pct = key.endswith("_pct")
+        left = _stat_cell(s.get("off_value"), s.get("off_rank"), pct=pct)
+        right = _stat_cell(s.get("def_value"), s.get("def_rank"), pct=pct)
         rows.append(_stat_row(label, sub, left, right))
     for key, label in SINGLE_STAT_ROWS:
         s = stats.get(key)

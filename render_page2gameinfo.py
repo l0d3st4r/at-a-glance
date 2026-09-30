@@ -129,6 +129,8 @@ def _countdown(d, info, cls):
     if d.get("final"):
         return f'<div class="{cls} cd-done"><span class="cd-status">{"FINAL/OT" if d.get("overtime") else "FINAL"}</span></div>'
     kickoff = info.get("kickoff_utc")
+    if d.get("time_tbd"):   # kickoff time not set yet (tv_networks.csv): nothing to count down to
+        return f'<div class="{cls} cd-done"><span class="cd-status">TBD</span></div>'
     parts = countdown_parts(kickoff)
     if parts is None:
         # Kickoff has already passed as of this build. There's no live score feed to poll, so

@@ -365,7 +365,7 @@ def linescore_html(d, mini=False):
     rows = "".join(
         f'<tr><th scope="row">{esc((d.get(side) or {}).get("team") or "")}</th>'
         + "".join(f"<td>{esc(fmt_value(v))}</td>" for v in ls.get(side) or [])
-        + f'<td>{esc(fmt_value(score.get(side)))}</td></tr>'
+        + f'<td class="ls-f">{esc(fmt_value(score.get(side)))}</td></tr>'
         for side in ("away", "home"))
     return (f'<div class="ls{" ls-mini" if mini else ""}"><table><thead><tr><th scope="col"><span class="vh">Team</span></th>{head}</tr></thead>'
             f"<tbody>{rows}</tbody></table></div>")
@@ -1168,7 +1168,8 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
   // the fade on a table's right edge while it's wider than its card and not scrolled to the end.
   // A ResizeObserver re-checks each table as it's first shown (its page and pane start hidden).
   function psMore(tw) { tw.classList.toggle('more', tw.scrollWidth > tw.clientWidth + 2 && tw.scrollLeft + tw.clientWidth < tw.scrollWidth - 2); }
-  var psTables = [].slice.call(root.querySelectorAll('.ps-tw'));
+  // (an expanded card's tables scroll sideways inside .ps-scroll, the condensed view's inside .ps-tw)
+  var psTables = [].slice.call(root.querySelectorAll('.ps-tw, .ps-scroll'));
   psTables.forEach(function (tw) { on(tw, 'scroll', function () { psMore(tw); }, { passive: true }); });
   var psRO = window.ResizeObserver ? new ResizeObserver(function (es) { es.forEach(function (x) { psMore(x.target); }); }) : null;
   if (psRO) psTables.forEach(function (tw) { psRO.observe(tw); });
@@ -1181,7 +1182,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
       x.classList.toggle('on', onIt); x.setAttribute('aria-pressed', onIt ? 'true' : 'false');
     });
     [].slice.call(scope.querySelectorAll('.ps-pane, .pc-p')).forEach(function (p) { p.classList.toggle('on', p.getAttribute('data-team') === team); });
-    [].slice.call(scope.querySelectorAll('.ps-scroll')).forEach(function (sc) { sc.scrollTop = 0; });
+    [].slice.call(scope.querySelectorAll('.ps-scroll')).forEach(function (sc) { sc.scrollTop = 0; sc.scrollLeft = 0; psMore(sc); });
   }
   [].slice.call(root.querySelectorAll('.ps-tab')).forEach(function (b) {
     on(b, 'click', function (e) {
@@ -1377,7 +1378,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
   }
   on(wrap, 'touchstart', function (e) {
     // a sideways swipe on a Player Stats table that's wider than its card scrolls the table instead
-    var tw = e.target && e.target.closest && e.target.closest('.ps-tw');
+    var tw = e.target && e.target.closest && (e.target.closest('.ps-scroll') || e.target.closest('.ps-tw'));
     if (tw && tw.scrollWidth > tw.clientWidth + 2) { detailSwipe = null; return; }
     detailSwipe = (detailOpen() && large() && !detailBusy && e.touches.length === 1)
       ? { x0: e.touches[0].clientX, y0: e.touches[0].clientY, dx: 0, dir: 0, mode: 'pending', t0: Date.now(), neighbor: null }
@@ -1896,14 +1897,15 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .p1[data-final] .view-l .game-bottom .weather svg.stad{height:22px;width:auto}
 /* Scoring by quarter, finished games (Jason's mock, 2026-09-29): between the score header and
    the time. Quarter numbers + T in the faint text color; team abbreviations plain (not Saira)
-   and regular weight like the numbers; a line between the two teams and a fainter one under
-   the table, reaching a little wider than it. */
-.ls{margin:0 -10px;padding:0 10px 8px;border-bottom:1px solid var(--tile-border-soft)}
+   and regular weight like the numbers; a line between the two teams (the fainter one under the
+   table was removed, Jason 2026-09-30). */
+.ls{margin:0 -10px;padding:0 10px 8px}
 .ls table{width:100%;border-collapse:collapse;table-layout:fixed;font-variant-numeric:tabular-nums}   /* even columns */
 .ls th,.ls td{font-weight:400;text-align:center;padding:0}
 .ls thead th{font-size:13px;color:var(--text-3);padding-bottom:6px}
 .ls tbody th,.ls td{font-size:15px;padding:7px 0}
 .ls tbody th{text-align:left;padding-left:6px;white-space:nowrap}
+.ls td.ls-f{font-weight:700}   /* the final score (Jason, 2026-09-30), both views */
 .ls thead th:first-child{width:3.4em}
 .ls tbody tr:first-child>*{border-bottom:1px solid var(--tile-border)}
 /* Finished games, condensed Game Info card (Jason, 2026-09-29): the start time and the weather a
@@ -1918,7 +1920,7 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .p1[data-final] .c-game .weather svg{width:18px;height:14px}
 .p1[data-final] .c-game .weather svg.stad{height:10px;width:auto}
 /* the condensed Game Info card's smaller copy, under its two lines */
-.c-game .ls-mini{margin:4px -6px 0;padding:0 6px 2px;border-bottom:0}
+.c-game .ls-mini{margin:4px -6px 0;padding:0 6px 2px}
 .c-game .ls-mini thead th{font-size:10px;padding-bottom:2px}
 .c-game .ls-mini tbody th,.c-game .ls-mini td{font-size:12px;padding:2px 0}
 .c-game .ls-mini thead th:first-child{width:3.2em}
