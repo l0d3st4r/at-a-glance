@@ -51,12 +51,13 @@ LIGHT = {
     "precip": "#2A7BC0",
 }
 
-# Dark ground in the same ink as light mode's text (#1B1512, a warm near-black) with a slightly
-# lifted tile, so the outlined cards still read as objects. Text is light mode's paper color
+# Dark ground in the same ink as light mode's text (#1B1512, a warm near-black). Cards have no fill
+# of their own (2026-09-30) -- same color inside as outside, like light mode -- so the outline alone
+# marks them. Text is light mode's paper color
 # (#F3F3EE) on the same three-step opacity ladder; status colors go one step brighter so they
 # hold up on the dark ground.
 DARK = dict(LIGHT, **{
-    "bg": "#1B1512", "tile": "#26201D",
+    "bg": "#1B1512", "tile": "#1B1512",
     "tile-border": "rgba(243,243,238,.12)", "tile-border-soft": "rgba(243,243,238,.07)",
     "tile-hover": "rgba(243,243,238,.04)", "tile-border-hover": "rgba(243,243,238,.32)",
     "text": "#F3F3EE", "text-2": "rgba(243,243,238,.62)", "text-3": "rgba(243,243,238,.4)",
