@@ -467,8 +467,8 @@ P3_CSS = r"""
    still work; only the pointer/hover/focus-ring styling is suppressed. */
 .p2-team a.card{cursor:default}
 .p2-team a.card:focus-visible{outline:none}
-.p2-team .slot.active a.card:hover,.p2-team .slot.active a.card:focus-visible{transform:none;border-color:var(--tile-border)}
-.p2-team .slot.below a.card:hover,.p2-team .slot.above a.card:hover{border-color:var(--tile-border-soft)}
+.p2-team .slot.active a.card:hover,.p2-team .slot.active a.card:focus-visible{transform:none;border-color:var(--aag-card-line)}
+.p2-team .slot.below a.card:hover,.p2-team .slot.above a.card:hover{border-color:var(--aag-card-line-soft)}
 /* The card opens with the coaching staff (left) and the bye week as a big number (right) --
    Jason, 2026-09-28; the helmet/abbreviation/record header that used to lead moved to the bar */
 .ov-lead{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 4px 14px}

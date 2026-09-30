@@ -452,7 +452,7 @@ P2_CSS = r"""
 .p2-c.n3{grid-template-rows:minmax(0,1.12fr) minmax(0,1fr) minmax(0,.92fr)}
 .p2-c.n2{grid-template-rows:minmax(0,1.15fr) minmax(0,1fr)}
 a.card.cc{display:flex;flex-direction:column;justify-content:space-evenly;gap:6px;padding:var(--ctitle) 20px clamp(8px,1.4vh,14px);overflow:hidden;min-height:0}
-.p2-c a.card.cc:hover,.p2-c a.card.cc:focus-visible{transform:scale(1.015);border-color:var(--tile-border-hover);z-index:1}
+.p2-c a.card.cc:hover,.p2-c a.card.cc:focus-visible{transform:scale(1.015);border-color:var(--aag-card-line-hover);z-index:1}
 .cc-top{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .cc .time{font-size:clamp(30px,5.2vh,46px)}
 .cc .time small{font-size:13px}

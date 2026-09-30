@@ -326,8 +326,8 @@ P4_CSS = r"""
 .p1[data-detail="leaders"] .p2[data-page="leaders"]{display:block}
 .p2-ps .p2-l a.card{cursor:default}
 .p2-ps .p2-l a.card:focus-visible{outline:none}
-.p2-ps .slot.active a.card:hover,.p2-ps .slot.active a.card:focus-visible{transform:none;border-color:var(--tile-border)}
-.p2-ps .slot.below a.card:hover,.p2-ps .slot.above a.card:hover{border-color:var(--tile-border-soft)}
+.p2-ps .slot.active a.card:hover,.p2-ps .slot.active a.card:focus-visible{transform:none;border-color:var(--aag-card-line)}
+.p2-ps .slot.below a.card:hover,.p2-ps .slot.above a.card:hover{border-color:var(--aag-card-line-soft)}
 /* The card title sits at the top; the stats fill the rest and scroll inside the card when
    they don't fit (a team's Defense runs 25-40 players). */
 .p2 .slot .p2k-ps .body{padding:44px 14px 14px;justify-content:flex-start;gap:12px;min-height:0}

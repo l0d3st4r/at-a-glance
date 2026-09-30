@@ -73,6 +73,18 @@ DARK = dict(LIGHT, **{
 })
 
 
+# Card outlines (Page 0's game tiles and every Page 1 / Page 2 card) -- one switch.
+#   False: no outlines, the cards are only their content (trial started 2026-09-30)
+#   True:  the thin outlines from before, in each theme's tile-border colors
+# Table rules, the Player Stats team buttons and other lines keep tile-border either way.
+CARD_OUTLINES = False
+
+for _t in (LIGHT, DARK):
+    _t["card-line"] = _t["tile-border"] if CARD_OUTLINES else "transparent"
+    _t["card-line-soft"] = _t["tile-border-soft"] if CARD_OUTLINES else "transparent"
+    _t["card-line-hover"] = _t["tile-border-hover"] if CARD_OUTLINES else "transparent"
+
+
 def _decls(tokens):
     return ";".join(f"--aag-{k}:{v}" for k, v in tokens.items())
 

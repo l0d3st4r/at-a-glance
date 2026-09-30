@@ -836,7 +836,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
   opts = opts || {};
   var wrap = root.querySelector('.p1'); if (!wrap) return { destroy: function () {} };
   // the card outline color for the open/close animations -- read from the theme so it matches light or dark
-  function tileLine() { return getComputedStyle(wrap).getPropertyValue('--aag-tile-border').trim() || 'rgba(27,21,18,.12)'; }
+  function tileLine() { return getComputedStyle(wrap).getPropertyValue('--aag-card-line').trim() || 'rgba(27,21,18,.12)'; }
   var deck = root.querySelector('.view-l'), slots = [].slice.call(root.querySelectorAll('.view-l > .slot')),
       dots = [].slice.call(root.querySelectorAll('.p1 > .dots .dot')), toggle = root.querySelector('.toggle'),
       week = root.querySelector('.week'), active = -1, bound = [], morphing = false;
@@ -1627,7 +1627,7 @@ P1_CSS = "\n:host{display:block}\n" + theme.SWITCH_CSS + (
    matches Page 0. The "‹ Week N" pill, records, times and every label stay Inter. */
 .abbr{line-height:1;font-family:Saira,Inter,system-ui,sans-serif;font-weight:800;font-style:italic;
   font-variation-settings:'wdth' 95;letter-spacing:.02em}
-a.card{position:relative;display:block;color:inherit;text-decoration:none;background:var(--tile);border:1px solid var(--tile-border);border-radius:20px;
+a.card{position:relative;display:block;color:inherit;text-decoration:none;background:var(--tile);border:1px solid var(--aag-card-line);border-radius:20px;
   transition:transform .16s,background-color .16s,border-color .16s}
 a.card:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px}
 
@@ -1714,7 +1714,7 @@ a.card:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px}
    the tighter gaps free. Gaps between cards are 8px both ways (see .c-teams). */
 .view-c{max-width:var(--col);margin:0 auto;height:100dvh;min-height:720px;padding:calc(var(--bar) + 12px) 16px calc(var(--bbar) + 12px);gap:8px;
   grid-template-rows:auto calc((max(100dvh, 720px) - var(--bar) - var(--bbar) - 48px) * 1.18 / 3.42) minmax(0,1fr)}
-.view-c a.card:hover,.view-c a.card:focus-visible{transform:scale(1.015);border-color:var(--tile-border-hover);z-index:1}
+.view-c a.card:hover,.view-c a.card:focus-visible{transform:scale(1.015);border-color:var(--aag-card-line-hover);z-index:1}
 
 /* Game info (2026-09-27, compact): line 1 is the time with the date/day beside it, weather at
    the right; line 2 is the city, TV at the right. Was a top block + bottom row spread over a
@@ -1836,8 +1836,8 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .slot a.card{height:100%;overflow:hidden;transition:transform .2s cubic-bezier(.22,1,.36,1),border-color .15s,background-color .15s}
 .body{height:100%;display:flex;flex-direction:column;transition:opacity .15s}
 .slot.active a.card{transition:transform .16s,background-color .16s,border-color .16s}
-.slot.active a.card:hover,.slot.active a.card:focus-visible{transform:scale(1.015);border-color:var(--tile-border-hover)}
-.slot:not(.active) a.card{border-color:var(--tile-border-soft);transform:scale(.96)}
+.slot.active a.card:hover,.slot.active a.card:focus-visible{transform:scale(1.015);border-color:var(--aag-card-line-hover)}
+.slot:not(.active) a.card{border-color:var(--aag-card-line-soft);transform:scale(.96)}
 .slot.below a.card{transform:translateY(-2%) scale(.96)}
 .slot.above a.card{transform:translateY(2%) scale(.96)}
 .slot:not(.active) .body{opacity:0}
@@ -1847,7 +1847,7 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 /* the card in the middle keeps its name at the top, where its sliver showed it (no arrow) */
 .slot.active .peek-top{opacity:1}
 .slot.active .peek-top svg{display:none}
-.slot.below a.card:hover,.slot.above a.card:hover{border-color:var(--tile-border-hover)}
+.slot.below a.card:hover,.slot.above a.card:hover{border-color:var(--aag-card-line-hover)}
 .slot.below a.card:hover .peek,.slot.above a.card:hover .peek{color:var(--ink)}
 .dots{display:none;position:fixed;right:calc(max(16px,(100vw - var(--col)) / 2 + 16px) / 2 - 3px);top:calc(var(--bar) + (100% - var(--bar) - var(--bbar)) / 2);transform:translateY(-50%);z-index:10}
 .dots{flex-direction:column;align-items:center;gap:8px}
@@ -2104,7 +2104,7 @@ a.card{cursor:pointer}
 .card-title{position:absolute;left:0;right:0;top:0;height:var(--ctitle);display:flex;align-items:center;justify-content:center;
   font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-2);pointer-events:none;line-height:1}
 /* view toggle: a card-shaped box that grows/shrinks between the two views */
-.morph{position:fixed;z-index:9;background:var(--tile);border:1px solid var(--tile-border);border-radius:20px;overflow:hidden;pointer-events:none}
+.morph{position:fixed;z-index:9;background:var(--tile);border:1px solid var(--aag-card-line);border-radius:20px;overflow:hidden;pointer-events:none}
 .morph>.card{position:absolute;left:0;top:0;border:0;border-radius:0;background:transparent;transform:none;transition:none}
 .temp-word{font-size:26px}
 .c-game .temp-word{font-size:clamp(15px,2vh,20px)}   /* shares line 1 with time + date (2026-09-27) */

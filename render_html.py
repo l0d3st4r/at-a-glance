@@ -225,13 +225,13 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
    columns. */
 .game{display:grid;grid-template-columns:minmax(0,84px) minmax(0,1fr) max(84px,574px - 100vw) minmax(0,1fr) minmax(0,84px);align-items:center;
   padding:16px 8px;color:inherit;text-decoration:none;
-  background:var(--tile);border:1px solid var(--tile-border);border-radius:20px;
+  background:var(--tile);border:1px solid var(--aag-card-line);border-radius:20px;
   transition:transform .16s ease,background-color .16s ease,border-color .16s ease}
 /* (2026-09-17, Jason) hover/press scales the tile and brightens its outline -- no fill */
-.game:hover,.game:focus-visible{transform:scale(1.015);border-color:var(--tile-border-hover)}
+.game:hover,.game:focus-visible{transform:scale(1.015);border-color:var(--aag-card-line-hover)}
 .game:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px}
 .game.placeholder{color:var(--text-2)}
-.game.placeholder:hover{transform:none;border-color:var(--tile-border)}
+.game.placeholder:hover{transform:none;border-color:var(--aag-card-line)}
 /* no prefers-reduced-motion override: motion always plays (Jason, 2026-09-17) */
 .team{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
 .team img{width:48px;height:48px;display:block}
@@ -278,7 +278,7 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
 }
 /* Teams on bye: one outlined (not clickable) card under the week's last day */
 .bye-list{list-style:none;display:flex;flex-wrap:wrap;justify-content:center;gap:14px 18px;padding:16px 12px;
-  background:var(--tile);border:1px solid var(--tile-border);border-radius:20px}
+  background:var(--tile);border:1px solid var(--aag-card-line);border-radius:20px}
 .bye-team{display:flex;flex-direction:column;align-items:center;gap:4px;width:56px}
 .bye-team img{width:48px;height:48px;display:block}
 @media (max-width:420px){.bye-list{display:grid;grid-template-columns:repeat(var(--bye-cols),56px);justify-content:center;gap:12px 14px;padding:14px 8px}
@@ -410,11 +410,11 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
    down from the top to minimize back into the tile. Pinch toggles expanded/condensed (2026-09-21,
    was pinch-to-close) -- the same transition as the +/- button, just reachable with two fingers. */
 .p1-overlay{position:fixed;z-index:100;box-sizing:border-box;background:var(--tile);
-  border:1px solid var(--tile-border);border-radius:20px;overflow:hidden}
+  border:1px solid var(--aag-card-line);border-radius:20px;overflow:hidden}
 .p1-overlay.is-open{inset:0;border-radius:0;border-color:transparent;
   touch-action:pan-y}  /* sideways swipes, pull-down-to-close and pinch-to-toggle are handled by the script */
 .p1-host{position:absolute;inset:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;background:var(--bg)}
-.p1-shell{position:fixed;box-sizing:border-box;background:var(--tile);border:1px solid var(--tile-border);border-radius:20px;pointer-events:none}
+.p1-shell{position:fixed;box-sizing:border-box;background:var(--tile);border:1px solid var(--aag-card-line);border-radius:20px;pointer-events:none}
 html.p1-open{overflow:hidden}
 """
 
@@ -804,7 +804,7 @@ PAGE1_OVERLAY_JS = r"""
   var reduce = { matches: false };
   var EASE = 'cubic-bezier(.22,1,.36,1)';
   // the card outline color for the open/close animations -- read from the theme so it matches light or dark
-  function tileLine() { return getComputedStyle(docEl).getPropertyValue('--aag-tile-border').trim() || 'rgba(27,21,18,.12)'; }
+  function tileLine() { return getComputedStyle(docEl).getPropertyValue('--aag-card-line').trim() || 'rgba(27,21,18,.12)'; }
   var TILE = 'a.game[href^="#game-"]';
   var SWIPE_COMMIT = 0.22;   // drag a quarter of the screen (or flick) to change games
   var PULL_CLOSE = 0.16;     // pull down a sixth of the screen (or flick down) and Page 1 closes
