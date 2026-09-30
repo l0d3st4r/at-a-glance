@@ -538,9 +538,8 @@ def record_size(record_text):
 
 
 def team_pill(team):
-    """A flat pill in the team's helmet-shell color (the PRIMARY color in helmets.py, no gradient)."""
-    primary, _secondary = helmets.TEAM_COLORS.get(team, helmets.FALLBACK_COLORS)
-    return f'<span class="pill" style="background:{primary}" role="img" aria-label="{esc(TEAM_NAMES.get(team, team))}"></span>'
+    """The team's pill: its abbreviation in the helmet's three colors (helmets.pill_html, 2026-09-30)."""
+    return helmets.pill_html(team, TEAM_NAMES.get(team, team))
 
 
 def pill_row(a, h):
@@ -2073,8 +2072,10 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .cmp-head{grid-template-columns:1fr auto 1fr;align-items:center}
 .cmp-head>:first-child{justify-self:start}
 .cmp-head>:last-child{justify-self:end}
-.pill{display:block;width:56px;height:14px;border-radius:999px}
-.c-cmp .pill{width:36px;height:9px}
+/* team pills (helmets.pill_html): fill, one ring, letters -- the helmet's three colors once each */
+.tpill{display:inline-flex;align-items:center;justify-content:center;height:24px;min-width:64px;padding:0 9px;
+  border-radius:999px;background:var(--pf);border:2.5px solid var(--pr);color:var(--pl);font-size:13px;white-space:nowrap}
+.c-cmp .tpill{height:18px;min-width:46px;padding:0 6px;border-width:2px;font-size:10px}
 .ldr{min-width:0}
 /* Leader values are stats -> Teko; the player names under them stay Inter. */
 .ldr-v{font-size:20px;line-height:1.2;font-family:Teko,Inter,system-ui,sans-serif;font-weight:700}

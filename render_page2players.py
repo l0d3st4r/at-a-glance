@@ -142,8 +142,7 @@ CARDS = [
 # ---------------------------------------------------------------- markup
 
 def _pill(team):
-    primary, _secondary = helmets.TEAM_COLORS.get(team, helmets.FALLBACK_COLORS)
-    return f'<span class="pill" style="background:{primary}"></span>'
+    return helmets.pill_html(team)
 
 
 def _sort_value(label, shown, r):
@@ -215,12 +214,12 @@ def card_body(sections, layout, teams, stats, scope="season"):
     empty = _empty_text(stats, scope)
     if layout == "stack":
         blocks = "".join(
-            f'<div class="ps-team"><div class="ps-th">{_pill(t)}<span class="abbr">{esc(t)}</span></div>'
+            f'<div class="ps-team"><div class="ps-th">{_pill(t)}</div>'
             f"{_team_tables(stats.get(t) or [], sections, empty)}</div>" for t in teams)
         return f'<div class="ps-scroll">{blocks}</div>'
     tabs = "".join(
         f'<button type="button" class="ps-tab{" on" if i == 0 else ""}" data-team="{esc(t)}" aria-pressed="{"true" if i == 0 else "false"}">'
-        f'{_pill(t)}<span class="abbr">{esc(t)}</span></button>' for i, t in enumerate(teams))
+        f'{_pill(t)}</button>' for i, t in enumerate(teams))
     panes = "".join(
         f'<div class="ps-pane{" on" if i == 0 else ""}" data-team="{esc(t)}">{_team_tables(stats.get(t) or [], sections, empty)}</div>'
         for i, t in enumerate(teams))
@@ -278,7 +277,7 @@ def condensed_view(teams, stats, scope="season"):
     empty = _empty_text(stats, scope)
     tabs = "".join(
         f'<button type="button" class="ps-tab{" on" if i == 0 else ""}" data-team="{esc(t)}" aria-pressed="{"true" if i == 0 else "false"}">'
-        f'{_pill(t)}<span class="abbr">{esc(t)}</span></button>' for i, t in enumerate(teams))
+        f'{_pill(t)}</button>' for i, t in enumerate(teams))
     cards = []
     for cid, title, section, who, width, left_out in CONDENSED:
         _h, _keep, _order, cols, medals = section
@@ -336,9 +335,8 @@ P4_CSS = r"""
 /* Team switch (Rushing, Receiving, Defense): the two teams' pills, the chosen one filled in */
 .ps-sw{display:flex;justify-content:center;gap:8px;flex:none}
 .ps-tab{display:flex;align-items:center;gap:8px;border:1px solid var(--tile-border-soft);background:none;color:var(--text);
-  border-radius:999px;padding:6px 14px;font:inherit;cursor:pointer}
-.ps-tab .pill{width:26px;height:8px}
-.ps-tab .abbr{font-size:18px}
+  border-radius:999px;padding:4px;font:inherit;cursor:pointer}
+.ps-tab .tpill{height:26px;min-width:68px;font-size:15px}
 .ps-tab.on{background:var(--tile-hover);border-color:var(--tile-border)}
 .ps-tab:not(.on){opacity:.55}
 .ps-pane{display:none}
@@ -346,8 +344,7 @@ P4_CSS = r"""
 /* Both teams stacked (Passing, Kicking, Returns): each under its pill + abbreviation */
 .ps-team+.ps-team{margin-top:18px}
 .ps-th{display:flex;align-items:center;gap:8px;padding:2px 0 4px}
-.ps-th .pill{width:26px;height:8px}
-.ps-th .abbr{font-size:20px}
+.ps-th .tpill{height:26px;min-width:68px;font-size:15px}
 .ps-sec{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2);margin:12px 0 2px}
 .ps-th+.ps-sec,.ps-pane>.ps-sec:first-child{margin-top:4px}
 .ps-empty{font-size:13px;color:var(--text-2);padding:6px 0}

@@ -228,6 +228,32 @@ FAVICON_OUTLINE_WIDTH = 5
 FAVICON_OUTLINE_PAD = 6
 
 
+# Team pills (2026-09-30): the abbreviation inside a pill with one ring, using the helmet's three
+# colors (shell, facemask, ear) once each. Which color plays which part is whatever reads best:
+# the letters get the most contrast with the fill (capped at 4.5:1, then counted double), the ring
+# stands off the fill (capped at 3:1), and the shell gets a small head start as the fill.
+def pill_colors(team):
+    """(fill, ring, letters) for a team's pill."""
+    from itertools import permutations
+    from temp_colors import contrast
+    shell, mask = TEAM_COLORS.get(team, FALLBACK_COLORS)
+    colors = (shell, mask, EAR_COLORS.get(team, FALLBACK_EAR))
+
+    def score(order):
+        fill, ring, letters = (colors[i] for i in order)
+        return (2 * min(contrast(fill, letters), 4.5) + min(contrast(fill, ring), 3)
+                + (1.5 if order[0] == 0 else 0))
+    return tuple(colors[i] for i in max(permutations(range(3)), key=score))
+
+
+def pill_html(team, label=None):
+    """The team pill (styled by render_page1.py's .tpill rules)."""
+    import html
+    fill, ring, letters = pill_colors(team)
+    aria = f' role="img" aria-label="{html.escape(label)}"' if label else ""
+    return f'<span class="tpill abbr" style="--pf:{fill};--pr:{ring};--pl:{letters}"{aria}>{html.escape(team)}</span>'
+
+
 def favicon_svg():
     return helmet_svg("_unknown", id_prefix="favicon",
                       outline_width=FAVICON_OUTLINE_WIDTH, outline_pad=FAVICON_OUTLINE_PAD)
