@@ -77,10 +77,40 @@ def _rating(r):
     return f"{sum(parts) / 6 * 100:.1f}"
 
 
-def short_name(name):
-    """'Dak Prescott' -> 'D. Prescott' (box-score style); one-word names stay as they are."""
-    parts = (name or "").split()
-    return f"{parts[0][0]}. {' '.join(parts[1:])}" if len(parts) > 1 else (name or "")
+SUFFIXES = {"jr", "jr.", "sr", "sr.", "ii", "iii", "iv", "v"}
+PARTICLES = {"st.", "st", "van", "von", "de", "del", "della", "da", "di", "du", "la", "le", "dos", "das"}
+
+
+def split_name(name):
+    """('J. Michael', 'Sturdivant'), ('Amon-Ra', 'St. Brown'), ('Ennis', 'Rakestraw Jr.'): the last name is the
+    final word, plus a suffix after it or a particle before it; everything ahead of that is the first name."""
+    words = (name or "").split()   # any whitespace, non-breaking included
+    if len(words) < 2:
+        return "", " ".join(words)
+    i = len(words) - 1
+    if words[i].lower() in SUFFIXES and i > 1:
+        i -= 1
+    if words[i - 1].lower() in PARTICLES and i > 1:
+        i -= 1
+    return " ".join(words[:i]), " ".join(words[i:])
+
+
+ROOKIE_MARK = ' · <span class="rk">R</span>'   # same as render_page1.ROOKIE_MARK (that module imports this one)
+
+
+def name_html(r):
+    """The player's full name, first name over last name, with the position after the last name
+    (Jason, 2026-09-30: full names, stacked, so the tables grow down rather than sideways)."""
+    first, last = split_name(r["name"])
+    top = f'<span class="ps-fn">{esc(first)}</span> ' if first else ""
+    # the last name stays on one line ("St. Brown") except after a hyphen or before a suffix ("Jr.")
+    words = last.split()
+    if len(words) > 1 and words[-1].lower() in SUFFIXES:
+        last = "&nbsp;".join(esc(w) for w in words[:-1]) + " " + esc(words[-1])
+    else:
+        last = "&nbsp;".join(esc(w) for w in words)
+    return (f'<span class="ps-nm">{top}<span class="ps-ln"><span class="ps-lt">{last}</span> '
+            f'<span class="ps-pos">{esc(r["pos"])}{ROOKIE_MARK if r.get("rookie") else ""}</span></span></span>')
 
 
 # ---------------------------------------------------------------- the cards
@@ -175,8 +205,7 @@ def _table(rows, cols, empty, medals, sortable=True):
         else f'<th scope="col"><span class="ps-lbl">{esc(label)}</span></th>'
         for label, _f in cols)
     body = "".join(
-        f'<tr data-i="{i}"><th scope="row"><span class="ps-nm">{esc(short_name(r["name"]))}</span>'
-        f'<span class="ps-pos">{esc(r["pos"])}</span></th>'
+        f'<tr data-i="{i}"><th scope="row">{name_html(r)}</th>'
         + "".join(_cell(label, f, r, medals.get(label)) for label, f in cols) + "</tr>"
         for i, r in enumerate(rows))
     return (f'<div class="ps-tw"><table class="ps-t"><thead><tr><th scope="col"><span class="vh">Player</span></th>{head}</tr></thead>'
@@ -269,8 +298,7 @@ def _pairs(rows, cols, empty):
         return f'<p class="ps-empty">{esc(empty)}</p>'
     r = rows[0]
     stats = "".join(f'<span class="pc-st"><b>{esc(f(r))}</b><small>{esc(label)}</small></span>' for label, f in cols)
-    return (f'<div class="pc-who"><span class="ps-nm">{esc(short_name(r["name"]))}</span>'
-            f'<span class="ps-pos">{esc(r["pos"])}</span></div><div class="pc-sts">{stats}</div>')
+    return f'<div class="pc-who">{name_html(r)}</div><div class="pc-sts">{stats}</div>'
 
 
 def condensed_view(teams, stats, scope="season"):
@@ -375,12 +403,9 @@ P4_CSS = r"""
 .pc .ps-t td{padding:3px}
 .pc .ps-t tbody th{padding:3px 6px 3px 0}
 .pc .ps-t thead th{padding:0 3px 2px;font-size:9px}
-.pc .ps-t tbody th .ps-nm{display:inline}
-.pc .ps-t tbody th .ps-pos{display:inline;margin-left:4px}
 .ps-lbl{display:block}
-.pc-who{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px}
-.pc-who .ps-nm{display:inline;font-weight:700}
-.pc-who .ps-pos{display:inline;margin-left:4px}
+.pc-who{margin-bottom:4px}
+.pc-who .ps-nm{font-weight:700}
 /* Kicking / Punt Returns: the stats always on one line (Jason, 2026-09-28), spread across the card */
 .pc-sts{display:flex;flex-wrap:nowrap;justify-content:space-between;gap:6px}
 .pc-st{display:flex;flex-direction:column;line-height:1.1;white-space:nowrap}
@@ -396,7 +421,7 @@ P4_CSS = r"""
 .ps-t thead th{font-size:10px;font-weight:700;letter-spacing:.05em;color:var(--text-2);text-align:right;padding:0;white-space:nowrap}
 /* Column headers are sort buttons (P1_JS): the sorted one is full strength with an arrow --
    down for most first, up for least first */
-.ps-sort{background:none;border:0;margin:0;padding:4px;font:inherit;letter-spacing:inherit;color:inherit;cursor:pointer;white-space:nowrap}
+.ps-sort{background:none;border:0;margin:0;padding:4px 1.5px;font:inherit;letter-spacing:inherit;color:inherit;cursor:pointer;white-space:nowrap}
 .ps-t th[aria-sort=descending],.ps-t th[aria-sort=ascending]{color:var(--text)}
 /* League top 3 in the stats that count (player_stats.MEDAL_STATS): a gold / silver / bronze bar
    under the number (Jason, 2026-09-28) */
@@ -412,11 +437,17 @@ P4_CSS = r"""
 .ps-t tbody tr:last-child .ps-on{border-radius:0 0 8px 8px}
 .ps-t th[aria-sort=descending] .ps-sort::after{content:"\25BE";margin-left:2px}
 .ps-t th[aria-sort=ascending] .ps-sort::after{content:"\25B4";margin-left:2px}
-.ps-t td{text-align:right;padding:6px 4px;white-space:nowrap;border-top:1px solid var(--tile-border-soft)}
-.ps-t tbody th{text-align:left;font-weight:700;padding:6px 8px 6px 0;white-space:nowrap;border-top:1px solid var(--tile-border-soft);
+.ps-t td{text-align:right;padding:6px 2px;white-space:nowrap;border-top:1px solid var(--tile-border-soft)}
+.ps-t tbody th{text-align:left;font-weight:700;padding:6px 5px 6px 0;border-top:1px solid var(--tile-border-soft);
   position:sticky;left:0;z-index:1;background:var(--tile)}
 .ps-t thead th:first-child{position:sticky;left:0;z-index:1;background:var(--tile)}
-.ps-nm{display:block;font-size:12px}
-.ps-pos{display:block;font-size:10px;font-weight:400;color:var(--text-2);letter-spacing:.04em}
+/* first name over last name; the column is as wide as the longest first or last name, and the
+   position drops under the last name when it doesn't fit beside it -- names break only after a hyphen,
+   so the tables grow down instead of sideways */
+.ps-nm{display:block;font-size:12px;line-height:1.2}
+.ps-fn,.ps-ln{display:block}
+.ps-fn,.ps-nm .ps-pos{white-space:nowrap}
+@media (max-width:370px){.p2-l .ps-t,.p2-l .ps-nm{font-size:11px}}   /* small Android phones: Defense still fits */
+.ps-pos{display:inline;font-size:10px;font-weight:400;color:var(--text-2);letter-spacing:.04em}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 """
