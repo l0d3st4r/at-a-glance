@@ -1889,6 +1889,9 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 /* the card in the middle keeps its name at the top, where its sliver showed it (no arrow) */
 .slot.active .peek-top{opacity:1}
 .slot.active .peek-top svg{display:none}
+/* (2026-10-01) the active card's title a size up and in full-strength ink, so it doesn't read as one
+   more teaser like the card peeking in above it */
+.slot.active .peek-top{font-size:13px;color:var(--ink)}
 .slot.below a.card:hover,.slot.above a.card:hover{border-color:var(--aag-card-line-hover)}
 .slot.below a.card:hover .peek,.slot.above a.card:hover .peek{color:var(--ink)}
 .dots{display:none;position:fixed;right:calc(max(16px,(100vw - var(--col)) / 2 + 16px) / 2 - 3px);top:calc(var(--bar) + (100% - var(--bar) - var(--bbar)) / 2);transform:translateY(-50%);z-index:10}
