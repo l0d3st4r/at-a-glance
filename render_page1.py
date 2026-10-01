@@ -464,13 +464,18 @@ def injuries_html(side, full):
     out = []
     for r in rows[:3]:
         status = r.get("status") or ""
-        cls = {"Out": "out", "Doubtful": "doubt", "Questionable": "ques", "Inactive": "ina", "Did Not Return": "out"}.get(status, "ques")
+        cls = {"Out": "out", "Doubtful": "doubt", "Questionable": "ques", "Inactive": "ina", "Did Not Return": "out",
+               "No Practice": "doubt", "Limited": "ques"}.get(status, "ques")
         name = r.get("name") if full else r.get("short")
         label = r.get("status_short") or status if (not full or r.get("kind")) else status
         out.append(
             f'<li>{inj_who_html(r.get("position"), name, r.get("rookie"))}'
             f'<span class="inj-s"><i class="inj-dot inj-{cls}"></i><span class="inj-status">{esc(label)}</span></span></li>'
         )
+    # practice participation standing in for the game designations (page1_data.PRACTICE_STATUS):
+    # the expanded card says so under the list; the condensed one has no room, and DNP / LP read on their own
+    if full and rows and rows[0].get("practice"):
+        out.append('<li class="inj-note">Practice report · game statuses not out yet</li>')
     return "".join(out)
 
 
@@ -2077,7 +2082,8 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 /* Status reads as a colored dot, not colored text (Jason, 2026-09-20) */
 .inj-dot{width:8px;height:8px;border-radius:50%;flex:none}
 .inj-dot.inj-out{background:var(--out)}.inj-dot.inj-doubt{background:var(--doubt)}.inj-dot.inj-ques{background:var(--ques)}
-.inj-dot.inj-ina{background:var(--text-3)}   /* a game-day inactive (2026-09-30): gray, not an injury color */
+.inj-dot.inj-ina{background:var(--text-3)}
+.injuries li.inj-note,.l-inj li.inj-note{justify-content:center;font-weight:400;font-size:11px;color:var(--text-3);margin-top:2px}   /* a game-day inactive (2026-09-30): gray, not an injury color */
 .inj-none{font-weight:400}
 .ranks{display:grid;grid-template-columns:1fr 1fr}
 .rank-col{display:flex;flex-direction:column;align-items:center;gap:12px}

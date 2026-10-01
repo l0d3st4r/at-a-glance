@@ -269,12 +269,16 @@ def injuries_body(team_page, game_absences=None):
     designation (Knee, Ankle, ...) where it's reported. A finished game (2026-09-30) leads
     with who left injured and didn't return (DNR, red, with the quarter) and its full
     inactive list (INA, gray, starters noted), then the pre-game report."""
-    cls_map = {"Out": "out", "Doubtful": "doubt", "Questionable": "ques", "Inactive": "ina", "Did Not Return": "out"}
+    cls_map = {"Out": "out", "Doubtful": "doubt", "Questionable": "ques", "Inactive": "ina", "Did Not Return": "out",
+               "No Practice": "doubt", "Limited": "ques"}
     rows = team_page.get("injuries_full") or []
     ga = game_absences or {}
     if not ga.get("available"):
         if not rows:
             return '<p class="ov-empty">No injuries reported</p>'
+        if rows[0].get("practice"):   # no game designations yet: the practice report stands in (page1_data)
+            return (f'<div class="inj-sections inj-scroll"><h3 class="ov-h inj-h">Practice Report</h3>{_inj_items(rows, cls_map)}'
+                    '<p class="ov-empty">Game statuses not out yet</p></div>')
         return _inj_items(rows, cls_map)
     parts = []
     for title, key, none in (("Left the Game", "left", "Nobody left injured"), ("Inactive", "inactive", "No inactives listed")):

@@ -59,6 +59,12 @@ PLAYOFF_LABELS = {"WC": "Wild Card", "DIV": "Divisional Round", "CON": "Conferen
 INJURY_ORDER = {"Out": 0, "Doubtful": 1, "Questionable": 2}
 # Page 1's condensed card only (2026-09-27, was OUT / DOUBT / QUES); the expanded card spells it out
 INJURY_SHORT = {"Out": "O", "Doubtful": "D", "Questionable": "Q"}
+# Practice participation (2026-10-01), shown only while a team's game designations aren't out yet --
+# nflverse often carries the week's practice reports before the Out/Doubtful/Questionable statuses
+# (a Thursday game's can arrive after kickoff). Full participants are left out: they're expected to play.
+PRACTICE_STATUS = {"did not participate in practice": ("No Practice", "DNP"),
+                   "limited participation in practice": ("Limited", "LP")}
+PRACTICE_ORDER = {"No Practice": 0, "Limited": 1}
 STARTER_SNAP_SHARE = 0.5   # average share of offensive or defensive snaps in games played so far
 NWS_WINDOW_DAYS = 7
 
@@ -432,6 +438,7 @@ def _depth_builder(depth, warnings):
 def _injury_builder(injuries, snaps, depth, warnings, rosters_weekly=None, injury_events=None):
     """Returns injuries_for(team, week, gameday) -> [{"name", "short", "position", "status", "status_short", "starter"}] (top 3)."""
     report = defaultdict(list)  # (team, week) -> rows
+    practice = defaultdict(list)  # (team, week) -> practice-only rows (no game designation yet)
     if injuries:
         sample = injuries[0]
         tcol, wcol = _col(sample, TEAM_COLS), _col(sample, WEEK_COLS)
@@ -440,10 +447,22 @@ def _injury_builder(injuries, snaps, depth, warnings, rosters_weekly=None, injur
         else:
             for r in injuries:
                 status = str(r.get("report_status") or "").strip().title()
-                if status not in INJURY_ORDER:
-                    continue
                 wk = _int_week(r.get(wcol))
                 name = r.get("full_name") or " ".join(x for x in (r.get("first_name"), r.get("last_name")) if x)
+                # a veteran rest day isn't an injury (Jason, 2026-10-01): nflverse marks it "Not injury
+                # related - resting player"; those players are left out of every injury list
+                reasons = " ".join(str(r.get(k) or "") for k in ("report_primary_injury", "report_secondary_injury",
+                                                                 "practice_primary_injury", "practice_secondary_injury")).lower()
+                if "resting player" in reasons:
+                    continue
+                if status not in INJURY_ORDER:
+                    p = PRACTICE_STATUS.get(str(r.get("practice_status") or "").strip().lower())
+                    if p and not status:
+                        designation = ", ".join(x for x in (r.get("practice_primary_injury"), r.get("practice_secondary_injury")) if x)
+                        practice[(normalize_abbr(r.get(tcol)), wk)].append({"name": name, "gsis_id": r.get("gsis_id"),
+                                                                            "position": r.get("position"), "status": p[0],
+                                                                            "status_short": p[1], "designation": designation or None})
+                    continue
                 designation = ", ".join(x for x in (r.get("report_primary_injury"), r.get("report_secondary_injury")) if x)
                 report[(normalize_abbr(r.get(tcol)), wk)].append({"name": name, "gsis_id": r.get("gsis_id"),
                                                                   "position": r.get("position"), "status": status,
@@ -482,17 +501,21 @@ def _injury_builder(injuries, snaps, depth, warnings, rosters_weekly=None, injur
     def injuries_for(team, week, gameday=None, limit=3):
         """limit=None returns the full report (team pages); the default top-3 is what Page 1's cards use."""
         rows = report.get((team, week), [])
+        from_practice = not rows   # no game designations for this team yet: its practice report stands in
+        if from_practice:
+            rows = practice.get((team, week), [])
+        order = PRACTICE_ORDER if from_practice else INJURY_ORDER
         seen, out = set(), []
         for r in rows:
             if r["name"] in seen:
                 continue
             seen.add(r["name"])
             out.append({**r, "starter": is_starter(team, r, week, gameday)})
-        out.sort(key=lambda r: (not r["starter"], INJURY_ORDER[r["status"]], r["name"]))
+        out.sort(key=lambda r: (not r["starter"], order[r["status"]], r["name"]))
         capped = out if limit is None else out[:limit]
         return [{"name": r["name"], "short": short_name(r["name"]), "position": r.get("position"), "status": r["status"],
-                 "status_short": INJURY_SHORT[r["status"]], "starter": r["starter"],
-                 "designation": r.get("designation")} for r in capped]
+                 "status_short": r.get("status_short") or INJURY_SHORT[r["status"]], "starter": r["starter"],
+                 "designation": r.get("designation"), **({"practice": True} if from_practice else {})} for r in capped]
 
     injuries_for.report_out = report_out
     injuries_for.game = _absence_builder(rosters_weekly, injury_events, is_starter, warnings)
