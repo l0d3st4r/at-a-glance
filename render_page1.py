@@ -1369,7 +1369,8 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     var nb = detailNeighbor(dir), w = innerWidth;
     nudgeMark('details');
     nb.el.style.display = 'block';
-    detailPlace(nb, 0);
+    rememberCard(cur);
+    detailPlace(nb, recalledCard(nb));
     cur.el.animate(nudgeFrames(0, dir), NUDGE_TIMING);
     fin(nb.el.animate(nudgeFrames(dir * w, dir), NUDGE_TIMING)).then(function () {
       if (curDetail() !== nb) { nb.el.style.display = ''; nb.el.style.transform = ''; }
@@ -1379,6 +1380,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     o = o || {};
     var d = curDetail();
     if (!d || !detailOpen() || detailBusy) return;
+    detailMemo = {};   // leaving Page 2 forgets the card positions
     if (!o.fromHistory && history.state && history.state.p2 && detailInHash()) { history.back(); return; }  // popstate brings us back here
     if (!o.fromHistory && detailInHash()) {   // opened from a shared link: nothing to go back to, just drop it from the URL
       var st = Object.assign({}, history.state); delete st.p2;
@@ -1445,6 +1447,14 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
   // handling already steps aside for a horizontal drag while a detail is open (see
   // PAGE1_OVERLAY_JS, "no game swipe on Page 2"), so this is the only thing listening for one.
   var detailSwipe = null;
+  // Card memory across the Page 2 details (2026-10-01): swiping sideways between them keeps your place.
+  // The two team pages share one position (same cards, so Injuries stays Injuries going from one team
+  // to the other); Game Info and Player Stats each keep their own. It lasts while Page 2 stays open --
+  // passing through Game Info or Player Stats doesn't lose the teams' card -- and closing Page 2 resets it.
+  var detailMemo = {};
+  function memoKey(d) { return d.key === 'away-team' || d.key === 'home-team' ? 'team' : d.key; }
+  function rememberCard(d) { if (d && d.active > -1) detailMemo[memoKey(d)] = d.active; }
+  function recalledCard(d) { return detailMemo[memoKey(d)] || 0; }
   function detailNeighbor(dir) {
     var d = curDetail(), i = d ? DETAIL_KEYS.indexOf(d.key) : -1;
     var key = i > -1 ? DETAIL_KEYS[i + dir] : null;
@@ -1475,7 +1485,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     cur.el.style.transform = 'translateX(' + s.dx + 'px)';
     if (nb !== s.neighbor) {
       if (s.neighbor) { s.neighbor.el.style.display = ''; s.neighbor.el.style.transform = ''; }
-      if (nb) { nb.el.style.display = 'block'; detailPlace(nb, 0); }
+      if (nb) { rememberCard(cur); nb.el.style.display = 'block'; detailPlace(nb, recalledCard(nb)); }
       s.neighbor = nb;
     }
     if (nb) nb.el.style.transform = 'translateX(' + (dir * w + s.dx) + 'px)';
