@@ -680,6 +680,21 @@ PAGE0_JS = """
   var panels = Array.prototype.slice.call(track.querySelectorAll('.week-panel'));
   var idx = Math.max(0, panels.findIndex(function (p) { return p.dataset.current === 'true'; }));
 
+  // One-time swipe nudge (2026-10-01): the first time someone reaches each level -- the weeks, a game,
+  // a game's detail pages -- the screen slides a little toward its neighbor and springs back, showing a
+  // sliver of what a sideways swipe brings in. Played once per level on this device (localStorage).
+  var NUDGE_PX = 56;
+  function nudgeSeen(level) { try { return !!localStorage.getItem('aag-nudge-' + level); } catch (e) { return true; } }
+  function nudgeMark(level) { try { localStorage.setItem('aag-nudge-' + level, '1'); } catch (e) {} }
+  function nudgeFrames(base, dir) {   // out toward the neighbor, a small overshoot back, rest
+    var d = -dir * NUDGE_PX;
+    return [{ transform: 'translateX(' + base + 'px)' },
+            { transform: 'translateX(' + (base + d) + 'px)', offset: 0.45 },
+            { transform: 'translateX(' + (base - d * 0.12) + 'px)', offset: 0.8 },
+            { transform: 'translateX(' + base + 'px)' }];
+  }
+  var NUDGE_TIMING = { duration: 900, easing: 'ease-in-out' };
+
   function keyIndex(k) { return panels.findIndex(function (p) { return p.dataset.key === k; }); }
   function hashIndex() {
     var m = location.hash.match(/^#week-(.+)$/);
@@ -743,6 +758,21 @@ PAGE0_JS = """
   if (fromHash >= 0) idx = fromHash;
   track.scrollLeft = idx * track.clientWidth;
   setActive(idx, { updateHash: false });
+
+  // Weeks: the current week and the next one (the previous one at the last week) slide over together,
+  // so the next week's left edge shows. Skipped if a game opens or the week changes first.
+  var nudgeFrom = idx;
+  setTimeout(function () {
+    if (nudgeSeen('weeks') || idx !== nudgeFrom || document.documentElement.classList.contains('p1-open') || !Element.prototype.animate) return;
+    var dir = panels[idx + 1] ? 1 : panels[idx - 1] ? -1 : 0;
+    if (!dir) return;
+    nudgeMark('weeks');
+    // the weeks' contents move, not the panels themselves -- moving a snap target makes the track re-snap after it
+    [panels[idx], panels[idx + dir]].forEach(function (p) {
+      var inner = p.querySelector('.week-inner') || p;
+      inner.animate(nudgeFrames(0, dir), NUDGE_TIMING);
+    });
+  }, 1200);
 
   // +/- toggle: expanded (the scrolling week) <-> condensed (the whole week on one screen).
   // Page 0 opens expanded every time, the same way Page 1 opens expanded every time.
@@ -820,6 +850,36 @@ PAGE1_OVERLAY_JS = r"""
   function idFromHash(h) { var m = (h || '').match(/^#game-([^\/]+)(?:\/.*)?$/); return m ? decodeURIComponent(m[1]) : null; }
   function detailFromHash(h) { return /\/(game-info|away-team|home-team)$/.test(h || ''); }
   function detailOn(s) { return !!(s && s.inst && s.inst.detail && s.inst.detail()); }
+  // One-time swipe nudge (2026-10-01): the first time someone reaches each level -- the weeks, a game,
+  // a game's detail pages -- the screen slides a little toward its neighbor and springs back, showing a
+  // sliver of what a sideways swipe brings in. Played once per level on this device (localStorage).
+  var NUDGE_PX = 56;
+  function nudgeSeen(level) { try { return !!localStorage.getItem('aag-nudge-' + level); } catch (e) { return true; } }
+  function nudgeMark(level) { try { localStorage.setItem('aag-nudge-' + level, '1'); } catch (e) {} }
+  function nudgeFrames(base, dir) {   // out toward the neighbor, a small overshoot back, rest
+    var d = -dir * NUDGE_PX;
+    return [{ transform: 'translateX(' + base + 'px)' },
+            { transform: 'translateX(' + (base + d) + 'px)', offset: 0.45 },
+            { transform: 'translateX(' + (base - d * 0.12) + 'px)', offset: 0.8 },
+            { transform: 'translateX(' + base + 'px)' }];
+  }
+  var NUDGE_TIMING = { duration: 900, easing: 'ease-in-out' };
+
+  // Games: once the first game opened from here has settled, the week's next game (the previous one for
+  // the week's last game) peeks in from the side and slides back out.
+  function nudgeGames(s) {
+    if (nudgeSeen('games') || state !== s || s.closing || s.busy || detailOn(s)) return;
+    var dir = neighborId(s.id, 1) ? 1 : neighborId(s.id, -1) ? -1 : 0;
+    if (!dir) return;
+    nudgeMark('games');
+    load(neighborId(s.id, dir)).then(function (text) {
+      if (state !== s || s.closing || s.busy || s.touching || s.swipeHost || detailOn(s)) return;
+      var w = innerWidth, view = s.inst ? s.inst.view() : 'large', card = s.inst && s.inst.card ? s.inst.card() : 0;
+      var n = mount(s, text, { preview: true, view: view, card: card, dx: dir * w });
+      s.host.animate(nudgeFrames(0, dir), NUDGE_TIMING);
+      done(n.host.animate(nudgeFrames(dir * w, dir), NUDGE_TIMING)).then(function () { n.host.remove(); });
+    }).catch(function () {});
+  }
   function tileId(t) { return idFromHash(t.getAttribute('href')); }
   function tileFor(id) {
     var tiles = document.querySelectorAll(TILE);
@@ -1053,6 +1113,7 @@ PAGE1_OVERLAY_JS = r"""
       } else clearExtras();
       load(neighborId(id, 1)).catch(function () {});
       load(neighborId(id, -1)).catch(function () {});
+      setTimeout(function () { nudgeGames(s); }, 700);
     }).catch(function (e) {
       s.extras.forEach(function (el) { el.remove(); });
       if (e !== 0 && state === s && !s.closing) location.href = pageUrl(id);

@@ -858,6 +858,21 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
   var lastCard = Math.max(0, Math.min(slots.length - 1, opts.card || 0));  // expanded card to return to
   function on(t, type, fn, o) { t.addEventListener(type, fn, o); bound.push([t, type, fn, o]); }
   function large() { return wrap.getAttribute('data-view') === 'large'; }
+  // One-time swipe nudge (2026-10-01): the first time someone reaches each level -- the weeks, a game,
+  // a game's detail pages -- the screen slides a little toward its neighbor and springs back, showing a
+  // sliver of what a sideways swipe brings in. Played once per level on this device (localStorage).
+  var NUDGE_PX = 56;
+  function nudgeSeen(level) { try { return !!localStorage.getItem('aag-nudge-' + level); } catch (e) { return true; } }
+  function nudgeMark(level) { try { localStorage.setItem('aag-nudge-' + level, '1'); } catch (e) {} }
+  function nudgeFrames(base, dir) {   // out toward the neighbor, a small overshoot back, rest
+    var d = -dir * NUDGE_PX;
+    return [{ transform: 'translateX(' + base + 'px)' },
+            { transform: 'translateX(' + (base + d) + 'px)', offset: 0.45 },
+            { transform: 'translateX(' + (base - d * 0.12) + 'px)', offset: 0.8 },
+            { transform: 'translateX(' + base + 'px)' }];
+  }
+  var NUDGE_TIMING = { duration: 900, easing: 'ease-in-out' };
+
   function setActive(i) {
     if (i === active) return; active = i; lastCard = i;
     slots.forEach(function (s, k) {
@@ -1342,6 +1357,22 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
       if (large()) d.dots.forEach(function (dot) { dot.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, delay: 40, fill: 'backwards' }); });
       if (p2Back) p2Back.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: 'ease-out' });
       detailBusy = false;
+      setTimeout(nudgeDetails, 600);
+    });
+  }
+  // Details: the first time one opens (expanded view -- the condensed ones don't swipe), the next
+  // detail (the previous one from the last) peeks in from the side and slides back out.
+  function nudgeDetails() {
+    if (nudgeSeen('details') || !detailOpen() || !large() || detailBusy || detailSwipe) return;
+    var cur = curDetail(), dir = detailNeighbor(1) ? 1 : detailNeighbor(-1) ? -1 : 0;
+    if (!cur || !dir) return;
+    var nb = detailNeighbor(dir), w = innerWidth;
+    nudgeMark('details');
+    nb.el.style.display = 'block';
+    detailPlace(nb, 0);
+    cur.el.animate(nudgeFrames(0, dir), NUDGE_TIMING);
+    fin(nb.el.animate(nudgeFrames(dir * w, dir), NUDGE_TIMING)).then(function () {
+      if (curDetail() !== nb) { nb.el.style.display = ''; nb.el.style.transform = ''; }
     });
   }
   function closeDetail(o) {
