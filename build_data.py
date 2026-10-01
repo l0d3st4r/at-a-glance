@@ -31,6 +31,7 @@ from weather import get_kickoff_weather
 from ranks import compute_ranks
 import page1_data
 import player_stats
+import rookies
 import snapshot
 import tv_networks
 
@@ -390,6 +391,12 @@ def main():
         snapshot.save(frozen, season)
     except Exception as e:
         warnings.append(f"game snapshot: {e}")
+
+    # Rookies get a small "R" wherever their name shows (2026-09-30, see rookies.py)
+    try:
+        rookies.mark(game_details, player_weeks, rookies.build(roster_rows, season, warnings))
+    except Exception as e:
+        warnings.append(f"rookies: {e}")
 
     output = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),

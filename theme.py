@@ -49,6 +49,8 @@ LIGHT = {
     # Page 2's precipitation chance blends from the text color toward this as the chance rises
     # (a deeper blue than the rain icon's, so the number stays readable at 100%)
     "precip": "#2A7BC0",
+    # the rookie "R" after a player's position (2026-09-30)
+    "rookie": "#009A94",
 }
 
 # Dark ground in the same ink as light mode's text (#161510, a near-neutral near-black with a trace of warmth; was #1B1512 until 2026-09-30). Cards have no fill
@@ -70,6 +72,7 @@ DARK = dict(LIGHT, **{
     "wx-cloud": "#8E8C89", "wx-cloud-light": "#BDBBB8", "wx-wind": "#C7D3DE",
     "wx-rain": "#7EC3F2", "wx-snow": "#FFFFFF", "wx-sun": "#F2C230",
     "precip": "#7EC3F2",
+    "rookie": "#3FE0DA",
 })
 
 

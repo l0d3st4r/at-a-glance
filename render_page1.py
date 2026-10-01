@@ -425,10 +425,21 @@ def game_body(d, hero=""):
     )
 
 
-def inj_who_html(position, name):
-    """Position (WR, CB, ...) left of the player's name; blank when nflverse has none."""
+# A rookie's "R" (2026-09-30, rookies.py): after his position, in the rookie color.
+ROOKIE_MARK = ' · <span class="rk">R</span>'
+
+
+def rk(row):
+    return ROOKIE_MARK if (row or {}).get("rookie") else ""
+
+
+def inj_who_html(position, name, rookie=False):
+    """Position (WR, CB, ...) left of the player's name; blank when nflverse has none. The position
+    column is fixed-width so names line up, so a rookie's R goes after his name instead, where a
+    long name's ellipsis can't cut it off."""
     return (f'<span class="inj-who"><span class="inj-pos">{esc(position or "")}</span>'
-            f'<span class="inj-name">{esc(name or "")}</span></span>')
+            f'<span class="inj-name">{esc(name or "")}</span>'
+            f'{f"<span class=inj-rk>{ROOKIE_MARK}</span>" if rookie else ""}</span>')
 
 
 def injuries_html(side, full):
@@ -457,7 +468,7 @@ def injuries_html(side, full):
         name = r.get("name") if full else r.get("short")
         label = r.get("status_short") or status if (not full or r.get("kind")) else status
         out.append(
-            f'<li>{inj_who_html(r.get("position"), name)}'
+            f'<li>{inj_who_html(r.get("position"), name, r.get("rookie"))}'
             f'<span class="inj-s"><i class="inj-dot inj-{cls}"></i><span class="inj-status">{esc(label)}</span></span></li>'
         )
     return "".join(out)
@@ -612,7 +623,7 @@ def leader_cell(p):
     extra = leader_extra(p.get("extra"))
     return (
         f'<div class="ldr"><div class="ldr-v"><span>{esc(fmt_value(p.get("value"))).replace(",", "<i class=cm>,</i>")}</span>{crown(p.get("league_rank"))}</div>'
-        f'<div class="ldr-n"><span class="nm">{esc(p.get("name") or "")}</span><span class="pos">{esc(p.get("position") or "")}</span></div>'
+        f'<div class="ldr-n"><span class="nm">{esc(p.get("name") or "")}</span><span class="pos">{esc(p.get("position") or "")}{rk(p)}</span></div>'
         + (f'<div class="ldr-x">{esc(extra)}</div>' if extra else "") + "</div>"
     )
 
@@ -2015,6 +2026,9 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 /* position left of the name (2026-09-27): muted, fixed width so names line up down the list */
 .inj-who{display:flex;align-items:baseline;gap:6px;min-width:0}
 .inj-pos{flex:none;min-width:2.1em;text-align:left;font-weight:400;color:var(--text-2)}
+.inj-rk{flex:none;margin-left:-3px;font-weight:400;color:var(--text-2)}
+/* the rookie R (2026-09-30): its own color, the rest of its line stays as it is */
+.rk{color:var(--aag-rookie);font-weight:700;letter-spacing:0}
 .inj-s{flex:none;display:inline-flex;align-items:center;gap:5px;color:var(--ink)}
 /* Status reads as a colored dot, not colored text (Jason, 2026-09-20) */
 .inj-dot{width:8px;height:8px;border-radius:50%;flex:none}
