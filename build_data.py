@@ -378,9 +378,13 @@ def main():
         rosters_weekly, err = nflverse_client.get_rosters_weekly(season)
         if err:
             warnings.append(f"get_rosters_weekly: {err}")
+        third_downs, err = nflverse_client.get_third_downs(season)   # team page 3rd down % (2026-10-03)
+        if err:
+            warnings.append(f"get_third_downs: {err}")
         game_details = page1_data.build_game_details(schedules, team_weekly, player_weekly, injury_rows, snaps, warnings,
                                                      depth=depth, history=history or None, quarter_scores=quarter_scores,
-                                                     rosters_weekly=rosters_weekly, injury_events=injury_events)
+                                                     rosters_weekly=rosters_weekly, injury_events=injury_events,
+                                                     third_downs=third_downs)
     except Exception as e:
         warnings.append(f"build_game_details: {e}")
     for gid, d in game_details.items():

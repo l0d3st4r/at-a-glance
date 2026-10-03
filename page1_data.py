@@ -981,14 +981,15 @@ def _game_miles(g, team):
 
 # The four "paired" stat rows below (points, all/passing/rushing yards) split into an
 # offense value+rank and a defense (allowed) value+rank; the three "single" rows
-# (turnover margin, sacks, defensive INTs) are inherently one-sided. Red zone % and
-# time of possession have no columns in nflverse's weekly team stats (confirmed against
-# a live pull, Sept 2026 -- see the Items to Address doc) and show as unavailable
-# (value/rank None) rather than a guess.
+# (turnover margin, sacks, defensive INTs) are inherently one-sided. Time of possession
+# has no column in nflverse's weekly team stats (confirmed against a live pull, Sept 2026 --
+# see the Items to Address doc) and shows as unavailable (value/rank None) rather than a
+# guess. 3rd down % (2026-10-03, replacing the unavailable Red Zone %) comes from
+# play-by-play instead (nflverse_client.get_third_downs).
 TEAM_STAT_KEYS = ("pass_tds", "rush_tds", "pass_yards", "rush_yards")
 
 
-def _team_stat_builder(games, team_weekly, warnings):
+def _team_stat_builder(games, team_weekly, warnings, third_downs=None):
     """Returns stats_through(week_limit) -> {team: {stat_key: {...}}} (cached), the
     expanded offense/defense card for the team pages."""
     reg_final = [g for g in games if g["game_type"] == "REG" and g["final"] and g["week"] is not None]
@@ -1019,6 +1020,15 @@ def _team_stat_builder(games, team_weekly, warnings):
                 }
     else:
         warnings.append("team page stats: no weekly team stats -- offense/defense card will show as —")
+
+    downs = []   # (offense, defense, week, conversions, attempts)
+    for r in third_downs or []:
+        wk = _int_week(r.get("week"))
+        if wk is not None and r.get("posteam"):
+            downs.append((normalize_abbr(r["posteam"]), normalize_abbr(r.get("defteam")), wk,
+                          _num(r.get("conv")) or 0, _num(r.get("att")) or 0))
+    if not downs:
+        warnings.append("team page stats: no third-down play-by-play -- 3rd down % will show as —")
 
     cache = {}
 
@@ -1091,6 +1101,20 @@ def _team_stat_builder(games, team_weekly, warnings):
             all_yards[t]["off_rank"], all_yards[t]["def_rank"] = all_off_rank.get(t), all_def_rank.get(t)
 
         pass_tds, rush_tds = total_stat("pass_tds"), total_stat("rush_tds")
+
+        # 3rd down %: conversions over attempts across the games so far (not an average of each
+        # game's rate), the offense's own and its opponents' against the defense
+        conv = {"off": defaultdict(float), "def": defaultdict(float)}
+        att = {"off": defaultdict(float), "def": defaultdict(float)}
+        for off, dfn, wk, c, a in downs:
+            if ok(wk):
+                conv["off"][off] += c; att["off"][off] += a
+                conv["def"][dfn] += c; att["def"][dfn] += a
+        pct = {side: {t: 100 * conv[side][t] / att[side][t] for t in att[side] if att[side][t]} for side in conv}
+        off_rank, def_rank = competition_ranks(pct["off"], True), competition_ranks(pct["def"], False)
+        third_down = {t: {"off_value": pct["off"].get(t), "off_rank": off_rank.get(t),
+                          "def_value": pct["def"].get(t), "def_rank": def_rank.get(t)}
+                      for t in set(pct["off"]) | set(pct["def"])}
         turn_rank = competition_ranks(dict(turn_margin), True)
         sacks_rank = competition_ranks(dict(sacks_total), True)
         ints_rank = competition_ranks(dict(ints_total), True)
@@ -1100,7 +1124,7 @@ def _team_stat_builder(games, team_weekly, warnings):
             result[t] = {
                 "points": points.get(t, {}), "pass_tds": pass_tds.get(t, {}), "rush_tds": rush_tds.get(t, {}),
                 "all_yards": all_yards.get(t, {}), "pass_yards": pass_yards.get(t, {}), "rush_yards": rush_yards.get(t, {}),
-                "red_zone_pct": None, "top": None,
+                "third_down_pct": third_down.get(t, {}), "top": None,
                 "turnover_margin": {"value": turn_margin[t], "rank": turn_rank.get(t)} if t in turn_margin else None,
                 "sacks": {"value": sacks_total[t], "rank": sacks_rank.get(t)} if t in sacks_total else None,
                 "def_ints": {"value": ints_total[t], "rank": ints_rank.get(t)} if t in ints_total else None,
@@ -1219,7 +1243,7 @@ def _linescores(quarter_rows, games, warnings):
 
 
 def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, warnings, now_utc=None, depth=None, history=None,
-                       quarter_scores=None, rosters_weekly=None, injury_events=None):
+                       quarter_scores=None, rosters_weekly=None, injury_events=None, third_downs=None):
     """history: every season's schedule (for the last meeting on Page 2); falls back to this season's.
     quarter_scores: nflverse_client.get_quarter_scores rows, for the finished games' scoring by quarter."""
     now_utc = now_utc or datetime.now(timezone.utc)
@@ -1235,7 +1259,7 @@ def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, w
     injuries_for = _injury_builder(injuries, snaps, depth, warnings, rosters_weekly, injury_events)
     team_all_games = _team_all_games_index(games)
     team_schedules, bye_week = _team_schedule_index(games)
-    team_stats_through = _team_stat_builder(games, team_weekly, warnings)
+    team_stats_through = _team_stat_builder(games, team_weekly, warnings, third_downs)
     try:
         linescores = _linescores(quarter_scores, games, warnings)
     except Exception as e:

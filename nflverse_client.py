@@ -163,6 +163,22 @@ def _pbp(season):
     return _PBP[season]
 
 
+def get_third_downs(season):
+    """Third-down conversions per team per regular-season game, from play-by-play (nflverse's weekly
+    team stats have none): one row per (posteam, defteam, week) with "conv" (third_down_converted)
+    and "att" (converted + failed). The defense's side is the same rows read by defteam."""
+    try:
+        import polars as pl
+        df = (_pbp(season)
+              .filter((pl.col("season_type") == "REG") & pl.col("posteam").is_not_null()
+                      & ((pl.col("third_down_converted") == 1) | (pl.col("third_down_failed") == 1)))
+              .group_by(["posteam", "defteam", "week"])
+              .agg(pl.col("third_down_converted").sum().alias("conv"), pl.len().alias("att")))
+        return _to_dicts(df), None
+    except Exception as e:
+        return [], str(e)
+
+
 def get_quarter_scores(season):
     """Running score at the end of each quarter, from play-by-play: one row per game and quarter
     with the highest total_home_score / total_away_score reached in it (qtr 5 = overtime).

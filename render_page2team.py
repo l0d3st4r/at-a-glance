@@ -28,7 +28,8 @@ restyled to the site's standards the same way Page 2 Game Info was:
   3. Offense/Defense -- an expanded stat card: the big number IS the actual value (not the
                   rank, unlike Page 1's own cards), colored and ranked underneath with Page 1's
                   exact green-to-red scale (render_page1.rank_color/ordinal, unchanged).
-                  Red Zone % and Time of Possession show as unavailable -- not in nflverse's
+                  3rd Down % (2026-10-03, in place of Red Zone %) comes from play-by-play.
+                  Time of Possession shows as unavailable -- not in nflverse's
                   weekly team stats (confirmed live, see the Items to Address doc), not guessed.
   4. Schedule  -- full regular season, results with scores, upcoming games with kickoff time,
                   bye week marked, running record after each game
@@ -351,7 +352,7 @@ STAT_ROWS = [
     ("all_yards", "All Yards", "per game", True),
     ("pass_yards", "Passing Yards", "per game", True),
     ("rush_yards", "Rushing Yards", "per game", True),
-    ("red_zone_pct", "Red Zone %", None, True),
+    ("third_down_pct", "3rd Down %", None, True),
 ]
 SINGLE_STAT_ROWS = [
     ("turnover_margin", "Turnover Diff."),
@@ -361,12 +362,15 @@ SINGLE_STAT_ROWS = [
 ]
 
 
-def _stat_cell(value, rank, signed=False):
+PCT_STATS = {"third_down_pct"}   # shown as a percentage, "42%"
+
+
+def _stat_cell(value, rank, signed=False, pct=False):
     from render_page1 import rank_color, ordinal
     if value is None or rank is None:
         return f'<div class="stat"><span class="stat-v na">{DASH}</span></div>'
     c = rank_color(rank)
-    disp = _fmt_signed(value) if signed else _fmt_int(value)
+    disp = _fmt_signed(value) if signed else f"{_fmt_int(value)}%" if pct else _fmt_int(value)
     # Only the rank carries the tier color -- the raw value stays plain so it doesn't compete
     # with it (Jason, 2026-09-24).
     return (f'<div class="stat">'
@@ -382,7 +386,7 @@ def _stat_row(label, sub, left_html, right_html):
 def _stat_row_solo(label, cell_html):
     """Turnover diff., ToP, sacks, INTs aren't offense- or defense-specific, so they don't get
     a paired column each -- just their one value+rank next to the title, not aligned to the
-    Offense/Defense columns above (Jason, 2026-09-24)."""
+    Offense/Defense columns above (Jason, 2026-09-24), centered on the card (2026-10-03)."""
     return f'<div class="stat-row stat-row-solo">{cell_html}<div class="stat-lbl">{esc(label)}</div></div>'
 
 
@@ -391,8 +395,8 @@ def offense_defense_body(team_stats):
     rows = []
     for key, label, sub, _hb in STAT_ROWS:
         s = stats.get(key) or {}
-        left = _stat_cell(s.get("off_value"), s.get("off_rank"))
-        right = _stat_cell(s.get("def_value"), s.get("def_rank"))
+        left = _stat_cell(s.get("off_value"), s.get("off_rank"), pct=key in PCT_STATS)
+        right = _stat_cell(s.get("def_value"), s.get("def_rank"), pct=key in PCT_STATS)
         rows.append(_stat_row(label, sub, left, right))
     for key, label in SINGLE_STAT_ROWS:
         s = stats.get(key)
@@ -628,9 +632,10 @@ P3_CSS = r"""
 .stat-row:not(.stat-row-solo) > .stat:first-child{flex-direction:row-reverse}
 /* Turnover diff./ToP/sacks/INTs aren't offense- or defense-specific, so they get their own
    plainer row instead of the two aligned value columns above: just the value+rank next to its
-   title, sized to its own content rather than pinned to the 72px columns (2026-09-24). */
-.stat-row-solo{display:flex;align-items:baseline;justify-content:flex-start;gap:12px;padding:6px 2px 6px 6px}
-.stat-row-solo .stat{width:auto;justify-content:flex-start}
+   title (2026-09-24). Centered on the card (Jason, 2026-10-03): the value+rank ends just left
+   of the middle and the title starts just right of it, so all four rows pivot on one line. */
+.stat-row.stat-row-solo{grid-template-columns:1fr 1fr;align-items:baseline;gap:12px}
+.stat-row-solo .stat{justify-content:flex-end}
 .stat-row-solo .stat-lbl{display:block;text-align:left}
 .stat-v{font-family:Teko,Inter,system-ui,sans-serif;font-weight:700;font-size:28px;line-height:1;font-variant-numeric:tabular-nums}
 .stat-v.na{color:var(--text-3);font-family:Inter,sans-serif;font-size:20px}
