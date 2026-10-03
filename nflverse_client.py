@@ -209,10 +209,12 @@ def get_injury_events(season):
 
 
 def get_rosters_weekly(season):
-    """Each week's roster with every player's status that week -- "INA" marks a game's inactives.
+    """Each week's roster with every player's status that week -- "INA" marks a game's inactives;
+    status_description_abbr is the NFL's finer code ("R01" Reserve/Injured, reserve.py).
     Trimmed to the columns the pages use."""
     try:
-        cols = ["team", "week", "game_type", "status", "jersey_number", "gsis_id", "full_name", "position"]
+        cols = ["team", "week", "game_type", "status", "status_description_abbr", "jersey_number", "gsis_id",
+                "full_name", "position"]
         df = nfl.load_rosters_weekly(seasons=[season])
         return _to_dicts(df.select([c for c in cols if c in df.columns])), None
     except Exception as e:

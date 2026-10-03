@@ -46,17 +46,23 @@ def mark(game_details, player_weeks, rookies):
     """Sets "rookie": True on every rookie's player-stats rows, leaders and injury rows, in place."""
     if not rookies or not (rookies["ids"] or rookies["names"]):
         return
+    flag(game_details, player_weeks, "rookie", lambda gsis_id, name: is_rookie(rookies, gsis_id, name))
+
+
+def flag(game_details, player_weeks, key, hit):
+    """Sets `key`: True on every player row hit(gsis_id, name) picks out -- player-stats rows,
+    leaders and injury / absence rows -- in place. Shared with reserve.py's IR tag."""
     for rows in (player_weeks or {}).values():
         for r in rows:
-            if is_rookie(rookies, r.get("id"), r.get("name")):
-                r["rookie"] = True
+            if hit(r.get("id"), r.get("name")):
+                r[key] = True
 
     def walk(node):
         if isinstance(node, dict):
             # a player entry: a leader ({name, full_name, position, value}) or an injury / absence row
             if "position" in node and ("full_name" in node or "name" in node):
-                if is_rookie(rookies, node.get("gsis_id"), node.get("full_name") or node.get("name")):
-                    node["rookie"] = True
+                if hit(node.get("gsis_id"), node.get("full_name") or node.get("name")):
+                    node[key] = True
             for v in node.values():
                 walk(v)
         elif isinstance(node, list):

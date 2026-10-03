@@ -94,8 +94,9 @@ def season_totals(player_weeks, team, week_limit, week=None):
         if p is None:
             p = players[r["id"]] = defaultdict(int, id=r["id"], name=r["name"], pos=r["pos"])
         p["name"], p["pos"] = r["name"] or p["name"], r["pos"] or p["pos"]   # latest week wins
-        if r.get("rookie"):
-            p["rookie"] = True
+        for flag in ("rookie", "ir"):
+            if r.get(flag):
+                p[flag] = True
         for k in STATS:
             v = r.get(k)
             if v:

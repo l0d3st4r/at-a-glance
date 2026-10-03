@@ -425,21 +425,20 @@ def game_body(d, hero=""):
     )
 
 
-# A rookie's "R" (2026-09-30, rookies.py): after his position, in the rookie color.
-ROOKIE_MARK = ' · <span class="rk">R</span>'
-
-
+# A rookie's "R" (2026-09-30, rookies.py): after his position, in the rookie color -- then
+# "IR" in the Out red for a player on injured reserve (2026-10-03, reserve.py).
 def rk(row):
-    return ROOKIE_MARK if (row or {}).get("rookie") else ""
+    return render_page2players.marks(row)
 
 
-def inj_who_html(position, name, rookie=False):
+def inj_who_html(position, name, row=None):
     """Position (WR, CB, ...) left of the player's name; blank when nflverse has none. The position
-    column is fixed-width so names line up, so a rookie's R goes after his name instead, where a
-    long name's ellipsis can't cut it off."""
+    column is fixed-width so names line up, so a rookie's R (and an IR tag) goes after his name
+    instead, where a long name's ellipsis can't cut it off."""
+    tags = rk(row)
     return (f'<span class="inj-who"><span class="inj-pos">{esc(position or "")}</span>'
             f'<span class="inj-name">{esc(name or "")}</span>'
-            f'{f"<span class=inj-rk>{ROOKIE_MARK}</span>" if rookie else ""}</span>')
+            f'{f"<span class=inj-rk>{tags}</span>" if tags else ""}</span>')
 
 
 def injuries_html(side, full):
@@ -469,7 +468,7 @@ def injuries_html(side, full):
         name = r.get("name") if full else r.get("short")
         label = r.get("status_short") or status if (not full or r.get("kind")) else status
         out.append(
-            f'<li>{inj_who_html(r.get("position"), name, r.get("rookie"))}'
+            f'<li>{inj_who_html(r.get("position"), name, r)}'
             f'<span class="inj-s"><i class="inj-dot inj-{cls}"></i><span class="inj-status">{esc(label)}</span></span></li>'
         )
     # practice participation standing in for the game designations (page1_data.PRACTICE_STATUS):
@@ -2078,6 +2077,8 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .inj-rk{flex:none;margin-left:-3px;font-weight:400;color:var(--text-2)}
 /* the rookie R (2026-09-30): its own color, the rest of its line stays as it is */
 .rk{color:var(--aag-rookie);font-weight:700;letter-spacing:0}
+/* injured reserve (2026-10-03): "IR" in the Out red, the same way */
+.ir{color:var(--out);font-weight:700;letter-spacing:0}
 .inj-s{flex:none;display:inline-flex;align-items:center;gap:5px;color:var(--ink)}
 /* Status reads as a colored dot, not colored text (Jason, 2026-09-20) */
 .inj-dot{width:8px;height:8px;border-radius:50%;flex:none}

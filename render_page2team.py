@@ -22,8 +22,9 @@ restyled to the site's standards the same way Page 2 Game Info was:
                   division standings with W / L / T headings. The team's helmet, location
                   name and record live in the top bar while the page is open (team_bar_heads)
   2. Injuries  -- the full report (not Page 1's top-3), same Out/Doubtful/Questionable
-                  treatment already on the site (nflverse's report has no "IR" status to
-                  show -- see the Items to Address doc)
+                  treatment already on the site, then the team's injured reserve (top three,
+                  starters first) and man-games lost -- IR comes from the weekly rosters, the
+                  report itself has no IR status (reserve.py)
   3. Offense/Defense -- an expanded stat card: the big number IS the actual value (not the
                   rank, unlike Page 1's own cards), colored and ranked underneath with Page 1's
                   exact green-to-red scale (render_page1.rank_color/ordinal, unchanged).
@@ -244,48 +245,100 @@ def overview_body(side, team_page, which, prefix):
 
 # ---------------------------------------------------------------- injuries card
 
-def _inj_items(rows, cls_map):
+# A row's name and status share one line on a phone (2026-10-03): when both won't fit, the status
+# steps down -- "No Practice · Not injury related" -> "DNP · Not injury related" -> "DNP" -- rather
+# than the name being cut to "J..". Widths are estimated from the card's fonts, measured on a 375px
+# screen: the bold name about 8.5px a character, the status 7.4px, and 232px for the two together.
+NAME_PX, STATUS_PX, ROW_PX = 8.5, 7.4, 232
+
+
+def _fit_status(name, choices):
+    """The first of `choices` (longest first) that fits beside `name`, else the last."""
+    for label in choices:
+        if NAME_PX * len(name) + STATUS_PX * len(label) <= ROW_PX:
+            return label
+    return choices[-1]
+
+
+def _inj_items(rows, cls_map, ir_tag=True):
+    """ir_tag=False for the Injured Reserve list itself, where every row already says IR."""
     items = []
     for r in rows:
         status = r.get("status") or ""
+        short = r.get("status_short") or status
         if r.get("kind"):   # a game-day absence: its short status, plus the quarter / starter note
-            status = r.get("status_short") or status
             extra = [x for x in (r.get("designation"), "Starter" if r.get("kind") == "ina" and r.get("starter") else None) if x]
-            if extra:
-                status = f"{status} · {' · '.join(extra)}"
+            choices = [f"{short} · {' · '.join(extra)}"] if extra else []
+            choices.append(short)
         elif r.get("designation"):
-            status = f"{status} · {r['designation']}"
+            choices = [f"{status} · {r['designation']}", f"{short} · {r['designation']}", short]
+        else:
+            choices = [status, short]
+        tag_text = (" · R" if r.get("rookie") else "") + (" · IR" if ir_tag and r.get("ir") else "")
+        status = _fit_status((r.get("name") or "") + tag_text, choices)
+        tags = (" · <span class=rk>R</span>" if r.get("rookie") else "") + (" · <span class=ir>IR</span>" if ir_tag and r.get("ir") else "")
         items.append(
             f'<li><span class="inj-who"><span class="inj-pos">{esc(r.get("position") or "")}</span>'
             f'<span class="inj-name">{esc(r.get("name") or "")}</span>'
-            f'{"<span class=inj-rk> · <span class=rk>R</span></span>" if r.get("rookie") else ""}</span>'
+            f'{f"<span class=inj-rk>{tags}</span>" if tags else ""}</span>'
             f'<span class="inj-s"><i class="inj-dot inj-{cls_map.get(r.get("status"), "ques")}"></i>{esc(status)}</span></li>'
         )
     return f'<ul class="l-inj full-inj">{"".join(items)}</ul>'
+
+
+IR_SHOWN = 3   # the IR list's top three, starters first (reserve.py sorts); the rest are counted
+
+
+def _ordinal(n):
+    return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+
+
+def _ir_section(team_page, cls_map):
+    """The team's injured reserve (2026-10-03): three players, starters first, a count of the rest,
+    then its man-games lost this season with the league rank (reserve.man_games_lost)."""
+    ir = team_page.get("injured_reserve") or []
+    mgl = team_page.get("man_games_lost") or {}
+    if not ir and not mgl.get("games"):
+        return ""
+    parts = ['<h3 class="ov-h inj-h">Injured Reserve</h3>']
+    parts.append(_inj_items(ir[:IR_SHOWN], cls_map, ir_tag=False) if ir else '<p class="ov-empty">Nobody on IR</p>')
+    if len(ir) > IR_SHOWN:
+        parts.append(f'<p class="ov-empty">+{len(ir) - IR_SHOWN} more · {len(ir)} on IR</p>')
+    if mgl.get("games"):
+        parts.append(f'<div class="inj-mgl"><span>Man-Games Lost</span><span><b>{mgl["games"]}</b>'
+                     f' · {_ordinal(mgl["rank"])} most</span></div>')
+    return "".join(parts)
 
 
 def injuries_body(team_page, game_absences=None):
     """Status reads as a colored dot (matching Page 1's cards), plus nflverse's injury
     designation (Knee, Ankle, ...) where it's reported. A finished game (2026-09-30) leads
     with who left injured and didn't return (DNR, red, with the quarter) and its full
-    inactive list (INA, gray, starters noted), then the pre-game report."""
+    inactive list (INA, gray, starters noted), then the pre-game report.
+    The team's injured reserve (2026-10-03, _ir_section) closes every version of the card under its
+    own heading -- IR players are off the weekly report, so this is the one place they're listed."""
     cls_map = {"Out": "out", "Doubtful": "doubt", "Questionable": "ques", "Inactive": "ina", "Did Not Return": "out",
-               "No Practice": "doubt", "Limited": "ques"}
+               "No Practice": "doubt", "Limited": "ques", "IR": "out"}
     rows = team_page.get("injuries_full") or []
+    ir_part = _ir_section(team_page, cls_map)
     ga = game_absences or {}
     if not ga.get("available"):
-        if not rows:
+        if not rows and not ir_part:
             return '<p class="ov-empty">No injuries reported</p>'
-        if rows[0].get("practice"):   # no game designations yet: the practice report stands in (page1_data)
-            return (f'<div class="inj-sections inj-scroll"><h3 class="ov-h inj-h">Practice Report</h3>{_inj_items(rows, cls_map)}'
-                    '<p class="ov-empty">Game statuses not out yet</p></div>')
-        return _inj_items(rows, cls_map)
+        practice = bool(rows) and rows[0].get("practice")   # no game designations yet: the practice report stands in (page1_data)
+        if not ir_part and not practice:
+            return _inj_items(rows, cls_map)
+        report = _inj_items(rows, cls_map) if rows else '<p class="ov-empty">No injuries reported</p>'
+        note = '<p class="ov-empty">Game statuses not out yet</p>' if practice else ""
+        return (f'<div class="inj-sections inj-scroll"><h3 class="ov-h inj-h">{"Practice Report" if practice else "Injury Report"}</h3>'
+                f'{report}{note}{ir_part}</div>')
     parts = []
     for title, key, none in (("Left the Game", "left", "Nobody left injured"), ("Inactive", "inactive", "No inactives listed")):
         parts.append(f'<h3 class="ov-h inj-h">{title}</h3>')
         parts.append(_inj_items(ga.get(key), cls_map) if ga.get(key) else f'<p class="ov-empty">{none}</p>')
     parts.append('<h3 class="ov-h inj-h">Pre-game Injury Report</h3>')
     parts.append(_inj_items(rows, cls_map) if rows else '<p class="ov-empty">No injuries reported</p>')
+    parts.append(ir_part)
     return f'<div class="inj-sections inj-scroll">{"".join(parts)}</div>'
 
 
@@ -536,6 +589,10 @@ P3_CSS = r"""
 .full-inj li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 2px;
   border-bottom:1px solid var(--tile-border-soft)}
 .full-inj .inj-name{font-weight:700}
+/* man-games lost under the IR list (2026-10-03): label left, the count and its league rank right */
+.inj-mgl{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:8px 2px 0;
+  font-size:13px;color:var(--text-2)}
+.inj-mgl b{font-size:16px;color:var(--ink)}
 /* Status reads as a colored dot, not colored text (Jason, 2026-09-20) -- shared .inj-dot/.inj-s
    rules live in render_page1.P1_CSS so Page 1's own cards match. */
 /* Team Stats card (renamed from "Offense/Defense", Jason, 2026-09-20): titles centered over

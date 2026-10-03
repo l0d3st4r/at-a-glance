@@ -435,6 +435,60 @@ def _depth_builder(depth, warnings):
     return starters_before
 
 
+RETURN_SLOTS = {"KR", "PR", "H"}   # special-teams depth chart slots that don't make a starter
+
+
+def season_starters(snaps, depth):
+    """Returns is_starter(team, gsis_id, name) -> True for anyone who started for `team` at some point
+    this season: first string on any of its depth charts, or STARTER_SNAP_SHARE of the snaps over
+    the games he played. For the injured reserve list (reserve.py, 2026-10-03) -- an IR player is off
+    the current chart, so _depth_builder's "latest chart before the game" can't tell."""
+    chart = defaultdict(set)   # team -> {("id", gsis_id) / ("name", key)}
+    if depth:
+        sample = depth[0]
+        tcol, rcol = _col(sample, DEPTH_TEAM_COLS), _col(sample, DEPTH_RANK_COLS)
+        ncol, idcol = _col(sample, DEPTH_NAME_COLS), _col(sample, ["gsis_id"])
+        if tcol and rcol:
+            for r in depth:
+                # a return man isn't a starter (K, P and LS are)
+                if _num(r.get(rcol)) == 1 and r.get("pos_abb") not in RETURN_SLOTS:
+                    bucket = chart[normalize_abbr(r.get(tcol))]
+                    if idcol and r.get(idcol):
+                        bucket.add(("id", r.get(idcol)))
+                    if ncol and r.get(ncol):
+                        bucket.add(("name", _name_key(r.get(ncol))))
+    shares = defaultdict(list)   # (team, name key) -> snap share per game
+    if snaps:
+        sample = snaps[0]
+        tcol, ncol = _col(sample, TEAM_COLS), _col(sample, SNAP_NAME_COLS)
+        ocol, dcol = _col(sample, SNAP_OFF_COLS), _col(sample, SNAP_DEF_COLS)
+        if tcol and ncol and (ocol or dcol):
+            for r in snaps:
+                share = max(_num(r.get(ocol)) or 0 if ocol else 0, _num(r.get(dcol)) or 0 if dcol else 0)
+                shares[(normalize_abbr(r.get(tcol)), _name_key(r.get(ncol)))].append(share / 100 if share > 1.5 else share)
+
+    def is_starter(team, gsis_id, name):
+        if ("id", gsis_id) in chart[team] or ("name", _name_key(name)) in chart[team]:
+            return True
+        games = shares.get((team, _name_key(name)))
+        return bool(games) and sum(games) / len(games) >= STARTER_SNAP_SHARE
+
+    return is_starter
+
+
+def _designation(*reasons):
+    """The report's injuries joined ("Knee, Ankle"). A "Not injury related - personal matter" stops at
+    "Not injury related" (Jason, 2026-10-03) -- the reason after the dash ran off the row."""
+    out = []
+    for x in reasons:
+        x = str(x or "").strip()
+        if x.lower().startswith("not injury related"):
+            x = x[:len("not injury related")]
+        if x and x not in out:
+            out.append(x)
+    return ", ".join(out)
+
+
 def _injury_builder(injuries, snaps, depth, warnings, rosters_weekly=None, injury_events=None):
     """Returns injuries_for(team, week, gameday) -> [{"name", "short", "position", "status", "status_short", "starter"}] (top 3)."""
     report = defaultdict(list)  # (team, week) -> rows
@@ -458,12 +512,12 @@ def _injury_builder(injuries, snaps, depth, warnings, rosters_weekly=None, injur
                 if status not in INJURY_ORDER:
                     p = PRACTICE_STATUS.get(str(r.get("practice_status") or "").strip().lower())
                     if p and not status:
-                        designation = ", ".join(x for x in (r.get("practice_primary_injury"), r.get("practice_secondary_injury")) if x)
+                        designation = _designation(r.get("practice_primary_injury"), r.get("practice_secondary_injury"))
                         practice[(normalize_abbr(r.get(tcol)), wk)].append({"name": name, "gsis_id": r.get("gsis_id"),
                                                                             "position": r.get("position"), "status": p[0],
                                                                             "status_short": p[1], "designation": designation or None})
                     continue
-                designation = ", ".join(x for x in (r.get("report_primary_injury"), r.get("report_secondary_injury")) if x)
+                designation = _designation(r.get("report_primary_injury"), r.get("report_secondary_injury"))
                 report[(normalize_abbr(r.get(tcol)), wk)].append({"name": name, "gsis_id": r.get("gsis_id"),
                                                                   "position": r.get("position"), "status": status,
                                                                   "designation": designation or None})

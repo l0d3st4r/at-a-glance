@@ -31,6 +31,7 @@ from weather import get_kickoff_weather
 from ranks import compute_ranks
 import page1_data
 import player_stats
+import reserve
 import rookies
 import snapshot
 import tv_networks
@@ -347,7 +348,7 @@ def main():
 
     # Page 1 (matchup page) data for every game of the season. Wrapped so a
     # problem here can never break Page 0's data above.
-    game_details, player_weeks = {}, {}
+    game_details, player_weeks, rosters_weekly, snaps, depth = {}, {}, [], [], []
     try:
         team_weekly, err = nflverse_client.get_team_stats_weekly(season)
         if err:
@@ -391,6 +392,16 @@ def main():
         snapshot.save(frozen, season)
     except Exception as e:
         warnings.append(f"game snapshot: {e}")
+
+    # Players on injured reserve get a small "IR" like the rookie R below, and each team's IR is listed on
+    # its Page 2 Injuries card (2026-10-03, see reserve.py)
+    try:
+        ir = reserve.build(rosters_weekly, warnings, page1_data.season_starters(snaps, depth))
+        reserve.attach(game_details, ir, reserve.man_games_lost(rosters_weekly, injury_rows, game_details))
+        # (attach runs before the R marks, so the IR lists get them too)
+        reserve.mark(game_details, player_weeks, ir)
+    except Exception as e:
+        warnings.append(f"reserve: {e}")
 
     # Rookies get a small "R" wherever their name shows (2026-09-30, see rookies.py)
     try:

@@ -95,7 +95,14 @@ def split_name(name):
     return " ".join(words[:i]), " ".join(words[i:])
 
 
-ROOKIE_MARK = ' · <span class="rk">R</span>'   # same as render_page1.ROOKIE_MARK (that module imports this one)
+ROOKIE_MARK = ' · <span class="rk">R</span>'   # render_page1 shows these too, through marks()
+IR_MARK = ' · <span class="ir">IR</span>'       # injured reserve (2026-10-03, reserve.py), after the R if both
+
+
+def marks(r):
+    """The rookie R and the IR tag a player row carries, in that order."""
+    r = r or {}
+    return (ROOKIE_MARK if r.get("rookie") else "") + (IR_MARK if r.get("ir") else "")
 
 
 def name_html(r):
@@ -110,7 +117,7 @@ def name_html(r):
     else:
         last = "&nbsp;".join(esc(w) for w in words)
     return (f'<span class="ps-nm">{top}<span class="ps-ln"><span class="ps-lt">{last}</span> '
-            f'<span class="ps-pos">{esc(r["pos"])}{ROOKIE_MARK if r.get("rookie") else ""}</span></span></span>')
+            f'<span class="ps-pos">{esc(r["pos"])}{marks(r)}</span></span></span>')
 
 
 # ---------------------------------------------------------------- the cards
