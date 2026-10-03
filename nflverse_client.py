@@ -163,17 +163,21 @@ def _pbp(season):
     return _PBP[season]
 
 
-def get_third_downs(season):
-    """Third-down conversions per team per regular-season game, from play-by-play (nflverse's weekly
-    team stats have none): one row per (posteam, defteam, week) with "conv" (third_down_converted)
-    and "att" (converted + failed). The defense's side is the same rows read by defteam."""
+def get_team_downs(season):
+    """First downs and third-down conversions per team per game, from play-by-play (nflverse's
+    weekly team stats have neither the third downs nor the first downs gained by penalty): one
+    row per (game_id, posteam) with defteam, week, season_type, "first_downs" (rush + pass +
+    penalty), "conv" (third downs converted) and "att" (converted + failed). The defense's side
+    is the same rows read by defteam."""
     try:
         import polars as pl
+        n = lambda c: pl.col(c).fill_null(0)
         df = (_pbp(season)
-              .filter((pl.col("season_type") == "REG") & pl.col("posteam").is_not_null()
-                      & ((pl.col("third_down_converted") == 1) | (pl.col("third_down_failed") == 1)))
-              .group_by(["posteam", "defteam", "week"])
-              .agg(pl.col("third_down_converted").sum().alias("conv"), pl.len().alias("att")))
+              .filter(pl.col("posteam").is_not_null() & pl.col("defteam").is_not_null())
+              .group_by(["game_id", "season_type", "week", "posteam", "defteam"])
+              .agg((n("first_down_rush") + n("first_down_pass") + n("first_down_penalty")).sum().alias("first_downs"),
+                   n("third_down_converted").sum().alias("conv"),
+                   (n("third_down_converted") + n("third_down_failed")).sum().alias("att")))
         return _to_dicts(df), None
     except Exception as e:
         return [], str(e)

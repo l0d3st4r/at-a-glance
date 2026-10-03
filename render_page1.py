@@ -370,19 +370,21 @@ def game_body_compact(d):
     Leaders card more height -- time + date/day left, weather right; then city left, TV right.
     The date uses the top bar's short form ('SUN SEP 27'): spelled out ('SEP 27 Wednesday') it
     didn't fit beside the time and an indoor game's 'Roof Closed' on narrow phones.
-    A finished game adds a small version of the scoring-by-quarter table under the two lines
-    (Jason, 2026-09-29, option A of mockups/build_linescore_condensed_mockup.py)."""
+    A finished game adds a small version of the scoring-by-quarter table (Jason, 2026-09-29,
+    option A of mockups/build_linescore_condensed_mockup.py), at the top of the card since
+    2026-10-03."""
     t, ampm = fmt_time(d.get("gametime"))
     small = f"<small>{ampm}</small>" if ampm else ""
     venue = d.get("venue") or {}
     day, _time = fmt_when(d)
+    # a finished game leads with its scoring by quarter (Jason, 2026-10-03; was under the two lines)
     return (
+        linescore_html(d, mini=True) +
         '<div class="gc-row gc-1"><div class="gc-when">'
         f'<div class="time">{esc(t)}{small}</div><div class="date">{esc(day)}</div></div>'
         f'<div class="weather">{weather_html(d)}</div></div>'
         f'<div class="gc-row gc-2"><div class="city">{esc(venue.get("city") or "")}</div>'
         f'<div class="network">{esc(fmt_network(d.get("networks")))}</div></div>'
-        + linescore_html(d, mini=True)
     )
 
 
@@ -435,10 +437,11 @@ def inj_who_html(position, name, row=None):
     """Position (WR, CB, ...) left of the player's name; blank when nflverse has none. The position
     column is fixed-width so names line up, so a rookie's R (and an IR tag) goes after his name
     instead, where a long name's ellipsis can't cut it off."""
-    tags = rk(row)
+    # the tags' span is there even when empty: the condensed card lays these out as grid cells,
+    # one column each, so every row needs the same four (2026-10-03)
     return (f'<span class="inj-who"><span class="inj-pos">{esc(position or "")}</span>'
             f'<span class="inj-name">{esc(name or "")}</span>'
-            f'{f"<span class=inj-rk>{tags}</span>" if tags else ""}</span>')
+            f'<span class="inj-rk">{rk(row)}</span></span>')
 
 
 def injuries_html(side, full):
@@ -576,10 +579,38 @@ def card_title(name, abbr=False, cid=None):
             f'<span{" class=abbr" if abbr else ""}>{esc(name)}</span></span>')
 
 
+def game_stats_html(gs):
+    """A finished game's box score for one team, in place of the season ranks on the condensed
+    team card (Jason, 2026-10-03), three lines of two, each a number over its label: total yards
+    beside yards per play; first downs beside 3rd downs made/tried; penalties-yards beside the
+    turnover differential."""
+    v = lambda x: DASH if x is None else fmt_value(x)
+    pair = lambda a, b: DASH if a is None or b is None else f"{fmt_value(a)}{{}}{fmt_value(b)}"
+    ypp = DASH if gs.get("ypp") is None else f'{gs["ypp"]:.1f}'
+    third = pair(gs.get("third_conv"), gs.get("third_att")).format("/")
+    pens = pair(gs.get("penalties"), gs.get("penalty_yards")).format("-")
+    td = gs.get("turnover_diff")
+    cell = lambda label, val: f"<div><dt>{label}</dt><dd><b>{val}</b></dd></div>"
+    return (
+        '<div class="gstats">'
+        f'<dl class="gs-line">{cell("Total Yards", v(gs.get("yards")))}{cell("Yds / Play", ypp)}</dl>'
+        f'<dl class="gs-line">{cell("1st Downs", v(gs.get("first_downs")))}{cell("3rd Down", third)}</dl>'
+        f'<dl class="gs-line">{cell("Penalties", pens)}'
+        f'{cell("Turnover Differential", DASH if td is None else f"{td:+.0f}" if td else "0")}</dl>'
+        "</div>")
+
+
 def c_team(side, label, final=False):
     r = side.get("ranks") or {}
     team = side.get("team")
     rec = fmt_record(side.get("record"))
+    # a finished game shows its own stats once nflverse has them; until then the season ranks stay
+    gs = side.get("game_stats") if final else None
+    bottom = game_stats_html(gs) if gs else (
+        '<div class="ranks">'
+        f'<div class="rank-col"><h3>Offense</h3>{big_rank(r.get("off_points"), "PTS")}{big_rank(r.get("off_yards"), "YDS")}</div>'
+        f'<div class="rank-col"><h3>Defense</h3>{big_rank(r.get("def_points"), "PTS")}{big_rank(r.get("def_yards"), "YDS")}</div>'
+        "</div>")
     return (
         f'<a class="card c-team" tabindex="0" data-detail="{label}-team" aria-label="{esc(team)} team">'
         f'{card_title(team, abbr=True, cid=f"{label}-team")}'
@@ -588,10 +619,7 @@ def c_team(side, label, final=False):
         f'<div class="l-rec">{record_block(side, final)}</div>'
         "</div>"
         f'<ul class="injuries c-inj">{injuries_html(side, full=False)}</ul>'
-        '<div class="ranks">'
-        f'<div class="rank-col"><h3>Offense</h3>{big_rank(r.get("off_points"), "PTS")}{big_rank(r.get("off_yards"), "YDS")}</div>'
-        f'<div class="rank-col"><h3>Defense</h3>{big_rank(r.get("def_points"), "PTS")}{big_rank(r.get("def_yards"), "YDS")}</div>'
-        "</div></a>"
+        f'{bottom}</a>'
     )
 
 
@@ -1718,7 +1746,7 @@ a.card:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px}
   display:inline-flex;align-items:center;gap:.22em}   /* 16px in the 20px bar = Page 0's FINAL */
 .hero .teams .at-final{font-size:.44em;padding:0 .35em}   /* in the Game Info card: label-sized (~16px), so the teams keep their room */
 @media (max-width:400px){.bar .teams .at-final{font-size:.58em;padding:0 .2em}}   /* Page 0 drops FINAL to 11px here too */
-@media (max-width:344px){.p1:not([data-view=large]) .bar .teams{font-size:17px}}
+@media (max-width:344px){.p1:not([data-view=large]) .bar .teams,.p1[data-final] .bar .teams{font-size:17px}}
 .teams img{display:block;width:2.2em;height:2.2em}
 .bar .teams{pointer-events:none}
 .when{display:none;flex-direction:column;align-items:center;font-size:11px;font-weight:700;letter-spacing:.1em;line-height:1.35;color:var(--text-2);white-space:nowrap}
@@ -1733,8 +1761,8 @@ a.card:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px}
    Game Info card: each team stacks — final score on top, then the helmet, then the abbreviation.
    Top bar, game still to come: helmet + abbreviation (abbreviation on the inside) at opposite edges of
    the screen, with the date and time in the middle.
-   Top bar, game final: one line — away helmet, abbreviation, score, then the home score, abbreviation,
-   helmet; the date and time aren't needed once a game is over. */
+   Top bar, game final: the condensed view's bar (2026-10-03; was spread to the screen edges) --
+   away helmet, abbreviation, score, FINAL, then the home score, abbreviation, helmet. */
 .p1[data-view=large] .hero .side{flex-direction:column;gap:.08em}
 .p1[data-view=large] .hero .side img{order:2;width:2.6em;height:2.6em}
 .p1[data-view=large] .hero .side .hscore{order:1;font-size:2.2em;margin-bottom:.14em}   /* the score sits high above the helmet (2026-09-21: bumped up from 1.6em) */
@@ -1742,11 +1770,12 @@ a.card:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px}
 /* Page 2 Game Info and Player Stats keep this expanded-view top bar in their condensed views too
    (Jason, 2026-09-30), so the header doesn't jump when switching views there -- hence the
    [data-detail=...] twins. (The team pages have their own header and no condensed view.) */
-.p1[data-view=large] .bar .teams,.p1[data-detail="game-info"] .bar .teams,.p1[data-detail="leaders"] .bar .teams{font-size:17px;width:100%;padding:0 16px;justify-content:space-between}
-.p1[data-view=large] .bar .side img,.p1[data-detail="game-info"] .bar .side img,.p1[data-detail="leaders"] .bar .side img{width:2.4em;height:2.4em}
-.p1[data-view=large] .bar .at,.p1[data-detail="game-info"] .bar .at,.p1[data-detail="leaders"] .bar .at{display:none}
+.p1[data-view=large]:not([data-final]) .bar .teams,.p1[data-detail="game-info"]:not([data-final]) .bar .teams,.p1[data-detail="leaders"]:not([data-final]) .bar .teams{font-size:17px;width:100%;padding:0 16px;justify-content:space-between}
+.p1[data-view=large]:not([data-final]) .bar .side img,.p1[data-detail="game-info"]:not([data-final]) .bar .side img,.p1[data-detail="leaders"]:not([data-final]) .bar .side img{width:2.4em;height:2.4em}
+.p1[data-view=large]:not([data-final]) .bar .at,.p1[data-detail="game-info"]:not([data-final]) .bar .at,.p1[data-detail="leaders"]:not([data-final]) .bar .at{display:none}
 .p1[data-view=large]:not([data-final]) .bar .when,.p1[data-detail="game-info"]:not([data-final]) .bar .when,.p1[data-detail="leaders"]:not([data-final]) .bar .when{display:flex}
-.p1[data-view=large][data-final] .bar .final-lbl,.p1[data-detail="game-info"][data-final] .bar .final-lbl,.p1[data-detail="leaders"][data-final] .bar .final-lbl{display:inline-flex}
+/* A finished game's bar is the condensed view's in every view (Jason, 2026-10-03): one centered row,
+   FINAL in the "@" spot -- so the rules above skip [data-final] and its separate .final-lbl stays hidden. */
 /* which copy of the header shows in the expanded view: in the card (data-head=card), in the bar (bar),
    or neither while the moving copies (.head-fly) travel between them (moving) */
 .p1[data-view=large][data-head=card] .bar .teams,.p1[data-view=large][data-head=card] .when{visibility:hidden}
@@ -1798,8 +1827,19 @@ a.card.c-game{padding:var(--ctitle) clamp(16px,5%,28px) 10px;display:flex;flex-d
 .c-game .weather{gap:6px;flex:none} .c-game .weather svg{width:28px;height:21px} .c-game .weather svg.stad{height:15px;width:auto}
 
 /* Team cards: centered column — trend + record, 3 injuries, spaced ranks */
-.c-teams{display:grid;grid-template-columns:1fr 1fr;gap:8px;min-height:0}
-a.card.c-team{padding:var(--ctitle) 10px clamp(8px,1.4vh,14px);display:flex;flex-direction:column;align-items:center;justify-content:space-evenly;text-align:center;overflow:hidden;min-width:0;container-type:inline-size}
+/* The two team cards share one set of rows (Jason, 2026-10-03), so helmet + record, the injury
+   list and the ranks / game stats start at the same height on both, whatever either holds: each
+   card is a subgrid over .c-teams' rows -- content rows (auto, as tall as the taller card needs)
+   between flexible spacers (1fr), which spread the leftover height the way space-evenly did --
+   never less than 7px under the record (its last-game arrow hangs below it) or 4px under the injuries. */
+/* The cards can't be size containers themselves (containment turns a subgrid back into a plain
+   grid), so the pair is: --cw is one card's content width, (pair - 8px gap) / 2 - 2 x 10px padding,
+   for the record and rank sizes that scale with the card. */
+.c-teams{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr auto minmax(7px,1fr) auto minmax(4px,1fr) auto 1fr;column-gap:8px;row-gap:0;min-height:0;container-type:inline-size}
+a.card.c-team{--cw:calc((100cqi - 8px) / 2 - 20px);padding:var(--ctitle) 10px clamp(8px,1.4vh,14px);display:grid;grid-row:1/-1;grid-template-rows:subgrid;justify-items:center;text-align:center;overflow:hidden;min-width:0}
+.c-team>.l-top{grid-row:2}
+.c-team>.c-inj{grid-row:4;align-self:start}
+.c-team>.ranks,.c-team>.gstats{grid-row:6;align-self:start}
 /* helmet + abbreviation left, last-game arrow + record right -- same as the expanded card (2026-09-17) */
 .c-team .l-top{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:0 2px}
 .c-team .l-id{gap:1px}
@@ -1811,10 +1851,10 @@ a.card.c-team{padding:var(--ctitle) 10px clamp(8px,1.4vh,14px);display:flex;flex
 .c-team .streak .trend{width:12px;height:8px}
 .c-team .l-top{padding-top:6px;padding-bottom:5px}
 .c-team .record{font-weight:900;line-height:1;letter-spacing:-.01em;white-space:nowrap;
-  font-size:clamp(26px,3.9vh,38px);font-size:min(clamp(26px,3.9vh,38px),calc((100cqi - 92px) / 1.8))}
-.c-team .record.rec-4{font-size:28px;font-size:min(clamp(22px,3.5vh,34px),calc((100cqi - 92px) / 2.4))}
-.c-team .record.rec-5{font-size:24px;font-size:min(clamp(20px,3.2vh,31px),calc((100cqi - 92px) / 2.85))}
-.c-team .record.rec-6{font-size:20px;font-size:min(clamp(18px,2.9vh,27px),calc((100cqi - 92px) / 3.5))}
+  font-size:clamp(26px,3.9vh,38px);font-size:min(clamp(26px,3.9vh,38px),calc((var(--cw) - 92px) / 1.8))}
+.c-team .record.rec-4{font-size:28px;font-size:min(clamp(22px,3.5vh,34px),calc((var(--cw) - 92px) / 2.4))}
+.c-team .record.rec-5{font-size:24px;font-size:min(clamp(20px,3.2vh,31px),calc((var(--cw) - 92px) / 2.85))}
+.c-team .record.rec-6{font-size:20px;font-size:min(clamp(18px,2.9vh,27px),calc((var(--cw) - 92px) / 3.5))}
 .trend{flex:none;display:block}
 .t-w{color:var(--win)} .t-l{color:var(--loss)} .t-t{color:var(--tie)}
 .rc-hit.t-w,.rc-hit.t-l,.rc-hit.t-t{font:inherit}
@@ -1828,9 +1868,14 @@ a.card.c-team{padding:var(--ctitle) 10px clamp(8px,1.4vh,14px);display:flex;flex
    redundant: dropped here, and the letter takes the dot's color. Three columns: position, name,
    status. The expanded card keeps its dots. */
 .c-inj{font-size:12px;line-height:1.28;width:fit-content;max-width:100%;margin:0 auto;
-  display:grid;grid-template-columns:auto auto auto;column-gap:8px;row-gap:2px;align-items:center}
+  display:grid;grid-template-columns:auto auto auto auto;column-gap:0;row-gap:2px;align-items:center}
+/* position | name | R / IR tags | status -- the tags get their own column (2026-10-03) so a tagged
+   name doesn't push its status onto a line of its own */
+.c-inj .inj-rk{margin-left:0;white-space:nowrap}
+.injuries:not(.c-inj) .inj-rk:empty{display:none}   /* elsewhere an empty one would still take its -3px margin */
+.c-inj .inj-status{padding-left:8px}
 .c-inj li:not(.inj-none),.c-inj .inj-who{display:contents}
-.c-inj .inj-pos{font-size:10px;min-width:0;margin-right:-4px}.c-inj .inj-name{overflow:hidden;text-overflow:ellipsis;text-align:left}
+.c-inj .inj-pos{font-size:10px;min-width:0;margin-right:4px}.c-inj .inj-name{overflow:hidden;text-overflow:ellipsis;text-align:left}
 .c-inj .inj-s{display:contents}
 .c-inj .inj-dot{display:none}
 .c-inj .inj-status{text-align:right;color:var(--text-2)}
@@ -1842,8 +1887,31 @@ a.card.c-team{padding:var(--ctitle) 10px clamp(8px,1.4vh,14px);display:flex;flex
 /* (2026-09-17, Jason) the names were 700 like the rank headings below them; Regular separates
    the two and buys back a few pixels of height */
 .c-inj .inj-name{font-weight:400}
+/* a finished game's own stats in place of the ranks (2026-10-03): three lines of two, each its
+   number over a small label like the ranks' PTS/YDS (a half-width card has no room for
+   label-then-value twice). Numbers sit level across a line even when a label takes two lines
+   ("Turnover Differential"). */
+.gstats{width:100%;display:flex;flex-direction:column;gap:clamp(3px,.8vh,8px);font-size:11px}
+.gs-line{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.gs-line>div{display:flex;flex-direction:column;justify-content:flex-start;align-items:center;min-width:0;line-height:1.1}
+.gs-line dd{order:-1}
+.gs-line dt{font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;text-align:center}
+.gstats dt{color:var(--text-2)}
+.gstats dd{white-space:nowrap;font-variant-numeric:tabular-nums}
+.gstats dd b{font-size:14px}
+@media (max-height:700px){   /* short phones (iPhone SE/8): three two-row lines have to fit beside 3 injuries */
+  .c-team .gstats{gap:1px}
+  .c-team .gs-line>div{line-height:1.02}
+  .c-team .gstats dd b{font-size:12.5px}
+  .c-team .gs-line dt{font-size:8.5px}
+}
+@media (max-width:340px){   /* the narrowest phones: a ~130px card (.c-team: ahead of the short-screen sizes below) */
+  .c-team .gs-line{gap:2px}
+  .c-team .gs-line dt{font-size:8px;letter-spacing:.02em}
+  .c-team .gstats dd b{font-size:12px}
+}
 /* condensed ranks use the expanded layout: ordinal top-right of the number, PTS/YDS under it */
-.c-team .ranks{column-gap:clamp(12px,4cqi,26px)}
+.c-team .ranks{column-gap:clamp(12px,var(--cw) * .04,26px)}
 .c-team .rank-col{gap:clamp(2px,.7vh,7px)}
 .c-team .rank-col h3{font-size:13px}
 /* (2026-09-21) grown to actually span the ordinal + label stacked beside it, matching the
@@ -1862,8 +1930,10 @@ a.card.c-team{padding:var(--ctitle) 10px clamp(8px,1.4vh,14px);display:flex;flex
   a.card.c-team{padding-bottom:8px}
   .c-team .l-top{padding-top:3px;padding-bottom:2px}
   .c-team .l-id img{width:clamp(24px,3.3vh,36px);height:clamp(24px,3.3vh,36px)}
-  .c-team .record{font-size:min(clamp(22px,3.4vh,38px),calc((100cqi - 92px) / 1.8))}
+  .c-team .record{font-size:min(clamp(22px,3.4vh,38px),calc((var(--cw) - 92px) / 1.8))}
   .c-inj{font-size:11.5px;line-height:1.22}
+  .gstats{gap:3px}
+  .gstats dd b{font-size:13px}
   .c-team .rank-col{gap:2px}
   .c-team .rank-col h3{font-size:12px}
   .c-team .rank{--n:clamp(24px,3.2vh,36px)}
@@ -2036,8 +2106,8 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .p1[data-final] .c-game .weather{gap:4px}
 .p1[data-final] .c-game .weather svg{width:18px;height:14px}
 .p1[data-final] .c-game .weather svg.stad{height:10px;width:auto}
-/* the condensed Game Info card's smaller copy, under its two lines */
-.c-game .ls-mini{margin:4px -6px 0;padding:0 6px 2px;border-bottom:0}
+/* the condensed Game Info card's smaller copy, at the top of the card (2026-10-03) */
+.c-game .ls-mini{margin:0 -6px 4px;padding:0 6px 2px;border-bottom:0}
 .c-game .ls-mini thead th{font-size:10px;padding-bottom:2px}
 .c-game .ls-mini tbody th,.c-game .ls-mini td{font-size:12px;padding:2px 0}
 .c-game .ls-mini thead th:first-child{width:3.2em}

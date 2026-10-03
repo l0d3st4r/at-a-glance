@@ -985,11 +985,11 @@ def _game_miles(g, team):
 # has no column in nflverse's weekly team stats (confirmed against a live pull, Sept 2026 --
 # see the Items to Address doc) and shows as unavailable (value/rank None) rather than a
 # guess. 3rd down % (2026-10-03, replacing the unavailable Red Zone %) comes from
-# play-by-play instead (nflverse_client.get_third_downs).
+# play-by-play instead (nflverse_client.get_team_downs).
 TEAM_STAT_KEYS = ("pass_tds", "rush_tds", "pass_yards", "rush_yards")
 
 
-def _team_stat_builder(games, team_weekly, warnings, third_downs=None):
+def _team_stat_builder(games, team_weekly, warnings, team_downs=None):
     """Returns stats_through(week_limit) -> {team: {stat_key: {...}}} (cached), the
     expanded offense/defense card for the team pages."""
     reg_final = [g for g in games if g["game_type"] == "REG" and g["final"] and g["week"] is not None]
@@ -1022,9 +1022,9 @@ def _team_stat_builder(games, team_weekly, warnings, third_downs=None):
         warnings.append("team page stats: no weekly team stats -- offense/defense card will show as —")
 
     downs = []   # (offense, defense, week, conversions, attempts)
-    for r in third_downs or []:
+    for r in team_downs or []:
         wk = _int_week(r.get("week"))
-        if wk is not None and r.get("posteam"):
+        if wk is not None and r.get("posteam") and r.get("season_type") in (None, "REG"):
             downs.append((normalize_abbr(r["posteam"]), normalize_abbr(r.get("defteam")), wk,
                           _num(r.get("conv")) or 0, _num(r.get("att")) or 0))
     if not downs:
@@ -1135,6 +1135,46 @@ def _team_stat_builder(games, team_weekly, warnings, third_downs=None):
     return stats_through
 
 
+def _game_stats_builder(team_weekly, team_downs, warnings):
+    """Returns game_stats(game_id, team) -> one team's box score for one game, or None until
+    nflverse has it (2026-10-03, the condensed team card of a finished game):
+      yards / plays / ypp -- net yards (passing less sack yards, plus rushing) over plays
+                             (pass attempts + sacks + carries)
+      first_downs         -- rushing + passing + by penalty (play-by-play)
+      third_conv/att      -- third downs converted / tried (play-by-play)
+      penalties / penalty_yards -- the team's own accepted penalties and their yards
+      turnover_diff       -- the opponent's giveaways less the team's own"""
+    box, by_game = {}, defaultdict(list)
+    for r in team_weekly or []:
+        gid, team = r.get("game_id"), normalize_abbr(r.get("team"))
+        if not gid or not team:
+            continue
+        num = lambda k: _num(r.get(k)) or 0
+        yards = num("passing_yards") - abs(num("sack_yards_lost")) + num("rushing_yards")
+        plays = num("attempts") + num("sacks_suffered") + num("carries")
+        box[(gid, team)] = {"yards": yards, "plays": plays, "ypp": yards / plays if plays else None,
+                            "penalties": num("penalties"), "penalty_yards": num("penalty_yards"),
+                            "giveaways": num("passing_interceptions") + num("fumbles_lost_total")}
+        by_game[gid].append(team)
+    downs = {(r.get("game_id"), normalize_abbr(r.get("posteam"))): r for r in team_downs or []}
+    if team_weekly and not downs:
+        warnings.append("game stats: no play-by-play downs -- first downs and 3rd downs will show as —")
+
+    def game_stats(game_id, team):
+        b = box.get((game_id, team))
+        if not b:
+            return None
+        opp = next((t for t in by_game[game_id] if t != team), None)
+        d = downs.get((game_id, team)) or {}
+        out = {k: b[k] for k in ("yards", "plays", "ypp", "penalties", "penalty_yards")}
+        out["first_downs"] = _num(d.get("first_downs")) if d else None
+        out["third_conv"], out["third_att"] = (_num(d.get("conv")), _num(d.get("att"))) if d else (None, None)
+        out["turnover_diff"] = box[(game_id, opp)]["giveaways"] - b["giveaways"] if opp else None
+        return out
+
+    return game_stats
+
+
 # ---------------------------------------------------------------- main entry
 
 def week_key_and_label(game_type, week):
@@ -1243,7 +1283,7 @@ def _linescores(quarter_rows, games, warnings):
 
 
 def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, warnings, now_utc=None, depth=None, history=None,
-                       quarter_scores=None, rosters_weekly=None, injury_events=None, third_downs=None):
+                       quarter_scores=None, rosters_weekly=None, injury_events=None, team_downs=None):
     """history: every season's schedule (for the last meeting on Page 2); falls back to this season's.
     quarter_scores: nflverse_client.get_quarter_scores rows, for the finished games' scoring by quarter."""
     now_utc = now_utc or datetime.now(timezone.utc)
@@ -1259,7 +1299,8 @@ def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, w
     injuries_for = _injury_builder(injuries, snaps, depth, warnings, rosters_weekly, injury_events)
     team_all_games = _team_all_games_index(games)
     team_schedules, bye_week = _team_schedule_index(games)
-    team_stats_through = _team_stat_builder(games, team_weekly, warnings, third_downs)
+    team_stats_through = _team_stat_builder(games, team_weekly, warnings, team_downs)
+    game_stats = _game_stats_builder(team_weekly, team_downs, warnings)
     try:
         linescores = _linescores(quarter_scores, games, warnings)
     except Exception as e:
@@ -1290,6 +1331,8 @@ def build_game_details(schedules, team_weekly, player_weekly, injuries, snaps, w
                     "injury_report_out": injuries_for.report_out(g["week"]),
                     # a finished game: its inactives and who left injured (Page 1 card, Page 2 Injuries)
                     "game_absences": injuries_for.game(team, g["week"], g["gameday"], gid) if g["final"] else None,
+                    # ...and its own box score, in place of the ranks on the condensed team card (2026-10-03)
+                    "game_stats": game_stats(gid, team) if g["final"] else None,
                     "ranks": ranks.get(team) or {},
                     "team_page": {
                         "injuries_full": injuries_for(team, g["week"], g["gameday"], limit=None),
