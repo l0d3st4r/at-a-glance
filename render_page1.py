@@ -562,11 +562,18 @@ def pill_row(a, h):
     return f'<div class="cmp-row cmp-head">{team_pill(a)}<div></div>{team_pill(h)}</div>'
 
 
-def card_title(name, abbr=False):
-    """The card's name at the top center of the card -- the same label its peeking sliver shows.
-    abbr=True for a team-code title (Saira, matching every other abbreviation on the site)."""
-    cls = "card-title abbr" if abbr else "card-title"
-    return f'<span class="{cls}">{esc(name)}</span>'
+def title_icon(cid):
+    """The card's nav icon (NAV_ICONS) in front of its title, sized to the title's text (2026-10-03)."""
+    icon = NAV_ICONS.get(cid)
+    return f'<span class="t-ic">{icon}</span>' if icon else ""
+
+
+def card_title(name, abbr=False, cid=None):
+    """The card's name at the top center of the card -- the same label its peeking sliver shows,
+    led by the same icon as its nav dot. abbr=True for a team-code title (Saira, matching every
+    other abbreviation on the site)."""
+    return (f'<span class="card-title">{title_icon(cid)}'
+            f'<span{" class=abbr" if abbr else ""}>{esc(name)}</span></span>')
 
 
 def c_team(side, label, final=False):
@@ -575,7 +582,7 @@ def c_team(side, label, final=False):
     rec = fmt_record(side.get("record"))
     return (
         f'<a class="card c-team" tabindex="0" data-detail="{label}-team" aria-label="{esc(team)} team">'
-        f'{card_title(team, abbr=True)}'
+        f'{card_title(team, abbr=True, cid=f"{label}-team")}'
         '<div class="l-top">'
         f'<div class="l-id">{helmet_img(team, 40)}</div>'
         f'<div class="l-rec">{record_block(side, final)}</div>'
@@ -696,7 +703,9 @@ def render_p1_block(d, prefix="../"):
     a_score, h_score = header_scores(d)
     game_scope = d.get("leaders_scope") == "game"
     final = bool(d.get("final"))
-    leaders_name = "Game Leaders" if game_scope else "Season Leaders"
+    # "Regular Season" (2026-10-03): the card only ever counts regular-season games (page1_data's
+    # leaders_through skips playoff rows), so a playoff game shows the totals the season ended with
+    leaders_name = "Game Leaders" if game_scope else "Regular Season Leaders"
 
     when_day, when_time = fmt_when(d)
     # One header row, drawn twice (top bar + the middle of the Game Info card) and morphed between the two.
@@ -730,9 +739,9 @@ def render_p1_block(d, prefix="../"):
     )
     condensed = (
         '<div class="view view-c" aria-label="Condensed matchup">'
-        f'<a class="card c-game" tabindex="0" data-detail="game-info" aria-label="Game info">{card_title("Game Info")}{game_body_compact(d)}</a>'
+        f'<a class="card c-game" tabindex="0" data-detail="game-info" aria-label="Game info">{card_title("Game Info", cid="game-info")}{game_body_compact(d)}</a>'
         f'<div class="c-teams">{c_team(away, "away", final)}{c_team(home, "home", final)}</div>'
-        f'<a class="card c-cmp" tabindex="0" data-detail="leaders" aria-label="{leaders_name}">{card_title(leaders_name)}<div class="c-cmp-in">{pill_row(a, h)}{rows}</div></a>'
+        f'<a class="card c-cmp" tabindex="0" data-detail="leaders" aria-label="{leaders_name}">{card_title(leaders_name, cid="leaders")}<div class="c-cmp-in">{pill_row(a, h)}{rows}</div></a>'
         "</div>"
     )
     cmp_head = pill_row(a, h)  # team-color pills replace the helmets + abbreviations (2026-09-17)
@@ -742,9 +751,9 @@ def render_p1_block(d, prefix="../"):
              ("leaders", leaders_name, "compare", cmp_head + rows)]
     slots = "".join(
         f'<section class="slot"><a class="card {kind}" tabindex="-1" data-detail="{cid}" aria-label="{esc(name)}">'
-        f'<span class="peek peek-top">{DOWN}<span class="{"abbr" if kind == "team" else ""}">{esc(name)}</span></span>'
+        f'<span class="peek peek-top">{DOWN}{title_icon(cid)}<span class="{"abbr" if kind == "team" else ""}">{esc(name)}</span></span>'
         f'<div class="body">{body}</div>'
-        f'<span class="peek peek-bot">{UP}<span class="{"abbr" if kind == "team" else ""}">{esc(name)}</span></span></a></section>'
+        f'<span class="peek peek-bot">{UP}{title_icon(cid)}<span class="{"abbr" if kind == "team" else ""}">{esc(name)}</span></span></a></section>'
         for cid, name, kind, body in cards
     )
     dots = "".join(f'<button class="dot" type="button" aria-label="{esc(name)}">{NAV_ICONS.get(cid, "")}</button>' for cid, name, _k, _b in cards)
@@ -1900,10 +1909,14 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .slot:not(.active) .body{opacity:0}
 .peek{position:absolute;left:0;right:0;height:calc(var(--peek) - 1px);display:flex;align-items:center;justify-content:center;gap:7px;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-2);opacity:0;transition:opacity .15s;pointer-events:none}
 .peek-top{top:0}.peek-bot{bottom:0}
+/* each card's nav icon in front of its title (2026-10-03): a touch under the height of the capitals,
+   in the title's own color, so it dims and brightens with it */
+.t-ic{display:inline-flex;align-items:center;flex:none;color:inherit}
+.t-ic svg{display:block;width:auto;height:1em}
 .slot.below .peek-top,.slot.above .peek-bot{opacity:1}
 /* the card in the middle keeps its name at the top, where its sliver showed it (no arrow) */
 .slot.active .peek-top{opacity:1}
-.slot.active .peek-top svg{display:none}
+.slot.active .peek-top > svg{display:none}   /* the arrow, not the card's icon */
 /* (2026-10-01) the active card's title a size up and in full-strength ink, so it doesn't read as one
    more teaser like the card peeking in above it */
 .slot.active .peek-top{font-size:13px;color:var(--ink)}
@@ -1930,20 +1943,23 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
    legible there with room to spare. Gap is inverted on purpose: the smaller the icon, the more
    room it gets, so a tight cluster of small marks doesn't read as one blob -- 36px apart at the
    small mobile size, down to 28px once the icons are big enough to stay legible closer
-   together (both doubled 2026-09-27, were 18px / 14px). */
+   together (both doubled 2026-09-27, were 18px / 14px).
+   Icons doubled (Jason, 2026-10-03): 20px on phones, 44px past 680px. A phone's 20px icon now
+   reaches ~7px past the 16px gutter into the card -- fine since the cards have no outline or
+   fill (theme.CARD_OUTLINES) and every card's own padding is wider than that. */
 .p1 > .dots{right:3px;gap:36px}
-.p1 > .dots .dot{width:10px;height:10px;border-radius:0;background:none;opacity:.4;
+.p1 > .dots .dot{width:20px;height:20px;border-radius:0;background:none;opacity:.4;
   display:flex;align-items:center;justify-content:center;transition:opacity .2s}
-.p1 > .dots .dot svg{display:block;width:10px;height:auto;color:var(--ink);transition:transform .2s}
-.p1 > .dots .dot.on{height:10px;background:none;opacity:1}
+.p1 > .dots .dot svg{display:block;width:20px;height:auto;color:var(--ink);transition:transform .2s}
+.p1 > .dots .dot.on{height:20px;background:none;opacity:1}
 .p1 > .dots .dot.on svg{transform:scale(1.15)}
 .p1 > .dots .dot:not(.on):hover{opacity:.7}
 @media (min-width:680px){
   .dots{right:calc(50% - 300px - 22px)}
   .p1 > .dots{gap:28px}
-  .p1 > .dots .dot{width:24px;height:24px}
-  .p1 > .dots .dot svg{width:22px}
-  .p1 > .dots .dot.on{height:24px}
+  .p1 > .dots .dot{width:48px;height:48px}
+  .p1 > .dots .dot svg{width:44px}
+  .p1 > .dots .dot.on{height:48px}
   .p1 > .dots .dot.on svg{transform:scale(1.15)}
 }
 
@@ -1955,7 +1971,11 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .time{white-space:nowrap;font-size:63px;font-weight:700;line-height:1;letter-spacing:-.01em}
 .time small{font-size:16px;font-weight:400;letter-spacing:0;margin-left:6px}
 .date{white-space:nowrap;font-size:34px;font-weight:700;line-height:1.15;margin-top:4px}
+/* An upcoming game's TV sits level with the top of the time (Jason, 2026-10-03; was 40px lower):
+   both lines are line-height 1, so the gap between a line's box top and its capitals' top is
+   ~.137em of its size (Inter) -- the margin makes up the difference, 63px time vs 16px TV. */
 .network{font-size:16px;margin-top:40px;text-align:right;min-width:0}
+.game-top:not(.final-top) .network{line-height:1;margin-top:calc(.137 * (63px - 16px))}
 /* finished games (2026-09-27): the start time matters less once there's a score, so it drops
    to about the date's size; TV stays level with it */
 .final-top .time{font-size:38px}
@@ -2158,7 +2178,8 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .ldr-n .pos{font-weight:200;flex:none;margin-left:.28em}   /* position never gets cut off */
 .cmp-lbl{font-size:12px;text-align:center;line-height:1.2}
 
-@media (max-width:400px){.final-lbl{font-size:11px}.view-l .time{font-size:54px}.view-l .final-top .time{font-size:36px}.view-l .date{font-size:29px}.team .record{font-size:62px}.team .record.rec-4{font-size:48px}.team .record.rec-5{font-size:42px}.team .record.rec-6{font-size:35px}
+@media (max-width:400px){.game-top:not(.final-top) .network{margin-top:calc(.137 * (54px - 16px))}
+  .final-lbl{font-size:11px}.view-l .time{font-size:54px}.view-l .final-top .time{font-size:36px}.view-l .date{font-size:29px}.team .record{font-size:62px}.team .record.rec-4{font-size:48px}.team .record.rec-5{font-size:42px}.team .record.rec-6{font-size:35px}
   .game .body{padding-left:16px;padding-right:16px}.team .body>*{width:min(272px,calc(100% - 64px))}}
 @media (max-height:700px){.p1{--peek:28px}.l-id img{width:64px;height:64px}}
 /* no prefers-reduced-motion override: motion always plays (Jason, 2026-09-17) */
@@ -2169,7 +2190,7 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .teams .hscore.lose{opacity:.3}
 a.card{cursor:pointer}
 /* condensed cards: name at the top center, same type as the expanded slivers */
-.card-title{position:absolute;left:0;right:0;top:0;height:var(--ctitle);display:flex;align-items:center;justify-content:center;
+.card-title{position:absolute;left:0;right:0;top:0;height:var(--ctitle);display:flex;align-items:center;justify-content:center;gap:6px;
   font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-2);pointer-events:none;line-height:1}
 /* view toggle: a card-shaped box that grows/shrinks between the two views */
 .morph{position:fixed;z-index:9;background:var(--tile);border:1px solid var(--aag-card-line);border-radius:20px;overflow:hidden;pointer-events:none}
