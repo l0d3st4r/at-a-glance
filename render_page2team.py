@@ -420,6 +420,9 @@ def _fmt_date_short(gameday):
 def schedule_body(team_page, prefix):
     """
     One line per week, Framer's order (week, date, opponent, result-or-time, running record).
+    The W/L and the score each sit centered in their own column so they stack down the card,
+    an upcoming game's kickoff time spanning both; the record only runs through the last
+    finished game -- the rows after it leave it blank (Jason, 2026-10-03).
     Every week has to be on screen with no scrolling inside the card (Jason, 2026-09-20), so
     rows stay compact -- one line each, no stacked sub-rows, network dropped (it's always "TV
     TBD" right now anyway, see the Items to Address doc on that gap).
@@ -443,15 +446,16 @@ def schedule_body(team_page, prefix):
                    f'<span class="sc-score">{esc(_fmt_int(e["score"]["team"]))}-{esc(_fmt_int(e["score"]["opp"]))}</span>')
         else:
             mid = f'<span class="sc-time">{esc(_fmt_time(e.get("gametime")))}</span>'
-        rec = _fmt_record(e.get("record_after") or {})
+        rec = _fmt_record(e.get("record_after") or {}) if e.get("final") else ""
         rows.append(
             '<li class="sc-row">'
             f'<span class="sc-wk">{wk}</span>{date_html}'
             f'<span class="sc-vs">{vs}</span>{helmet_img(opp, 20, prefix=prefix)}<span class="sc-opp abbr">{esc(opp or "")}</span>'
-            f'<span class="sc-mid">{mid}</span><span class="sc-rec">{esc(rec)}</span>'
+            f'{mid}<span class="sc-rec">{esc(rec)}</span>'
             "</li>"
         )
-    return f'<ul class="sc-list">{"".join(rows)}</ul>'
+    # --n: the row count, so the CSS can share the card's height out among them (2026-10-03)
+    return f'<ul class="sc-list" style="--n:{len(rows)}">{"".join(rows)}</ul>'
 
 
 # ---------------------------------------------------------------- the layer
@@ -636,7 +640,7 @@ P3_CSS = r"""
 .stat-sub{font-size:10px;font-weight:400;color:var(--text-2)}
 /* Compact by design -- every week has to be visible on the card with no scrolling
    (Jason, 2026-09-20), so this trades some size for fitting all ~18 rows at once. */
-.sc-row{display:grid;grid-template-columns:16px 50px 12px 20px 1fr auto 42px;align-items:center;gap:6px;
+.sc-row{display:grid;grid-template-columns:16px 58px 14px 20px 1fr 14px 50px 42px;align-items:center;gap:6px;
   padding:4px 3px;border-bottom:1px solid var(--tile-border-soft);font-size:11.5px;line-height:1.15}
 .sc-wk{color:var(--text-2);text-align:right;font-size:11px}
 .sc-date{color:var(--text-2);white-space:nowrap;font-size:10.5px}
@@ -644,14 +648,38 @@ P3_CSS = r"""
 .sc-vs{color:var(--text-3);text-align:center}
 .sc-row img{width:20px;height:20px}
 .sc-opp{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sc-mid{display:flex;align-items:baseline;justify-content:flex-end;gap:5px;white-space:nowrap}
-.sc-res{font-weight:700}
+/* result | score as two fixed columns, each centered, so they line up row to row; a kickoff
+   time takes both */
+.sc-res{font-weight:700;text-align:center}
 .sc-win{color:var(--win)}.sc-loss{color:var(--loss)}.sc-tie{color:var(--tie)}
-.sc-score{color:var(--text-2);font-variant-numeric:tabular-nums}
-.sc-time{font-weight:700;white-space:nowrap}
+.sc-score{color:var(--text-2);font-variant-numeric:tabular-nums;text-align:center;white-space:nowrap}
+.sc-time{grid-column:span 2;font-weight:700;white-space:nowrap;text-align:center}
 .sc-rec{color:var(--text-2);text-align:right;font-variant-numeric:tabular-nums;font-size:11px}
-.sc-bye{grid-template-columns:16px 1fr;color:var(--text-2)}
+.sc-row.sc-bye{grid-template-columns:16px 1fr;color:var(--text-2)}
 .sc-bye-lbl{letter-spacing:.06em;font-size:10px;font-weight:700}
+/* The whole season always fits (2026-10-03): fixed-height rows ran past the bottom of the card on
+   shorter screens and cut off week 18 and more. The list takes whatever height the card has
+   left and each row gets an equal share of it, up to its usual 28px -- a short screen shrinks
+   every row (helmet and text with it) rather than dropping the last weeks. On a tall screen the
+   rows keep their usual size, centered in the spare room (auto margins, so an overflowing list
+   still starts at week 1). Rows stop shrinking at 17px, where the text is still readable; a
+   screen too short even for that (a phone on its side) scrolls the list inside the card --
+   P1_JS's detailAtTop lets it scroll back up before a pull-down closes the page. */
+.p2 .slot .p2k-schedule .body{justify-content:flex-start}
+.p2k-schedule .sc-list{flex:1 1 0;min-height:0;container-type:size;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  --row:clamp(17px,calc(100cqh / var(--n)),28px)}
+.p2k-schedule .sc-row{flex:none}
+.p2k-schedule .sc-row:first-child{margin-top:auto}
+.p2k-schedule .sc-row:last-child{margin-bottom:auto}
+/* each size below is the row's usual one (--fs-*, smaller on a narrow screen) until the row
+   gets too short for it, then shrinks with the row */
+.p2k-schedule{--fs-row:11.5px;--fs-wk:11px;--fs-date:10.5px;--fs-bye:10px;--img:20px}
+.p2k-schedule .sc-row{height:var(--row);min-height:0;padding-top:0;padding-bottom:0;
+  font-size:min(var(--fs-row),calc(var(--row) * .5))}
+.p2k-schedule .sc-row img{width:min(var(--img),calc(var(--row) - 4px));height:min(var(--img),calc(var(--row) - 4px))}
+.p2k-schedule .sc-wk,.p2k-schedule .sc-rec{font-size:min(var(--fs-wk),calc(var(--row) * .48))}
+.p2k-schedule .sc-date{font-size:min(var(--fs-date),calc(var(--row) * .46))}
+.p2k-schedule .sc-bye-lbl{font-size:min(var(--fs-bye),calc(var(--row) * .44));white-space:nowrap}
 /* Short screens (iPhone SE-class heights and similar): the card's own height is whatever's
    left between the top/bottom bars, so a shorter phone leaves less room for it regardless of
    width -- tighten the row height further so all 11 rows still fit without scrolling. */
@@ -672,6 +700,8 @@ P3_CSS = r"""
   .stat-row{grid-template-columns:62px 1fr 62px}
   .ov-facts{gap:10px}
   .st-row,.st-headrow{grid-template-columns:20px 1fr 20px 20px 20px 46px}
-  .sc-row{grid-template-columns:14px 44px 10px 18px 1fr auto 38px;gap:4px;font-size:11px;padding:3px 2px}
+  .sc-row{grid-template-columns:14px 53px 12px 18px 1fr 12px 50px 30px;gap:4px;font-size:11px;padding:3px 2px}
+  .p2k-schedule{--fs-row:11px;--fs-date:10px;--img:18px}
+  .sc-row.sc-bye{grid-template-columns:14px 1fr}
 }
 """

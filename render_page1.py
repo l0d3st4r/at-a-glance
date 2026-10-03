@@ -1639,13 +1639,14 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     head: visibleHead,
     detail: detailOpen,
     // e (optional): the touch -- a pull that starts inside a Player Stats list (or a finished
-    // game's Injuries lists) scrolled down scrolls the list back up instead of closing the page
+    // game's Injuries lists, or a schedule too long for a short screen) scrolled down scrolls the
+    // list back up instead of closing the page
     detailAtTop: function (e) {
       var d = curDetail();
       var path = e && e.composedPath ? e.composedPath() : [];
       for (var i = 0; i < path.length; i++) {
         var cl = path[i].classList;
-        if (cl && (cl.contains('ps-scroll') || cl.contains('inj-scroll')) && path[i].scrollTop > 1) return false;
+        if (cl && (cl.contains('ps-scroll') || cl.contains('inj-scroll') || cl.contains('sc-list')) && path[i].scrollTop > 1) return false;
       }
       if (!large()) { var c = d && d.el.querySelector('.p2-c'); return !c || c.scrollTop <= 1; }   // a condensed view can scroll on short phones
       return !d || !d.deck || d.deck.scrollTop <= 1;
