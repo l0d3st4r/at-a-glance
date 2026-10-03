@@ -596,7 +596,7 @@ def game_stats_html(gs):
         f'<dl class="gs-line">{cell("Total Yards", v(gs.get("yards")))}{cell("Yds / Play", ypp)}</dl>'
         f'<dl class="gs-line">{cell("1st Downs", v(gs.get("first_downs")))}{cell("3rd Down", third)}</dl>'
         f'<dl class="gs-line">{cell("Penalties", pens)}'
-        f'{cell("Turnover Differential", DASH if td is None else f"{td:+.0f}" if td else "0")}</dl>'
+        f'{cell("TO Diff", DASH if td is None else f"{td:+.0f}" if td else "0")}</dl>'
         "</div>")
 
 
@@ -626,16 +626,20 @@ def c_team(side, label, final=False):
 def l_team(side, final=False):
     r = side.get("ranks") or {}
     team = side.get("team")
+    # a finished game: the same box score as the condensed card (2026-10-03), ranks until it lands
+    gs = side.get("game_stats") if final else None
+    bottom = game_stats_html(gs) if gs else (
+        '<div class="ranks">'
+        f'<div class="rank-col"><h3>Offense</h3>{big_rank(r.get("off_points"), "POINTS")}{big_rank(r.get("off_yards"), "YARDS")}</div>'
+        f'<div class="rank-col"><h3>Defense</h3>{big_rank(r.get("def_points"), "POINTS")}{big_rank(r.get("def_yards"), "YARDS")}</div>'
+        "</div>")
     return (
         '<div class="l-top">'
         f'<div class="l-id">{helmet_img(team, 84)}</div>'
         f'<div class="l-rec">{record_block(side, final)}</div>'
         "</div>"
         f'<ul class="l-inj">{injuries_html(side, full=True)}</ul>'
-        '<div class="ranks">'
-        f'<div class="rank-col"><h3>Offense</h3>{big_rank(r.get("off_points"), "POINTS")}{big_rank(r.get("off_yards"), "YARDS")}</div>'
-        f'<div class="rank-col"><h3>Defense</h3>{big_rank(r.get("def_points"), "POINTS")}{big_rank(r.get("def_yards"), "YARDS")}</div>'
-        "</div>"
+        f'{bottom}'
     )
 
 
@@ -1889,8 +1893,8 @@ a.card.c-team{--cw:calc((100cqi - 8px) / 2 - 20px);padding:var(--ctitle) 10px cl
 .c-inj .inj-name{font-weight:400}
 /* a finished game's own stats in place of the ranks (2026-10-03): three lines of two, each its
    number over a small label like the ranks' PTS/YDS (a half-width card has no room for
-   label-then-value twice). Numbers sit level across a line even when a label takes two lines
-   ("Turnover Differential"). */
+   label-then-value twice). Numbers sit level across a line even if a label ever takes two lines
+   (the turnover differential is "TO Diff" for that reason, 2026-10-03). */
 .gstats{width:100%;display:flex;flex-direction:column;gap:clamp(3px,.8vh,8px);font-size:11px}
 .gs-line{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .gs-line>div{display:flex;flex-direction:column;justify-content:flex-start;align-items:center;min-width:0;line-height:1.1}
@@ -2160,6 +2164,13 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .l-inj .inj-none{font-weight:400;justify-content:center}
 .injuries{list-style:none;font-weight:700;min-width:0}
 .team .injuries{font-size:16px;line-height:1.3}
+/* a finished game's box score on the expanded card (2026-10-03): the condensed card's three lines of
+   two, sized up -- ".team" outranks the condensed sizes and their short-screen tightening */
+.team .gstats{gap:clamp(10px,2.2vh,22px)}
+.team .gs-line{gap:16px}
+.team .gs-line>div{line-height:1.15}
+.team .gstats dd b{font-size:clamp(24px,3.6vh,32px)}
+.team .gs-line dt{font-size:11px;margin-top:2px}
 .injuries li{display:flex;gap:5px;white-space:nowrap}
 .inj-name{overflow:hidden;text-overflow:ellipsis}
 /* position left of the name (2026-09-27): muted, fixed width so names line up down the list */
