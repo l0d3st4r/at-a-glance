@@ -16,7 +16,8 @@ Page 0 design (revised 2026-09-16, layout modeled on Apple Sports' NFL
     the season plus Wild Card, Divisional Round, Conference Championships and
     Super Bowl; it sits in a bar pinned to the BOTTOM of the screen (2026-09-17)
   - regular-season weeks with teams on bye end with a "Teams on Bye" section
-    (helmet over abbreviation); no section when nobody is on bye
+    (helmet over abbreviation); no section when nobody is on bye. Tapping a team on bye
+    opens its next game's Page 1 (2026-10-03)
   - finished games that went to overtime read "FINAL/OT"
   - all weeks are rendered into one page side by side: swipe left/right on a
     phone (or trackpad), use the dropdown, or the arrow keys to move between
@@ -276,10 +277,12 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
   .score{font-size:42px}.final-label{font-size:11px;line-height:13px}
   .final-row{gap:4px}.tri svg{width:6px;height:8px}
 }
-/* Teams on bye: one outlined (not clickable) card under the week's last day */
+/* Teams on bye: one outlined card under the week's last day; each team links to its next game (2026-10-03) */
 .bye-list{list-style:none;display:flex;flex-wrap:wrap;justify-content:center;gap:14px 18px;padding:16px 12px;
   background:var(--tile);border:1px solid var(--aag-card-line);border-radius:20px}
-.bye-team{display:flex;flex-direction:column;align-items:center;gap:4px;width:56px}
+.bye-team{display:flex;flex-direction:column;align-items:center;gap:4px;width:56px;color:inherit;text-decoration:none;
+  -webkit-tap-highlight-color:transparent;transition:transform .15s}
+a.bye-team:active{transform:scale(.94)}
 .bye-team img{width:48px;height:48px;display:block}
 @media (max-width:420px){.bye-list{display:grid;grid-template-columns:repeat(var(--bye-cols),56px);justify-content:center;gap:12px 14px;padding:14px 8px}
   .bye-team img{width:42px;height:42px}}
@@ -601,6 +604,18 @@ def bye_teams(games):
     return sorted(t for t in DIVISIONS if t not in playing)
 
 
+def _with_next_games(weeks, i, byes):
+    """byes -> [(team, next game's id, its week label)], the first game each team plays after week
+    i -- tapping a team on bye opens it (2026-10-03). (team, None, None) if it has none."""
+    out = []
+    for team in byes:
+        nxt = next(((m.get("game_id"), label) for _k, label, games, _b in weeks[i + 1:] for m in games
+                    if team in ((m.get("away") or {}).get("team"), (m.get("home") or {}).get("team"))
+                    and m.get("game_id")), (None, None))
+        out.append((team, *nxt))
+    return out
+
+
 def weeks_for_page0(data):
     """
     [(key, label, games, byes), ...] for every week in the dropdown, plus the
@@ -619,6 +634,8 @@ def weeks_for_page0(data):
             games = placeholder_games(w["game_type"], season)
         weeks.append((key, label, games, byes))
 
+    weeks = [(key, label, games, _with_next_games(weeks, i, byes)) for i, (key, label, games, byes) in enumerate(weeks)]
+
     if not weeks:
         wk = data.get("week")
         weeks = [(str(wk), f"Week {wk}" if wk is not None else "This Week", data.get("matchups") or [], [])]
@@ -633,15 +650,20 @@ def weeks_for_page0(data):
 
 
 def render_byes(byes):
-    """The "Teams on Bye" section under a week's last day: helmet over abbreviation for each team."""
+    """The "Teams on Bye" section under a week's last day: helmet over abbreviation for each team,
+    each a link to that team's next game (PAGE1_OVERLAY_JS opens it like a game tile)."""
     if not byes:
         return ""
-    teams = "".join(
-        '<li class="bye-team">'
-        f'<img src="helmets/{esc(helmets.helmet_filename(t))}" alt="" width="48" height="48" loading="lazy">'
-        f'<span class="abbr">{esc(t)}</span></li>'
-        for t in byes
-    )
+
+    def team(t, game_id, week_label):
+        inner = (f'<img src="helmets/{esc(helmets.helmet_filename(t))}" alt="" width="48" height="48" loading="lazy">'
+                 f'<span class="abbr">{esc(t)}</span>')
+        if not game_id:
+            return f'<li class="bye-team">{inner}</li>'
+        return (f'<li><a class="bye-team" href="#game-{esc(game_id)}" aria-label="{esc(t)} next game, {esc(week_label)}">'
+                f'{inner}</a></li>')
+
+    teams = "".join(team(*b) for b in byes)
     # On phones the helmets wrap in even rows (6 teams -> 3 + 3, not 5 + 1); bye counts are always even.
     phone_cols = len(byes) if len(byes) <= 4 else (len(byes) + 1) // 2
     return (f'<section class="byes" aria-label="Teams on bye"><h2 class="day">Teams on Bye</h2>'
@@ -816,9 +838,10 @@ PAGE0_JS = """
 
   // Used by the Page 1 overlay: jump to the week a game belongs to, and the hash to return to.
   window.AAG_P0 = {
-    showTile: function (tile) {
+    // stay: the address becomes that week too, so closing the game lands there (a team on bye, 2026-10-03)
+    showTile: function (tile, stay) {
       var i = panels.indexOf(tile.closest('.week-panel'));
-      if (i >= 0 && i !== idx) setActive(i, { scroll: true, updateHash: false });
+      if (i >= 0 && i !== idx) setActive(i, { scroll: true, updateHash: !!stay });
     },
     weekHash: function () { return '#week-' + encodeURIComponent(panels[idx].dataset.key); }
   };
@@ -1391,17 +1414,31 @@ PAGE1_OVERLAY_JS = r"""
   }
 
   // ------------------------------------------------------------ wiring
+  // A team on bye links to its next game (2026-10-03): Page 0 turns to that game's week (for good --
+  // closing the game, or going back, lands on that week), brings its tile on screen, and the game
+  // opens from the tile the same way a tap on it would.
+  var BYE = 'a.bye-team[href^="#game-"]';
+  function openFromBye(id) {
+    var t = tileFor(id);
+    if (t && window.AAG_P0) {
+      window.AAG_P0.showTile(t, true);
+      if (!visibleRect(t)) t.scrollIntoView({ block: 'center' });
+    }
+    open(id, { push: true });
+  }
   document.addEventListener('click', function (e) {
-    var tile = e.target.closest && e.target.closest(TILE);
-    if (!tile || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || !e.target.closest) return;
+    var tile = e.target.closest(TILE), bye = !tile && e.target.closest(BYE);
+    if (!tile && !bye) return;
     e.preventDefault();
-    open(tileId(tile), { push: true });
+    if (tile) open(tileId(tile), { push: true });
+    else openFromBye(idFromHash(bye.getAttribute('href')));
   });
-  // Start downloading a game's page as soon as someone points at or touches its tile.
+  // Start downloading a game's page as soon as someone points at or touches its tile (or a team on bye).
   ['mouseover', 'touchstart', 'focusin'].forEach(function (type) {
     document.addEventListener(type, function (e) {
-      var tile = !state && e.target.closest && e.target.closest(TILE);
-      if (tile) load(tileId(tile)).catch(function () {});
+      var tile = !state && e.target.closest && e.target.closest(TILE + ',' + BYE);
+      if (tile) load(idFromHash(tile.getAttribute('href'))).catch(function () {});
     }, { passive: true });
   });
   window.addEventListener('keydown', function (e) {
