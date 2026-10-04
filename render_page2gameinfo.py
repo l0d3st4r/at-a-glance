@@ -20,8 +20,8 @@ standards already on the site about fonts, layout, interaction"):
   2. Weather  -- actual + feels-like temperature, condition icon, precipitation chance
                  and amount, wind range + direction, humidity. NOT shown for indoor games
                  (domes, and retractable roofs recorded as closed).
-  3. Stadium  -- name, city + state (or country), playing surface, and the roof status
-                 ONLY for retractable roofs (Open / Closed, "TBD" before the game). Its icon
+  3. Venue    -- ("Stadium" until 2026-10-04) name, city + state (or country), playing
+                 surface, and the roof status ONLY for retractable roofs (Open / Closed, "TBD" before the game). Its icon
                  is the stadium's type (stadium_icons.py): open air, dome, roof open or roof
                  closed -- a retractable roof shows open until it's recorded closed.
 
@@ -349,6 +349,64 @@ def stadium_condensed(st):
     )
 
 
+# ---------------------------------------------------------------- card icons
+
+# Each card's icon (Jason's icons, 2026-10-04), working like Page 1's NAV_ICONS: in front of the
+# card's title (expanded and condensed) and as the card's nav dot. Kickoff and Stadium are his
+# drawings, cropped to their bounds; Weather is the partly-cloudy weather icon redrawn in one
+# color -- the cloud filled in, the sun an outline with no rays (a touch bigger and further up and
+# left than in the weather icon, so enough of the ring shows to read as a sun). The sun is an arc that stops
+# short of the cloud rather than a full circle masked behind it, so the icon carries no mask id
+# (it shows up several times per game, and many games share Page 0's shadow root).
+P2_ICONS = {
+    "kickoff": (
+        '<svg viewBox="-1548 -1861 3096 3722" aria-hidden="true"><path d="'
+        'M634.859,-1230.95 C631.96,-1579.31 349.052,-1860.43 2.95259e-13,-1860.43 C-349.052,-1860.43 -631.96,-1579.31 '
+        '-634.859,-1230.95 L-1176.65,-1230.95 C-1379.89,-1230.95 -1547.47,-1066.93 -1547.47,-860.128 L-1547.47,1489.6 '
+        'C-1547.47,1692.84 -1383.45,1860.43 -1176.65,1860.43 L1176.65,1860.43 C1379.89,1860.43 1543.91,1692.84 1547.47,1493.17 '
+        'L1547.47,-860.128 C1547.47,-1063.37 1383.45,-1230.95 1176.65,-1230.95 L634.859,-1230.95 L634.859,-1230.95 Z '
+        'M161.082,-1463.57 C161.082,-1374.6 88.9634,-1302.49 1.05604e-13,-1302.49 C-88.9634,-1302.49 -161.082,-1374.6 '
+        '-161.082,-1463.57 C-161.082,-1552.53 -88.9634,-1624.65 1.05604e-13,-1624.65 C88.9634,-1624.65 161.082,-1552.53 '
+        '161.082,-1463.57 Z M680.37,1545.69 C393.395,1545.69 161.082,1313.38 161.082,1026.4 C161.082,739.426 393.395,507.113 '
+        '680.37,507.113 C967.345,507.113 1199.66,739.426 1199.66,1026.4 C1199.66,1313.38 967.345,1545.69 680.37,1545.69 Z '
+        'M680.37,1400.03 C886.852,1400.03 1054,1232.88 1054,1026.4 C1054,819.919 886.852,652.767 680.37,652.767 C473.889,652.767 '
+        '306.737,819.919 306.737,1026.4 C306.737,1232.88 473.889,1400.03 680.37,1400.03 Z M-340.736,623.84 L-340.736,623.84 '
+        'L899.17,-616.066 L477.102,-616.066 L663.457,-802.421 L1085.53,-802.421 L1085.53,-802.421 L1085.53,-802.421 '
+        'L1193.62,-802.421 L1193.38,-694.566 L1193.62,-694.33 L1193.38,-694.092 L1192.39,-241.509 L1006.03,-55.1539 '
+        'L1007.02,-507.737 L1007.02,-507.737 L-237.648,736.935 C-182.07,819.622 -149.65,919.197 -149.65,1026.4 C-149.65,1313.38 '
+        '-381.963,1545.69 -668.938,1545.69 C-955.913,1545.69 -1188.23,1313.38 -1188.23,1026.4 C-1188.23,739.426 -955.913,507.113 '
+        '-668.938,507.113 C-544.404,507.113 -430.164,550.861 -340.736,623.84 Z M-668.938,1400.03 C-462.456,1400.03 '
+        '-295.304,1232.88 -295.304,1026.4 C-295.304,819.919 -462.456,652.767 -668.938,652.767 C-875.42,652.767 -1042.57,819.919 '
+        '-1042.57,1026.4 C-1042.57,1232.88 -875.42,1400.03 -668.938,1400.03 Z M-668.938,-468.022 L-405.206,-802.421 '
+        'L-149.65,-802.421 L-535.092,-313.701 L-171.579,149.24 L-427.134,149.24 L-668.938,-158.702 L-910.742,149.24 '
+        'L-1166.3,149.24 L-802.784,-313.701 L-1188.23,-802.421 L-932.671,-802.421 L-668.938,-468.022 Z" '
+        'fill="currentColor"/></svg>'
+    ),
+    "weather": (
+        '<svg viewBox="10.5 5.5 49 38.5" aria-hidden="true" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">'
+        '<path d="M17.12 21.92A7.5 7.5 0 1 1 26.95 12.18" fill="none" stroke-width="3.5"/>'
+        '<path d="M23 42a8 8 0 0 1-.8-16A12 12 0 0 1 45 23a9.5 9.5 0 1 1 5 19z" fill="currentColor" stroke-width="3.5"/></svg>'
+    ),
+    "stadium": (
+        '<svg viewBox="-1717 -823 3434 2089" aria-hidden="true"><path d="'
+        'M-467.598,1265.4 L-467.598,1014.31 C-467.598,755.896 -258.41,546.707 -5.35127e-14,546.707 C258.41,546.707 '
+        '467.598,755.896 467.598,1014.31 L467.598,1265.21 C1165.95,1217.76 1683.01,1066.96 1712.79,886.159 L1714.15,886.159 '
+        'L1715.51,-426.971 L1714.25,-426.971 L1714.25,-426.971 C1679.46,-646.663 925.273,-822.205 1.3814e-12,-822.205 '
+        'C-925.273,-822.205 -1679.46,-646.663 -1714.25,-426.971 L-1715.51,-426.971 L-1716.86,886.159 L-1715.51,886.159 '
+        'C-1685.68,1067.2 -1167.32,1218.15 -467.598,1265.4 L-467.598,1265.4 Z M5.31004e-06,-109.903 C-857.991,-109.903 '
+        '-1553.53,-236.986 -1553.53,-393.751 C-1553.53,-550.516 -857.991,-677.599 -5.31004e-06,-677.599 C857.991,-677.599 '
+        '1553.53,-550.516 1553.53,-393.751 C1553.53,-236.986 857.991,-109.903 5.31004e-06,-109.903 Z" '
+        'fill="currentColor"/></svg>'
+    ),
+}
+
+
+def _title(cid, name):
+    """A card's title: its icon (P2_ICONS) in front of its name, like Page 1's render_page1.title_icon."""
+    icon = P2_ICONS.get(cid)
+    return f'<span class="ttl">{f"<span class=t-ic>{icon}</span>" if icon else ""}{name}</span>'
+
+
 # ---------------------------------------------------------------- the layer
 
 def render_p2_block(d, time_html, icons):
@@ -359,20 +417,20 @@ def render_p2_block(d, time_html, icons):
     w, st = info.get("weather") or {}, info.get("stadium") or {}
     cards = [("kickoff", "Kickoff", kickoff_body(d, info, time_html), kickoff_condensed(d, info, time_html)),
              ("weather", "Weather", weather_body(d, w, icons), weather_condensed(d, w, icons)),
-             ("stadium", "Stadium", stadium_body(st), stadium_condensed(st))]
+             ("stadium", "Venue", stadium_body(st), stadium_condensed(st))]
     cards = [c for c in cards if c[2]]
     from render_page1 import UP, DOWN
     slots = "".join(
         f'<section class="slot"><a class="card p2k p2k-{cid}" tabindex="-1" aria-label="{name}">'
-        f'<span class="peek peek-top">{DOWN}<span class="ttl">{name}</span></span><div class="body">{body}</div>'
-        f'<span class="peek peek-bot">{UP}<span class="ttl">{name}</span></span></a></section>'
+        f'<span class="peek peek-top">{DOWN}{_title(cid, name)}</span><div class="body">{body}</div>'
+        f'<span class="peek peek-bot">{UP}{_title(cid, name)}</span></a></section>'
         for cid, name, body, _c in cards)
-    dots = "".join(f'<button class="dot" type="button" aria-label="{name}"></button>' for _i, name, _b, _c in cards)
+    dots = "".join(f'<button class="dot" type="button" aria-label="{name}">{P2_ICONS.get(cid, "")}</button>' for cid, name, _b, _c in cards)
     condensed = "".join(
-        f'<a class="card cc cc-{cid}" tabindex="0" aria-label="{name}"><span class="card-title"><span class="ttl">{name}</span></span>{c}</a>'
+        f'<a class="card cc cc-{cid}" tabindex="0" aria-label="{name}"><span class="card-title">{_title(cid, name)}</span>{c}</a>'
         for cid, name, _b, c in cards)
     return ('<div class="p2" data-page="game-info" aria-label="Game info" role="region">'
-            f'<div class="p2-view p2-l deck">{slots}</div><nav class="dots p2-dots" aria-label="Cards">{dots}</nav>'
+            f'<div class="p2-view p2-l deck">{slots}</div><nav class="dots p2-dots ic-dots" aria-label="Cards">{dots}</nav>'
             f'<div class="p2-view p2-c n{len(cards)}">{condensed}</div></div>')
 
 

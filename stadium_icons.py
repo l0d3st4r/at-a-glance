@@ -5,7 +5,7 @@ Stadium icons (added 2026-09-28): Jason's four drawings in assets/ -- "dome.svg"
 Used in two places:
   * Page 1's Game Info card, where an indoor game shows the stadium instead of a forecast:
     "Dome" + the dome icon, or "Roof Closed" + the roof-closed icon (render_page1.weather_html).
-  * Page 2 Game Info's Stadium card, expanded and condensed: the icon for the stadium's type
+  * Page 2 Game Info's Venue card, expanded and condensed: the icon for the stadium's type
     (render_page2gameinfo). A retractable roof reads as roof open unless it's recorded closed --
     including before kickoff ("Roof TBD"), because that's also when the page shows a forecast,
     so the open roof matches the weather being there (Jason, 2026-09-28).

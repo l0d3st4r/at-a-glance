@@ -2017,9 +2017,10 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .dot.on{height:18px;background:var(--ink)}
 /* Page 1's own deck nav (2026-09-23): icons instead of plain dots, selection read as opacity
    (plus a slight scale-up) rather than size/color. Scoped to ".p1 > .dots" (the exact nav this
-   page renders) so Page 2's sub-deck navs -- Game Info's own cards, the team pages -- keep the
-   plain small dots above, since their ".p2-dots .dot" buttons carry no icon markup and this
-   rule never touches them.
+   page renders) so Page 2's sub-deck navs -- the team pages, Player Stats -- keep the plain small
+   dots above, since their ".p2-dots .dot" buttons carry no icon markup. Game Info's nav is the
+   exception: its cards have icons too (render_page2gameinfo.P2_ICONS, 2026-10-04), so its
+   ".p2 > .ic-dots" rides along on every rule here.
    Sized small below 680px on purpose: the card there runs edge to edge behind a flat 16px
    gutter (".slot{padding:0 16px}"), the same gutter the old 6px dot already lived in, so a
    much bigger icon has nowhere to go without either overlapping the card or hanging off the
@@ -2035,20 +2036,20 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
    Icons doubled (Jason, 2026-10-03): 20px on phones, 44px past 680px. A phone's 20px icon now
    reaches ~7px past the 16px gutter into the card -- fine since the cards have no outline or
    fill (theme.CARD_OUTLINES) and every card's own padding is wider than that. */
-.p1 > .dots{right:3px;gap:36px}
-.p1 > .dots .dot{width:20px;height:20px;border-radius:0;background:none;opacity:.4;
+.p1 > .dots,.p2 > .ic-dots{right:3px;gap:36px}
+.p1 > .dots .dot,.p2 > .ic-dots .dot{width:20px;height:20px;border-radius:0;background:none;opacity:.4;
   display:flex;align-items:center;justify-content:center;transition:opacity .2s}
-.p1 > .dots .dot svg{display:block;width:20px;height:auto;color:var(--ink);transition:transform .2s}
-.p1 > .dots .dot.on{height:20px;background:none;opacity:1}
-.p1 > .dots .dot.on svg{transform:scale(1.15)}
-.p1 > .dots .dot:not(.on):hover{opacity:.7}
+.p1 > .dots .dot svg,.p2 > .ic-dots .dot svg{display:block;width:20px;height:auto;color:var(--ink);transition:transform .2s}
+.p1 > .dots .dot.on,.p2 > .ic-dots .dot.on{height:20px;background:none;opacity:1}
+.p1 > .dots .dot.on svg,.p2 > .ic-dots .dot.on svg{transform:scale(1.15)}
+.p1 > .dots .dot:not(.on):hover,.p2 > .ic-dots .dot:not(.on):hover{opacity:.7}
 @media (min-width:680px){
   .dots{right:calc(50% - 300px - 22px)}
-  .p1 > .dots{gap:28px}
-  .p1 > .dots .dot{width:48px;height:48px}
-  .p1 > .dots .dot svg{width:44px}
-  .p1 > .dots .dot.on{height:48px}
-  .p1 > .dots .dot.on svg{transform:scale(1.15)}
+  .p1 > .dots,.p2 > .ic-dots{gap:28px}
+  .p1 > .dots .dot,.p2 > .ic-dots .dot{width:48px;height:48px}
+  .p1 > .dots .dot svg,.p2 > .ic-dots .dot svg{width:44px}
+  .p1 > .dots .dot.on,.p2 > .ic-dots .dot.on{height:48px}
+  .p1 > .dots .dot.on svg,.p2 > .ic-dots .dot.on svg{transform:scale(1.15)}
 }
 
 .game .body{padding:44px 24px 32px;justify-content:space-between;container-type:inline-size}
