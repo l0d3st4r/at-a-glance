@@ -16,7 +16,7 @@ File name: render_page2gameinfo.py -- one file per Page 2 deep dive (render_page
 Three cards, in Framer's order, restyled to the site's standards (Jason: "defer to the
 standards already on the site about fonts, layout, interaction"):
   1. Kickoff  -- time, date, weekday; live countdown (FINAL once the game is over);
-                 head referee; last meeting with its score; TV network
+                 TV network; last meeting with its score; head referee
   2. Weather  -- actual + feels-like temperature, condition icon, precipitation chance
                  and amount, wind range + direction, humidity. NOT shown for indoor games
                  (domes, and retractable roofs recorded as closed).
@@ -208,8 +208,8 @@ def kickoff_body(d, info, time_html):
         meeting = (
             f'<p class="ko-line">Last matchup <span class="ko-date-sm">{esc(fmt_meeting_date(m.get("date")))}</span></p>'
             f'<div class="ko-meet" aria-label="{esc(a)} {fmt_int(sa)}, {esc(h)} {fmt_int(sh)}">'
-            f'<span class="abbr">{esc(a)}</span><span class="sc{_lose(sa, sh)}">{fmt_int(sa)}</span>'
-            f'<span class="sc{_lose(sh, sa)}">{fmt_int(sh)}</span><span class="abbr">{esc(h)}</span></div>'
+            f'<span class="abbr{_lose(sa, sh)}">{esc(a)}</span><span class="sc{_lose(sa, sh)}">{fmt_int(sa)}</span>'
+            f'<span class="sc{_lose(sh, sa)}">{fmt_int(sh)}</span><span class="abbr{_lose(sh, sa)}">{esc(h)}</span></div>'
         )
     else:
         meeting = '<p class="ko-line na">First meeting</p>'
@@ -223,7 +223,8 @@ def kickoff_body(d, info, time_html):
         '<div class="ko-top">'
         f'<div class="ko-when">{time_html}<div class="ko-date">{esc(date_line)}</div><div class="ko-date">{esc(weekday)}</div></div>'
         f'{_countdown(d, info, "cd")}</div>'
-        f'<div class="ko-lines"><p class="ko-line">Head Referee: {ref_html}</p>{meeting}</div>{tv}'
+        # TV up top and the head referee at the bottom (Jason, 2026-10-03; they were the other way round)
+        f'<div class="ko-lines">{tv}{meeting}</div><p class="ko-line ko-ref">Head Referee: {ref_html}</p>'
     )
 
 
@@ -298,8 +299,8 @@ def kickoff_condensed(d, info, time_html):
     date_line, weekday = _date_parts(d)
     a, h, m, sa, sh = _meeting(d, info)
     if m:
-        meet = (f'<span class="mm"><span class="abbr">{esc(a)}</span><span class="sc{_lose(sa, sh)}">{fmt_int(sa)}</span>'
-                f'<span class="sc{_lose(sh, sa)}">{fmt_int(sh)}</span><span class="abbr">{esc(h)}</span></span>')
+        meet = (f'<span class="mm"><span class="abbr{_lose(sa, sh)}">{esc(a)}</span><span class="sc{_lose(sa, sh)}">{fmt_int(sa)}</span>'
+                f'<span class="sc{_lose(sh, sa)}">{fmt_int(sh)}</span><span class="abbr{_lose(sh, sa)}">{esc(h)}</span></span>')
         meet_sub = esc(fmt_meeting_date(m.get("date")))
     else:
         meet, meet_sub = _na("First meeting"), ""
@@ -309,8 +310,8 @@ def kickoff_condensed(d, info, time_html):
     return (
         f'<div class="cc-top"><div>{time_html}<div class="cc-date">{esc(date_line)} {esc(weekday)}</div></div>'
         f'{_countdown(d, info, "cd-c")}</div>'
-        f'<div class="strip">{_fact("Head Referee", esc(ref) if ref else _na("TBA"))}'
-        f'{_fact("Last Matchup", meet, meet_sub)}{_fact("TV", tv)}</div>'
+        f'<div class="strip">{_fact("TV", tv)}{_fact("Last Matchup", meet, meet_sub)}'
+        f'{_fact("Head Referee", esc(ref) if ref else _na("TBA"))}</div>'
     )
 
 
@@ -401,6 +402,13 @@ P2_CSS = r"""
 .p2 .deck{position:absolute;inset:0}
 .p2 .dots{position:absolute;top:50%}
 .p2 .slot .body{padding:46px 26px 30px;justify-content:space-evenly}
+/* Page 2's decks (Game Info, team pages, Player Stats): the card in the middle links nowhere, so no
+   hover, pointer or focus ring suggesting it does (Jason, 2026-10-03; the team pages and Player
+   Stats had this already). The cards peeking in above and below keep theirs -- a tap there moves
+   the deck to them -- and so do the condensed Game Info cards, which open the expanded view. */
+.p2 .slot.active a.card{cursor:default}
+.p2 .slot.active a.card:focus-visible{outline:none}
+.p2 .slot.active a.card:hover,.p2 .slot.active a.card:focus-visible{transform:none;border-color:var(--aag-card-line)}
 .ko-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .ko-when .time{font-size:58px}
 .ko-date{font-size:30px;font-weight:700;line-height:1.12;white-space:nowrap}
@@ -408,6 +416,10 @@ P2_CSS = r"""
 .cd{display:flex;flex-direction:column;gap:7px;padding-top:4px}
 .cd-row{display:flex;align-items:baseline;gap:5px;white-space:nowrap}
 .cd-row[hidden]{display:none}   /* an author display:flex above would otherwise beat the UA [hidden] default */
+/* The smaller of the two units showing (hours beside days, minutes beside hours, seconds beside
+   minutes) pulses its opacity, slowly, to show the countdown is live (Jason, 2026-10-03) */
+.cd-row:not([hidden]) ~ .cd-row:not([hidden]) .cd-n{animation:cd-pulse 4s ease-in-out infinite}
+@keyframes cd-pulse{0%,100%{opacity:1}50%{opacity:.35}}
 .cd-n{font-size:36px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;min-width:1.25em;text-align:right;letter-spacing:-.01em}
 .cd-u{font-size:13px;font-weight:700;letter-spacing:.04em}
 .cd-status{font-size:16px;font-weight:700;letter-spacing:.04em;line-height:1.2;white-space:nowrap}   /* same as Page 0's FINAL */
@@ -418,8 +430,11 @@ P2_CSS = r"""
 .ko-meet{display:flex;justify-content:center;align-items:center;gap:.45em;font-size:32px;margin-top:10px}
 .sc{font-family:Teko,Inter,system-ui,sans-serif;font-weight:700;font-size:1.25em;line-height:1;min-width:1.2em;text-align:center;font-variant-numeric:tabular-nums}
 .sc.lose{opacity:.3}
+.ko-meet .abbr.lose,.mm .abbr.lose{opacity:.3}   /* the loser's abbreviation dims with its score (2026-10-03) */
 .ko-meet .sc+.sc{margin-left:.4em}
 .ko-tv{display:flex;justify-content:center;align-items:center;gap:24px;font-size:16px}
+.ko-lines .ko-tv{margin-bottom:14px}   /* TV above the last matchup (2026-10-03) */
+.ko-ref{text-align:center}
 .ko-tv.has-crew{justify-content:space-between}
 .ko-crew{display:flex;flex-direction:column;text-align:right;line-height:1.25}
 .wx-desc{font-size:20px;font-weight:700;line-height:1.2;margin-bottom:10px;text-align:center}

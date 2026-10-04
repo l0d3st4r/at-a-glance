@@ -528,13 +528,8 @@ P3_CSS = r"""
 /* Overview stacks from the top (2026-09-28): the shared .p2 rule spreads a card's sections
    evenly, which opened a gap above the division table; now it sits right under recent games */
 .p2 .slot .p2k-overview .body{justify-content:flex-start}
-/* Cards inside the team pages don't link anywhere (yet) -- no hover/focus affordance
-   suggesting otherwise (Jason, 2026-09-20). The swipe-between-cards gesture and dots
-   still work; only the pointer/hover/focus-ring styling is suppressed. */
-.p2-team a.card{cursor:default}
-.p2-team a.card:focus-visible{outline:none}
-.p2-team .slot.active a.card:hover,.p2-team .slot.active a.card:focus-visible{transform:none;border-color:var(--aag-card-line)}
-.p2-team .slot.below a.card:hover,.p2-team .slot.above a.card:hover{border-color:var(--aag-card-line-soft)}
+/* (The card in the middle of the deck links nowhere -- its hover is switched off for every Page 2
+   deck in render_page2gameinfo.P2_CSS.) */
 /* The card opens with the coaching staff (left) and the bye week as a big number (right) --
    Jason, 2026-09-28; the helmet/abbreviation/record header that used to lead moved to the bar */
 .ov-lead{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 4px 14px}
