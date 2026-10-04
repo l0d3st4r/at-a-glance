@@ -200,6 +200,8 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
 .week-panel{flex:0 0 100%;min-width:0;scroll-snap-align:start;scroll-snap-stop:always}
 .week-inner{max-width:600px;margin:0 auto;padding:max(6px,env(safe-area-inset-top)) 16px calc(64px + var(--bbar))}
 .day{text-align:center;font-size:16px;font-weight:400;line-height:19px;padding:18px 0 12px}
+/* each day's date in a pill outline, like the card titles on the game pages (Jason, 2026-10-03) */
+.day-pill{display:inline-block;border:1px solid var(--aag-tile-border);border-radius:999px;padding:4px 14px}
 .games{list-style:none;display:flex;flex-direction:column;gap:10px}
 /* Fixed-width side columns (2026-09-21, were 1fr) -- each tile is its own independent grid, so a
    1fr column's actual pixel width used to depend on THAT tile's own content (a wide final score
@@ -300,6 +302,7 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
 [data-view=condensed] .week-inner>section,[data-view=condensed] .games{display:contents}
 [data-view=condensed] .games>li{flex:1 1 0;min-height:0;display:flex}
 [data-view=condensed] .day{font-size:11px;line-height:13px;padding:5px 0 2px;color:var(--text-2);flex:none}
+[data-view=condensed] .day-pill{padding:2px 10px}
 /* Fixed-width side columns here too (2026-09-21), same reason as the expanded grid above: a
    final tile's abbreviation+record+score row is wider than an upcoming tile's abbreviation+record,
    so with 1fr columns each tile's own grid resolved to a different width and the content drifted
@@ -680,7 +683,7 @@ def render_week_panel(key, label, games, is_current, byes=None):
             except Exception:
                 rows.append(f'<li><div class="error">Failed to render one matchup\n{esc(traceback.format_exc())}</div></li>')
         sections.append(
-            f'<section><h2 class="day">{esc(format_day_header(d))}</h2>'
+            f'<section><h2 class="day"><span class="day-pill">{esc(format_day_header(d))}</span></h2>'
             f'<ul class="games">{"".join(rows)}</ul></section>'
         )
     if not sections:
