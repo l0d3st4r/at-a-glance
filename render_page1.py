@@ -88,13 +88,18 @@ TREND = {
 
 MEDALS = {1: ("gold", "1st"), 2: ("silver", "2nd"), 3: ("bronze", "3rd")}
 
+# The crown (2026-10-04): its base cut off a little way up and a thin rounded pill set underneath,
+# in a 20x16 box. Shared by the Leaders card's league-rank crowns and the Leaders nav icon.
+CROWN_SHAPES = ('<path d="M1.38 11.8 1 3.5l5.2 4.2L10 1l3.8 6.7L19 3.5l-.38 8.3z"/>'
+                '<rect x="1.4" y="13" width="17.2" height="2.3" rx="1.15"/>')
+
 
 def crown(rank):
     if rank not in MEDALS:
         return ""
     key, word = MEDALS[rank]
     return (f'<svg class="crown" viewBox="0 0 20 16" width="17" height="14" role="img" aria-label="{word} in the league">'
-            f'<path d="M1.5 14.5 1 3.5l5.2 4.2L10 1l3.8 6.7L19 3.5l-.5 11z" fill="var(--{key})"/></svg>')
+            f'<g fill="var(--{key})">{CROWN_SHAPES}</g></svg>')
 
 
 # Nav-dot icons for the expanded deck (Jason's icons, 2026-09-23), one per card. Each source
@@ -225,8 +230,7 @@ NAV_ICONS = {
         'L-809.349,684.15 Z" fill="currentColor"/></svg>'
     ),
     "leaders": (
-        '<svg viewBox="0 0 20 16" aria-hidden="true">'
-        '<path d="M1.5 14.5 1 3.5l5.2 4.2L10 1l3.8 6.7L19 3.5l-.5 11z" fill="currentColor"/></svg>'
+        f'<svg viewBox="0 0 20 16" aria-hidden="true"><g fill="currentColor">{CROWN_SHAPES}</g></svg>'
     ),
 }
 
