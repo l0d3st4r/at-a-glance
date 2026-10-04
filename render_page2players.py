@@ -328,7 +328,7 @@ def condensed_view(teams, stats, scope="season"):
             + "</div>"
             for i, t in enumerate(teams))
         cards.append(f'<a class="card cc pc-{cid} pc-{width}" tabindex="0" aria-label="{esc(title)}">'
-                     f'<span class="card-title">{esc(title)}</span>{panes}</a>')
+                     f'<span class="card-title"><span class="ttl">{esc(title)}</span></span>{panes}</a>')
     return (f'<div class="p2-view p2-c pc"><div class="ps-sw pc-sw">{tabs}</div>{_scope_label(scope, " pc-scope")}'
             f'{"".join(cards)}</div>')
 
@@ -346,9 +346,9 @@ def render_players_block(d):
     scope = ps.get("scope") or "season"
     slots = "".join(
         f'<section class="slot"><a class="card p2k p2k-ps p2k-{cid}" tabindex="-1" aria-label="{esc(title)}">'
-        f'<span class="peek peek-top">{DOWN}<span>{esc(title)}</span></span>'
+        f'<span class="peek peek-top">{DOWN}<span class="ttl">{esc(title)}</span></span>'
         f'<div class="body">{_scope_label(scope)}{card_body(sections, layout, (away, home), stats, scope)}</div>'
-        f'<span class="peek peek-bot">{UP}<span>{esc(title)}</span></span></a></section>'
+        f'<span class="peek peek-bot">{UP}<span class="ttl">{esc(title)}</span></span></a></section>'
         for cid, title, sections, layout in CARDS)
     dots = "".join(f'<button class="dot" type="button" aria-label="{esc(title)}"></button>' for _c, title, _s, _l in CARDS)
     return ('<div class="p2 p2-ps" data-page="leaders" aria-label="Player stats" role="region">'
@@ -393,10 +393,11 @@ P4_CSS = r"""
   grid-template-rows:auto auto minmax(min-content,1.1fr) minmax(min-content,1.5fr) minmax(min-content,2fr)
     minmax(min-content,2fr) minmax(min-content,1.2fr)}
 .pc-sw{grid-column:1/-1}
-/* "Season Stats" / "Game Stats": a small outlined pill under each expanded card's title, and one
-   line under the condensed view's team switch (Jason, 2026-09-29) */
+/* "Season Stats" / "Game Stats": small type under each expanded card's title, and one line under
+   the condensed view's team switch (Jason, 2026-09-29). Its pill outline moved to the cards' own
+   titles (Jason, 2026-10-03; .ttl in render_page1.P1_CSS, shared with every page's titles). */
 .ps-scope{align-self:center;flex:none;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--text-2);border:1px solid var(--tile-border);border-radius:999px;padding:3px 9px;line-height:1.1;white-space:nowrap}
+  color:var(--text-2);padding:3px 9px;line-height:1.1;white-space:nowrap}
 .p2 .slot .p2k-ps .body>.ps-scope{margin-top:-14px}
 .pc-scope{grid-column:1/-1;justify-self:center;margin:-4px 0 -2px}
 .p2-c.pc a.card.cc{justify-content:flex-start;padding:var(--ctitle) 12px 6px;gap:0}

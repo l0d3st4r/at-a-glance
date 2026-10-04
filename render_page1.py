@@ -575,8 +575,8 @@ def card_title(name, abbr=False, cid=None):
     """The card's name at the top center of the card -- the same label its peeking sliver shows,
     led by the same icon as its nav dot. abbr=True for a team-code title (Saira, matching every
     other abbreviation on the site)."""
-    return (f'<span class="card-title">{title_icon(cid)}'
-            f'<span{" class=abbr" if abbr else ""}>{esc(name)}</span></span>')
+    return (f'<span class="card-title"><span class="ttl">{title_icon(cid)}'
+            f'<span{" class=abbr" if abbr else ""}>{esc(name)}</span></span></span>')
 
 
 def game_stats_html(gs):
@@ -783,9 +783,9 @@ def render_p1_block(d, prefix="../"):
              ("leaders", leaders_name, "compare", cmp_head + rows)]
     slots = "".join(
         f'<section class="slot"><a class="card {kind}" tabindex="-1" data-detail="{cid}" aria-label="{esc(name)}">'
-        f'<span class="peek peek-top">{DOWN}{title_icon(cid)}<span class="{"abbr" if kind == "team" else ""}">{esc(name)}</span></span>'
+        f'<span class="peek peek-top">{DOWN}<span class="ttl">{title_icon(cid)}<span class="{"abbr" if kind == "team" else ""}">{esc(name)}</span></span></span>'
         f'<div class="body">{body}</div>'
-        f'<span class="peek peek-bot">{UP}{title_icon(cid)}<span class="{"abbr" if kind == "team" else ""}">{esc(name)}</span></span></a></section>'
+        f'<span class="peek peek-bot">{UP}<span class="ttl">{title_icon(cid)}<span class="{"abbr" if kind == "team" else ""}">{esc(name)}</span></span></span></a></section>'
         for cid, name, kind, body in cards
     )
     dots = "".join(f'<button class="dot" type="button" aria-label="{esc(name)}">{NAV_ICONS.get(cid, "")}</button>' for cid, name, _k, _b in cards)
@@ -1988,6 +1988,13 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 /* each card's nav icon in front of its title (2026-10-03): a touch under the height of the capitals,
    in the title's own color, so it dims and brightens with it */
 .t-ic{display:inline-flex;align-items:center;flex:none;color:inherit}
+/* A card's title (icon + name) as one piece; the title of the card in the middle of a deck and
+   every condensed card's title sit in a pill outline, on Page 1 and every Page 2 (Jason, 2026-10-03).
+   The cards peeking in keep a plain label. Letter-spacing trails the last letter, so the right
+   padding is that much less. */
+.ttl{display:inline-flex;align-items:center;gap:6px}
+.slot.active .peek-top>.ttl,.card-title>.ttl{border:1px solid var(--tile-border);border-radius:999px;
+  padding:4px calc(11px - .12em) 4px 11px;line-height:1.1}
 .t-ic svg{display:block;width:auto;height:1em}
 .slot.below .peek-top,.slot.above .peek-bot{opacity:1}
 /* the card in the middle keeps its name at the top, where its sliver showed it (no arrow) */
@@ -2273,7 +2280,7 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .teams .hscore.lose{opacity:.3}
 a.card{cursor:pointer}
 /* condensed cards: name at the top center, same type as the expanded slivers */
-.card-title{position:absolute;left:0;right:0;top:0;height:var(--ctitle);display:flex;align-items:center;justify-content:center;gap:6px;
+.card-title{position:absolute;left:0;right:0;top:0;height:var(--ctitle);display:flex;align-items:center;justify-content:center;
   font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-2);pointer-events:none;line-height:1}
 /* view toggle: a card-shaped box that grows/shrinks between the two views */
 .morph{position:fixed;z-index:9;background:var(--tile);border:1px solid var(--aag-card-line);border-radius:20px;overflow:hidden;pointer-events:none}

@@ -364,12 +364,12 @@ def render_p2_block(d, time_html, icons):
     from render_page1 import UP, DOWN
     slots = "".join(
         f'<section class="slot"><a class="card p2k p2k-{cid}" tabindex="-1" aria-label="{name}">'
-        f'<span class="peek peek-top">{DOWN}<span>{name}</span></span><div class="body">{body}</div>'
-        f'<span class="peek peek-bot">{UP}<span>{name}</span></span></a></section>'
+        f'<span class="peek peek-top">{DOWN}<span class="ttl">{name}</span></span><div class="body">{body}</div>'
+        f'<span class="peek peek-bot">{UP}<span class="ttl">{name}</span></span></a></section>'
         for cid, name, body, _c in cards)
     dots = "".join(f'<button class="dot" type="button" aria-label="{name}"></button>' for _i, name, _b, _c in cards)
     condensed = "".join(
-        f'<a class="card cc cc-{cid}" tabindex="0" aria-label="{name}"><span class="card-title">{name}</span>{c}</a>'
+        f'<a class="card cc cc-{cid}" tabindex="0" aria-label="{name}"><span class="card-title"><span class="ttl">{name}</span></span>{c}</a>'
         for cid, name, _b, c in cards)
     return ('<div class="p2" data-page="game-info" aria-label="Game info" role="region">'
             f'<div class="p2-view p2-l deck">{slots}</div><nav class="dots p2-dots" aria-label="Cards">{dots}</nav>'

@@ -482,8 +482,8 @@ def render_team_block(side, which, prefix="../"):
     ]
     slots = "".join(
         f'<section class="slot"><a class="card p2k p2k-{cid}" tabindex="-1" aria-label="{esc(name)}">'
-        f'<span class="peek peek-top">{DOWN}<span>{esc(name)}</span></span><div class="body">{body}</div>'
-        f'<span class="peek peek-bot">{UP}<span>{esc(name)}</span></span></a></section>'
+        f'<span class="peek peek-top">{DOWN}<span class="ttl">{esc(name)}</span></span><div class="body">{body}</div>'
+        f'<span class="peek peek-bot">{UP}<span class="ttl">{esc(name)}</span></span></a></section>'
         for cid, name, body in cards
     )
     dots = "".join(f'<button class="dot" type="button" aria-label="{esc(name)}"></button>' for _c, name, _b in cards)
