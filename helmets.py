@@ -150,6 +150,12 @@ SHADING_OVERRIDES = {
 OUTLINE_WIDTH = 2.5
 OUTLINE_PAD = 3
 OUTLINE_COLOR = "#fff"
+# The outline is part of the artwork, so it grows with the helmet: 1.13px a side at 48px, 2.33px on the
+# 99px Game Info header. The big spots (that header and the 84px team card) get their own set, in
+# helmets/lg/, with a thinner outline -- 1.68px a side at 99px, picked by Jason (2026-10-04) in the
+# outline-by-size mock. Same box and padding, so the helmet itself is the same size.
+LARGE_OUTLINE_WIDTH = 1.8   # = 1.68px * 106 units / 99px
+LARGE_DIR = "lg"
 
 
 def helmet_svg(team, mirrored=False, id_prefix=None, outline_width=OUTLINE_WIDTH, outline_pad=OUTLINE_PAD):
@@ -205,18 +211,18 @@ def helmet_svg(team, mirrored=False, id_prefix=None, outline_width=OUTLINE_WIDTH
 
 
 def write_all(out_dir):
-    """Write <TEAM>.svg (faces right) and <TEAM>-mirrored.svg (faces left) for all 32 teams."""
-    os.makedirs(out_dir, exist_ok=True)
-    for team in TEAM_COLORS:
-        for mirrored in (False, True):
-            name = f"{team}-mirrored.svg" if mirrored else f"{team}.svg"
-            with open(os.path.join(out_dir, name), "w", encoding="utf-8") as f:
-                f.write(helmet_svg(team, mirrored=mirrored))
-    # Gray Framer-style fallback for any abbreviation not in TEAM_COLORS
-    for mirrored in (False, True):
-        name = "_unknown-mirrored.svg" if mirrored else "_unknown.svg"
-        with open(os.path.join(out_dir, name), "w", encoding="utf-8") as f:
-            f.write(helmet_svg("_unknown", mirrored=mirrored))
+    """Write <TEAM>.svg (faces right) and <TEAM>-mirrored.svg (faces left) for all 32 teams, plus the
+    gray fallback -- once with the standard outline, and again in lg/ with the thinner one for the big
+    spots (LARGE_OUTLINE_WIDTH)."""
+    for sub, width in (("", OUTLINE_WIDTH), (LARGE_DIR, LARGE_OUTLINE_WIDTH)):
+        folder = os.path.join(out_dir, sub)
+        os.makedirs(folder, exist_ok=True)
+        # (the gray Framer-style "_unknown" is the fallback for any abbreviation not in TEAM_COLORS)
+        for team in list(TEAM_COLORS) + ["_unknown"]:
+            for mirrored in (False, True):
+                name = f"{team}-mirrored.svg" if mirrored else f"{team}.svg"
+                with open(os.path.join(folder, name), "w", encoding="utf-8") as f:
+                    f.write(helmet_svg(team, mirrored=mirrored, outline_width=width))
     return out_dir
 
 
@@ -303,9 +309,11 @@ def favicon_links(prefix=""):
             f"<link rel='apple-touch-icon' href='{prefix}apple-touch-icon.png'>")
 
 
-def helmet_filename(team, mirrored=False):
+def helmet_filename(team, mirrored=False, large=False):
+    """large=True: the thinner-outline copy in lg/, for helmets drawn bigger than ~60px."""
     base = team if team in TEAM_COLORS else "_unknown"
-    return f"{base}-mirrored.svg" if mirrored else f"{base}.svg"
+    name = f"{base}-mirrored.svg" if mirrored else f"{base}.svg"
+    return f"{LARGE_DIR}/{name}" if large else name
 
 
 if __name__ == "__main__":

@@ -332,8 +332,10 @@ def ordinal(n):
     return "th" if 10 <= n % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
 
 
-def helmet_img(team, size, mirrored=False, prefix="../"):
-    src = prefix + "helmets/" + helmets.helmet_filename(team, mirrored=mirrored)
+def helmet_img(team, size, mirrored=False, prefix="../", large=False):
+    """large=True for helmets drawn big (the Game Info header, the expanded team card): the copy with a
+    thinner white outline, so it doesn't thicken with the helmet (helmets.LARGE_OUTLINE_WIDTH)."""
+    src = prefix + "helmets/" + helmets.helmet_filename(team, mirrored=mirrored, large=large)
     return f'<img src="{esc(src)}" alt="" width="{size}" height="{size}">'
 
 
@@ -635,7 +637,7 @@ def l_team(side, final=False):
         "</div>")
     return (
         '<div class="l-top">'
-        f'<div class="l-id">{helmet_img(team, 84)}</div>'
+        f'<div class="l-id">{helmet_img(team, 84, large=True)}</div>'
         f'<div class="l-rec">{record_block(side, final)}</div>'
         "</div>"
         f'<ul class="l-inj">{injuries_html(side, full=True)}</ul>'
@@ -731,7 +733,7 @@ def render_p1_block(d, prefix="../"):
     week_href = f"{prefix}index.html#week-{d.get('week_key')}"
     week_label = d.get("week_label") or ""
     rows = leader_rows(d)
-    img = lambda team, size, mir=False: helmet_img(team, size, mir, prefix)
+    img = lambda team, size, mir=False, large=False: helmet_img(team, size, mir, prefix, large)
     a_score, h_score = header_scores(d)
     game_scope = d.get("leaders_scope") == "game"
     final = bool(d.get("final"))
@@ -743,17 +745,19 @@ def render_p1_block(d, prefix="../"):
     # One header row, drawn twice (top bar + the middle of the Game Info card) and morphed between the two.
     # Each team is a unit: helmet plus its abbreviation (and final score) — side by side when condensed,
     # stacked and pushed to the edges of the screen in the expanded view (2026-09-17).
-    row = (
-        f'<div class="side away">{img(a, 44)}<span class="abbr">{esc(a)}</span>{a_score}</div>'
+    # big=True is the Game Info card's copy (~99px helmets): the thinner-outline helmets (2026-10-04).
+    row_html = lambda big: (
+        f'<div class="side away">{img(a, 44, large=big)}<span class="abbr">{esc(a)}</span>{a_score}</div>'
         # finished games say FINAL / FINAL/OT where the "@" was (Jason, 2026-09-19) -- same element, so every
         # header animation that moves the "@" carries the label instead. The winner triangle
         # (2026-09-21) rides along inside both copies since they're just cloned for the animation.
         f'<div class="mid"><span class="at{" at-final" if final else ""}">{final_label_html(d) if final else "@"}</span>'
         f'<span class="when"><span>{esc(when_day)}</span><span>{esc(when_time)}</span></span>'
         f'<span class="final-lbl">{final_label_html(d)}</span></div>'
-        f'<div class="side home">{h_score}<span class="abbr">{esc(h)}</span>{img(h, 44, True)}</div>'
+        f'<div class="side home">{h_score}<span class="abbr">{esc(h)}</span>{img(h, 44, True, large=big)}</div>'
     )
-    hero = f'<div class="hero" aria-hidden="true"><div class="teams">{row}</div></div>'
+    row = row_html(False)
+    hero = f'<div class="hero" aria-hidden="true"><div class="teams">{row_html(True)}</div></div>'
     bar = (
         '<header class="bar"><div class="bar-in">'
         f'<div class="teams" aria-label="{esc(TEAM_NAMES.get(a, a))} at {esc(TEAM_NAMES.get(h, h))}">{row}</div>'
