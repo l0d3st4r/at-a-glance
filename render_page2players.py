@@ -23,14 +23,15 @@ on its right edge while there's more to see (the .more class, set by P1_JS).
 Tables start sorted by the card's main stat (yards for Passing, Rushing and Receiving; tackles
 for Defense). Tapping a column header sorts by that stat and only then highlights the column
 (P1_JS). A number in the league's top 3 for one of player_stats.MEDAL_STATS gets a gold, silver
-or bronze bar under it (Jason, 2026-09-28).
+or bronze bar under it (Jason, 2026-09-28) -- season to date only; a finished game's own stats
+have none (2026-10-03).
 
 Data: game_details[<id>]["player_stats"] = {"away": [...], "home": [...]}, attached by
 render_page1.write_all from data/matchups.json's "player_weeks" (player_stats.py), each
 player's row carrying "medals" = {stat: 1 | 2 | 3} (player_stats.league_medals).
 A finished regular-season game shows that game's stats instead of the season's (Jason,
-2026-09-29): same cards, columns and rules, top-3 bars ranked among that week's games
-(player_stats.season_totals / league_medals with week=...). Until nflverse publishes the game's
+2026-09-29): same cards, columns and rules, minus the top-3 bars
+(player_stats.season_totals with week=...). Until nflverse publishes the game's
 player stats, and for playoff games, it stays season to date (render_page1.write_all).
 
 Missing data never breaks the page: a team with nobody in a card reads "None this season"
@@ -106,8 +107,9 @@ def marks(r):
 
 
 def name_html(r):
-    """The player's full name, first name over last name, with the position after the last name
-    (Jason, 2026-09-30: full names, stacked, so the tables grow down rather than sideways)."""
+    """The player's full name, first name over last name (Jason, 2026-09-30: full names, stacked,
+    so the tables grow down rather than sideways), and beside them his jersey number over his
+    position (2026-10-03)."""
     first, last = split_name(r["name"])
     top = f'<span class="ps-fn">{esc(first)}</span> ' if first else ""
     # the last name stays on one line ("St. Brown") except after a hyphen or before a suffix ("Jr.")
@@ -116,8 +118,10 @@ def name_html(r):
         last = "&nbsp;".join(esc(w) for w in words[:-1]) + " " + esc(words[-1])
     else:
         last = "&nbsp;".join(esc(w) for w in words)
-    return (f'<span class="ps-nm">{top}<span class="ps-ln"><span class="ps-lt">{last}</span> '
-            f'<span class="ps-pos">{esc(r["pos"])}{marks(r)}</span></span></span>')
+    num = f'#{r["jersey"]}' if r.get("jersey") is not None else ""
+    return (f'<span class="ps-nm">{top or "<span class=ps-fn></span>"}<span class="ps-no">{num}</span>'
+            f'<span class="ps-ln"><span class="ps-lt">{last}</span></span> '
+            f'<span class="ps-pos">{esc(r["pos"])}{marks(r)}</span></span>')
 
 
 # ---------------------------------------------------------------- the cards
@@ -444,12 +448,13 @@ P4_CSS = r"""
 .ps-t tbody th{text-align:left;font-weight:700;padding:6px 5px 6px 0;border-top:1px solid var(--tile-border-soft);
   position:sticky;left:0;z-index:1;background:var(--tile)}
 .ps-t thead th:first-child{position:sticky;left:0;z-index:1;background:var(--tile)}
-/* first name over last name; the column is as wide as the longest first or last name, and the
-   position drops under the last name when it doesn't fit beside it -- names break only after a hyphen,
-   so the tables grow down instead of sideways */
-.ps-nm{display:block;font-size:12px;line-height:1.2}
+/* first name over last name, and beside them the jersey number over the position (2026-10-03):
+   a two-by-two grid, so "#7" sits right above "QB" whatever the names' lengths -- names break only
+   after a hyphen, so the tables grow down instead of sideways */
+.ps-nm{display:inline-grid;grid-template-columns:auto auto;column-gap:5px;align-items:baseline;font-size:12px;line-height:1.2;text-align:left}
 .ps-fn,.ps-ln{display:block}
-.ps-fn,.ps-nm .ps-pos{white-space:nowrap}
+.ps-fn,.ps-nm .ps-pos,.ps-no{white-space:nowrap}
+.ps-no{font-size:10px;font-weight:400;color:var(--text-2);font-variant-numeric:tabular-nums}
 @media (max-width:370px){.p2-l .ps-t,.p2-l .ps-nm{font-size:11px}}   /* small Android phones: Defense still fits */
 .ps-pos{display:inline;font-size:10px;font-weight:400;color:var(--text-2);letter-spacing:.04em}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}

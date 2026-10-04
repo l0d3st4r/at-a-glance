@@ -865,10 +865,12 @@ def write_all(data, site_dir, warnings=None):
                     game = {side: player_stats.season_totals(player_weeks, t, None, week=d["week"]) for side, t in teams.items()}
                     if any(game.values()):
                         scope, week = "game", d["week"]
-                key = ("week", week) if scope == "game" else ("before", limit)
-                if key not in medals_by_limit:   # league top 3s, once per set of weeks
-                    medals_by_limit[key] = player_stats.league_medals(player_weeks, limit, week)
-                medals = medals_by_limit[key]
+                # league top 3s, once per set of weeks -- season to date only: a finished game's own
+                # stats carry no gold / silver / bronze (Jason, 2026-10-03)
+                key = ("before", limit)
+                if scope == "season" and key not in medals_by_limit:
+                    medals_by_limit[key] = player_stats.league_medals(player_weeks, limit)
+                medals = medals_by_limit[key] if scope == "season" else {}
                 ps = {"scope": scope}
                 for side, team in teams.items():
                     ps[side] = game[side] if scope == "game" else player_stats.season_totals(player_weeks, team, limit)

@@ -80,6 +80,27 @@ def build_player_weeks(player_weekly, warnings):
     return dict(out)
 
 
+def add_jerseys(player_weeks, rosters_weekly):
+    """Sets "jersey" on every player-stats row (2026-10-03, Player Stats shows "#7" over the
+    position): the number on that week's roster, else his latest one. In place."""
+    by_week, latest = {}, {}
+    for r in rosters_weekly or []:
+        pid, num = r.get("gsis_id"), r.get("jersey_number")
+        try:
+            wk, num = int(r.get("week")), int(num)
+        except (TypeError, ValueError):
+            continue
+        if pid:
+            by_week[(pid, wk)] = num
+            if wk >= latest.get(pid, (-1, None))[0]:
+                latest[pid] = (wk, num)
+    for rows in (player_weeks or {}).values():
+        for r in rows:
+            num = by_week.get((r.get("id"), r.get("wk")), latest.get(r.get("id"), (None, None))[1])
+            if num is not None:
+                r["jersey"] = num
+
+
 def season_totals(player_weeks, team, week_limit, week=None):
     """One totals row per player for `team` over regular-season weeks < week_limit (None = all) --
     or, given `week`, that one week only (a finished game's own stats, 2026-09-29)."""
@@ -94,6 +115,8 @@ def season_totals(player_weeks, team, week_limit, week=None):
         if p is None:
             p = players[r["id"]] = defaultdict(int, id=r["id"], name=r["name"], pos=r["pos"])
         p["name"], p["pos"] = r["name"] or p["name"], r["pos"] or p["pos"]   # latest week wins
+        if r.get("jersey") is not None:
+            p["jersey"] = r["jersey"]
         for flag in ("rookie", "ir"):
             if r.get(flag):
                 p[flag] = True

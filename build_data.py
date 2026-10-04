@@ -398,6 +398,12 @@ def main():
     except Exception as e:
         warnings.append(f"game snapshot: {e}")
 
+    # Player Stats shows each player's jersey number (2026-10-03)
+    try:
+        player_stats.add_jerseys(player_weeks, rosters_weekly)
+    except Exception as e:
+        warnings.append(f"jerseys: {e}")
+
     # Players on injured reserve get a small "IR" like the rookie R below, and each team's IR is listed on
     # its Page 2 Injuries card (2026-10-03, see reserve.py)
     try:
