@@ -151,7 +151,7 @@ def format_record(record):
 
 # Colors come only from theme.py's --aag-* tokens (light/dark mode, 2026-09-24) -- see theme.py
 # for why no literal colors belong in here.
-PAGE0_CSS = theme.THEME_CSS + theme.SWITCH_CSS + """
+PAGE0_CSS = theme.THEME_CSS + theme.SWITCH_CSS + theme.HELMET_SHADOW_CSS + """
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
   --bg:var(--aag-bg);
@@ -237,7 +237,7 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
 .game.placeholder:hover{transform:none;border-color:var(--aag-card-line)}
 /* no prefers-reduced-motion override: motion always plays (Jason, 2026-09-17) */
 .team{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
-.team img{width:48px;height:48px;display:block}
+.team img{width:48px;height:48px;display:block;--hs:48px}
 /* Team abbreviations: Saira italic, width 95, weight 800, 20 tracking (Jason, 2026-09-18).
    Everything else on the page stays Inter -- records, kickoff times, the week picker, day headers. */
 .abbr{font-size:20px;line-height:24px;font-family:Saira,Inter,system-ui,sans-serif;font-weight:800;
@@ -274,7 +274,7 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
      actual content -- a 3-letter abbreviation, a "10-6-1"-worst-case record -- so the center
      keeps the ~115px it needs. */
   .game{grid-template-columns:minmax(0,52px) minmax(0,1fr) clamp(52px,442px - 100vw,80px) minmax(0,1fr) minmax(0,52px);padding:14px 4px}
-  .team img{width:42px;height:42px}
+  .team img{width:42px;height:42px;--hs:42px}
   .center{padding:0 4px}
   .score{font-size:42px}.final-label{font-size:11px;line-height:13px}
   .final-row{gap:4px}.tri svg{width:6px;height:8px}
@@ -285,9 +285,9 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
 .bye-team{display:flex;flex-direction:column;align-items:center;gap:4px;width:56px;color:inherit;text-decoration:none;
   -webkit-tap-highlight-color:transparent;transition:transform .15s}
 a.bye-team:active{transform:scale(.94)}
-.bye-team img{width:48px;height:48px;display:block}
+.bye-team img{width:48px;height:48px;display:block;--hs:48px}
 @media (max-width:420px){.bye-list{display:grid;grid-template-columns:repeat(var(--bye-cols),56px);justify-content:center;gap:12px 14px;padding:14px 8px}
-  .bye-team img{width:42px;height:42px}}
+  .bye-team img{width:42px;height:42px;--hs:42px}}
 /* ===== Condensed view (2026-09-17) -- the whole week on one screen =====
    Same philosophy as Page 1's condensed view: nothing scrolls. The coverage line is cut, the
    abbreviation moves off the helmet and sits over the record, and the tiles share whatever
@@ -310,12 +310,12 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
 [data-view=condensed] .game{flex:1;min-height:0;border-radius:12px;padding:2px 6px;
   grid-template-columns:minmax(0,34px) minmax(0,130px) 1fr minmax(0,130px) minmax(0,34px)}
 [data-view=condensed] .game:hover,[data-view=condensed] .game:focus-visible{transform:scale(1.01)}
-[data-view=condensed] .team img{width:30px;height:30px}
+[data-view=condensed] .team img{width:30px;height:30px;--hs:30px}
 /* A helmet can never be taller than the tile holding it. The tile is its own size container,
    so when a long week squeezes the tiles the helmets scale down with them instead of poking
    out of the rounded edges. The fixed 30px above stays as the fallback. */
 [data-view=condensed] .game{container-type:size}
-[data-view=condensed] .team img{width:auto;height:min(30px,80cqh)}
+[data-view=condensed] .team img{width:auto;height:min(30px,80cqh);--hs:min(30px,80cqh)}
 [data-view=condensed] .team{overflow:hidden}
 [data-view=condensed] .team .abbr{display:none}
 [data-view=condensed] .abbr-c{display:block}
@@ -392,12 +392,12 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
 [data-view=condensed] .byes{display:contents}
 [data-view=condensed] .bye-list{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 10px;padding:6px 8px;border-radius:12px;flex:none}
 [data-view=condensed] .bye-team{width:38px;gap:1px}
-[data-view=condensed] .bye-team img{width:24px;height:24px}
+[data-view=condensed] .bye-team img{width:24px;height:24px;--hs:24px}
 [data-view=condensed] .bye-team .abbr{display:block;font-size:9px;line-height:11px}
 @media (min-width:601px){
   [data-view=condensed] .game{padding:4px 10px;border-radius:14px;grid-template-columns:minmax(0,44px) minmax(0,160px) 1fr minmax(0,160px) minmax(0,44px)}
-  [data-view=condensed] .team img{width:38px;height:38px}
-  [data-view=condensed] .team img{width:auto;height:min(38px,80cqh)}
+  [data-view=condensed] .team img{width:38px;height:38px;--hs:38px}
+  [data-view=condensed] .team img{width:auto;height:min(38px,80cqh);--hs:min(38px,80cqh)}
   [data-view=condensed] .abbr{font-size:19px;line-height:23px}
   [data-view=condensed] .record,[data-view=condensed] .team-record{font-size:12px;line-height:14px}
   [data-view=condensed] .stack{gap:10px}
@@ -406,7 +406,7 @@ body[data-view=condensed]{height:100dvh;overflow:hidden}
   [data-view=condensed] .score{font-size:26px}
   [data-view=condensed] .final-label{font-size:11px;line-height:13px}
   [data-view=condensed] .day{font-size:12px;line-height:14px;padding:7px 0 3px}
-  [data-view=condensed] .bye-team img{width:30px;height:30px}
+  [data-view=condensed] .bye-team img{width:30px;height:30px;--hs:30px}
 }
 .error{background:#fee;color:#161510;padding:8px;font-size:11px;white-space:pre-wrap;border-radius:8px}
 .empty{text-align:center;padding:40px 0;color:var(--text-2);font-size:16px}
@@ -437,7 +437,7 @@ def render_team(snapshot, mirrored):
     src = "helmets/" + helmets.helmet_filename(team, mirrored=mirrored)
     return (
         '<div class="team">'
-        f'<img src="{esc(src)}" alt="" width="48" height="48" loading="lazy">'
+        f'<img class="hm" src="{esc(src)}" alt="" width="48" height="48" loading="lazy">'
         f'<span class="abbr">{esc(team or "TBD")}</span>'
         "</div>"
     )
@@ -527,7 +527,7 @@ def render_final_game(m):
         src = "helmets/" + helmets.helmet_filename(team, mirrored=mirrored)
         return (
             '<div class="team">'
-            f'<img src="{esc(src)}" alt="" width="48" height="48" loading="lazy">'
+            f'<img class="hm" src="{esc(src)}" alt="" width="48" height="48" loading="lazy">'
             f'<span class="abbr">{esc(team or "TBD")}</span>'
             "</div>"
         )
@@ -659,7 +659,7 @@ def render_byes(byes):
         return ""
 
     def team(t, game_id, week_label):
-        inner = (f'<img src="helmets/{esc(helmets.helmet_filename(t))}" alt="" width="48" height="48" loading="lazy">'
+        inner = (f'<img class="hm" src="helmets/{esc(helmets.helmet_filename(t))}" alt="" width="48" height="48" loading="lazy">'
                  f'<span class="abbr">{esc(t)}</span>')
         if not game_id:
             return f'<li class="bye-team">{inner}</li>'

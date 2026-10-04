@@ -515,7 +515,7 @@ P3_CSS = r"""
 .p1[data-detail="away-team"] .bar .tp-away,.p1[data-detail="home-team"] .bar .tp-home{display:flex}
 .bar-in{position:relative}
 .tp-head{position:absolute;inset:0;align-items:center;gap:10px;padding:0 4px}
-.tp-head img{width:46px;height:46px;flex:none;display:block}
+.tp-head img{width:46px;height:46px;flex:none;display:block;--hs:46px}
 .tp-name{font-family:Saira,Inter,system-ui,sans-serif;font-weight:800;font-style:italic;font-variation-settings:'wdth' 95;
   font-size:18px;letter-spacing:.01em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .tp-rec{font-size:16px;font-weight:700;margin-left:10px;font-variant-numeric:tabular-nums;flex:none}
@@ -539,7 +539,7 @@ P3_CSS = r"""
 .ov-top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 4px;
   border-top:1px solid var(--tile-border-soft);border-bottom:1px solid var(--tile-border-soft);margin:0 0 12px}
 .ov-next{display:flex;align-items:center;gap:10px;min-width:0}
-.ov-next img{width:40px;height:40px;display:block;flex:none}
+.ov-next img{width:40px;height:40px;display:block;flex:none;--hs:40px}
 .ov-next-txt{display:flex;flex-direction:column;min-width:0}
 .ov-next-lbl{font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--text-2)}
 .ov-next-vs{font-size:16px;font-weight:700;white-space:nowrap}
@@ -576,7 +576,7 @@ P3_CSS = r"""
 .st-headrow span{text-align:center}
 .st-row{display:grid;grid-template-columns:22px 1fr 24px 24px 24px 52px;align-items:center;gap:6px;padding:5px 4px;font-size:13px}
 .st-row.is-you{background:var(--tile-hover);border-radius:8px;font-weight:700}
-.st-row img{width:22px;height:22px}
+.st-row img{width:22px;height:22px;--hs:22px}
 .st-w,.st-l,.st-t{text-align:center;color:var(--text-2)}
 .st-pct{text-align:right;color:var(--text-2);font-variant-numeric:tabular-nums}
 .full-inj{gap:2px}
@@ -646,7 +646,7 @@ P3_CSS = r"""
 .sc-date{color:var(--text-2);white-space:nowrap;font-size:10.5px}
 .sc-date.na{color:var(--text-3)}
 .sc-vs{color:var(--text-3);text-align:center}
-.sc-row img{width:20px;height:20px}
+.sc-row img{width:20px;height:20px;--hs:20px}
 .sc-opp{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* result | score as two fixed columns, each centered, so they line up row to row; a kickoff
    time takes both */
@@ -676,7 +676,7 @@ P3_CSS = r"""
 .p2k-schedule{--fs-row:11.5px;--fs-wk:11px;--fs-date:10.5px;--fs-bye:10px;--img:20px}
 .p2k-schedule .sc-row{height:var(--row);min-height:0;padding-top:0;padding-bottom:0;
   font-size:min(var(--fs-row),calc(var(--row) * .5))}
-.p2k-schedule .sc-row img{width:min(var(--img),calc(var(--row) - 4px));height:min(var(--img),calc(var(--row) - 4px))}
+.p2k-schedule .sc-row img{width:min(var(--img),calc(var(--row) - 4px));height:min(var(--img),calc(var(--row) - 4px));--hs:min(var(--img),calc(var(--row) - 4px))}
 .p2k-schedule .sc-wk,.p2k-schedule .sc-rec{font-size:min(var(--fs-wk),calc(var(--row) * .48))}
 .p2k-schedule .sc-date{font-size:min(var(--fs-date),calc(var(--row) * .46))}
 .p2k-schedule .sc-bye-lbl{font-size:min(var(--fs-bye),calc(var(--row) * .44));white-space:nowrap}

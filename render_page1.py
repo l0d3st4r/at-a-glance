@@ -336,7 +336,8 @@ def helmet_img(team, size, mirrored=False, prefix="../", large=False):
     """large=True for helmets drawn big (the Game Info header, the expanded team card): the copy with a
     thinner white outline, so it doesn't thicken with the helmet (helmets.LARGE_OUTLINE_WIDTH)."""
     src = prefix + "helmets/" + helmets.helmet_filename(team, mirrored=mirrored, large=large)
-    return f'<img src="{esc(src)}" alt="" width="{size}" height="{size}">'
+    # class "hm": the helmet shadow (theme.HELMET_SHADOW_CSS); the CSS that sizes each helmet sets --hs
+    return f'<img class="hm" src="{esc(src)}" alt="" width="{size}" height="{size}">'
 
 
 # ---------------------------------------------------------------- pieces
@@ -1715,7 +1716,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
 # Colors come only from theme.py's --aag-* tokens (light/dark mode, 2026-09-24): this stylesheet is
 # copied into a shadow root when Page 0 opens a game, and custom properties are the one thing that
 # inherits into it from Page 0's root. The medal colors (gold/silver/bronze) are the same in both themes.
-P1_CSS = "\n:host{display:block}\n" + theme.SWITCH_CSS + (
+P1_CSS = "\n:host{display:block}\n" + theme.SWITCH_CSS + theme.HELMET_SHADOW_CSS + (
     ".p1{--ink:var(--aag-text);--tile:var(--aag-tile);--tile-border:var(--aag-tile-border);--tile-border-soft:var(--aag-tile-border-soft);"
     "--tile-hover:var(--aag-tile-hover);--tile-border-hover:var(--aag-tile-border-hover);--text-2:var(--aag-text-2);--text-3:var(--aag-text-3);\n"
     "  --out:var(--aag-out);--doubt:var(--aag-doubt);--ques:var(--aag-ques);--win:var(--aag-win);--loss:var(--aag-loss);--tie:var(--aag-tie);"
@@ -1757,7 +1758,7 @@ a.card:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px}
 .hero .teams .at-final{font-size:.44em;padding:0 .35em}   /* in the Game Info card: label-sized (~16px), so the teams keep their room */
 @media (max-width:400px){.bar .teams .at-final{font-size:.58em;padding:0 .2em}}   /* Page 0 drops FINAL to 11px here too */
 @media (max-width:344px){.p1:not([data-view=large]) .bar .teams,.p1[data-final] .bar .teams{font-size:17px}}
-.teams img{display:block;width:2.2em;height:2.2em}
+.teams img{display:block;width:2.2em;height:2.2em;--hs:2.2em}
 .bar .teams{pointer-events:none}
 .when{display:none;flex-direction:column;align-items:center;font-size:11px;font-weight:700;letter-spacing:.1em;line-height:1.35;color:var(--text-2);white-space:nowrap}
 .final-lbl{display:none;align-items:center;gap:5px;font-size:16px;font-weight:700;letter-spacing:.04em;line-height:1.2;white-space:nowrap}   /* same as Page 0's FINAL */
@@ -1774,14 +1775,14 @@ a.card:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px}
    Top bar, game final: the condensed view's bar (2026-10-03; was spread to the screen edges) --
    away helmet, abbreviation, score, FINAL, then the home score, abbreviation, helmet. */
 .p1[data-view=large] .hero .side{flex-direction:column;gap:.08em}
-.p1[data-view=large] .hero .side img{order:2;width:2.6em;height:2.6em}
+.p1[data-view=large] .hero .side img{order:2;width:2.6em;height:2.6em;--hs:2.6em}
 .p1[data-view=large] .hero .side .hscore{order:1;font-size:2.2em;margin-bottom:.14em}   /* the score sits high above the helmet (2026-09-21: bumped up from 1.6em) */
 .p1[data-view=large] .hero .side .abbr{order:3}
 /* Page 2 Game Info and Player Stats keep this expanded-view top bar in their condensed views too
    (Jason, 2026-09-30), so the header doesn't jump when switching views there -- hence the
    [data-detail=...] twins. (The team pages have their own header and no condensed view.) */
 .p1[data-view=large]:not([data-final]) .bar .teams,.p1[data-detail="game-info"]:not([data-final]) .bar .teams,.p1[data-detail="leaders"]:not([data-final]) .bar .teams{font-size:17px;width:100%;padding:0 16px;justify-content:space-between}
-.p1[data-view=large]:not([data-final]) .bar .side img,.p1[data-detail="game-info"]:not([data-final]) .bar .side img,.p1[data-detail="leaders"]:not([data-final]) .bar .side img{width:2.4em;height:2.4em}
+.p1[data-view=large]:not([data-final]) .bar .side img,.p1[data-detail="game-info"]:not([data-final]) .bar .side img,.p1[data-detail="leaders"]:not([data-final]) .bar .side img{width:2.4em;height:2.4em;--hs:2.4em}
 .p1[data-view=large]:not([data-final]) .bar .at,.p1[data-detail="game-info"]:not([data-final]) .bar .at,.p1[data-detail="leaders"]:not([data-final]) .bar .at{display:none}
 .p1[data-view=large]:not([data-final]) .bar .when,.p1[data-detail="game-info"]:not([data-final]) .bar .when,.p1[data-detail="leaders"]:not([data-final]) .bar .when{display:flex}
 /* A finished game's bar is the condensed view's in every view (Jason, 2026-10-03): one centered row,
@@ -1853,7 +1854,7 @@ a.card.c-team{--cw:calc((100cqi - 8px) / 2 - 20px);padding:var(--ctitle) 10px cl
 /* helmet + abbreviation left, last-game arrow + record right -- same as the expanded card (2026-09-17) */
 .c-team .l-top{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:0 2px}
 .c-team .l-id{gap:1px}
-.c-team .l-id img{width:clamp(26px,3.7vh,36px);height:clamp(26px,3.7vh,36px);display:block}
+.c-team .l-id img{width:clamp(26px,3.7vh,36px);height:clamp(26px,3.7vh,36px);display:block;--hs:clamp(26px,3.7vh,36px)}
 .c-team .l-id .abbr{font-size:12px}
 .c-team .l-rec{gap:6px;min-width:0}
 .c-team .streak{gap:1px}
@@ -1939,7 +1940,7 @@ a.card.c-team{--cw:calc((100cqi - 8px) / 2 - 20px);padding:var(--ctitle) 10px cl
   .c-game .time{font-size:clamp(22px,3.3vh,40px)}
   a.card.c-team{padding-bottom:8px}
   .c-team .l-top{padding-top:3px;padding-bottom:2px}
-  .c-team .l-id img{width:clamp(24px,3.3vh,36px);height:clamp(24px,3.3vh,36px)}
+  .c-team .l-id img{width:clamp(24px,3.3vh,36px);height:clamp(24px,3.3vh,36px);--hs:clamp(24px,3.3vh,36px)}
   .c-team .record{font-size:min(clamp(22px,3.4vh,38px),calc((var(--cw) - 92px) / 1.8))}
   .c-inj{font-size:11.5px;line-height:1.22}
   .gstats{gap:3px}
@@ -2074,7 +2075,7 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
    prefix keeps these above the general and <=400px rules for the time, date and weather. */
 .p1[data-view=large][data-final] .hero .teams{align-items:flex-start}
 .p1[data-view=large][data-final] .hero .mid{align-self:flex-start;height:2.2em}   /* = the score's line box, so FINAL centers on it */
-@media (max-width:500px){.p1[data-view=large][data-final] .hero .side img{width:1.9em;height:1.9em}}
+@media (max-width:500px){.p1[data-view=large][data-final] .hero .side img{width:1.9em;height:1.9em;--hs:1.9em}}
 .p1[data-final] .view-l .final-top{align-items:baseline}
 .p1[data-final] .view-l .final-top>div{display:flex;align-items:baseline;gap:10px;min-width:0}
 .p1[data-final] .view-l .final-top .time{font-size:22px}
@@ -2153,6 +2154,7 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .l-id{display:flex;flex-direction:column;align-items:center;gap:2px}
 .l-id .abbr{font-size:30px}
 .l-id img,.l-id-s img{display:block}
+.view-l .l-id img{--hs:84px}
 .l-rec{display:flex;align-items:center;gap:12px}
 .l-rec .trend{width:28px;height:19px}
 /* upcoming: streak number with its indicator (chevron above a win streak, chevron/bar below the others) */
@@ -2275,7 +2277,7 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 @media (max-width:400px){.game-top:not(.final-top) .network{margin-top:calc(.137 * (54px - 16px))}
   .final-lbl{font-size:11px}.view-l .time{font-size:54px}.view-l .final-top .time{font-size:36px}.view-l .date{font-size:29px}.team .record{font-size:62px}.team .record.rec-4{font-size:48px}.team .record.rec-5{font-size:42px}.team .record.rec-6{font-size:35px}
   .game .body{padding-left:16px;padding-right:16px}.team .body>*{width:min(272px,calc(100% - 64px))}}
-@media (max-height:700px){.p1{--peek:28px}.l-id img{width:64px;height:64px}}
+@media (max-height:700px){.p1{--peek:28px}.l-id img{width:64px;height:64px}.view-l .l-id img{--hs:64px}}
 /* no prefers-reduced-motion override: motion always plays (Jason, 2026-09-17) */
 /* ===== Production additions (not in the preview) ===== */
 /* Finished games: final score sits in the header next to each abbreviation */

@@ -51,6 +51,8 @@ LIGHT = {
     "precip": "#2A7BC0",
     # the rookie "R" after a player's position (2026-09-30)
     "rookie": "#009A94",
+    # the shadow behind every helmet (2026-10-04, HELMET_SHADOW_CSS): barely there on the light ground
+    "helmet-shadow": "rgba(0,0,0,.1)",
 }
 
 # Dark ground in the same ink as light mode's text (#161510, a near-neutral near-black with a trace of warmth; was #1B1512 until 2026-09-30). Cards have no fill
@@ -73,6 +75,7 @@ DARK = dict(LIGHT, **{
     "wx-rain": "#7EC3F2", "wx-snow": "#FFFFFF", "wx-sun": "#F2C230",
     "precip": "#7EC3F2",
     "rookie": "#3FE0DA",
+    "helmet-shadow": "rgba(0,0,0,.8)",   # much darker on the dark ground, where a faint one wouldn't show
 })
 
 
@@ -105,6 +108,14 @@ THEME_HEAD_JS = (
     "(function(){try{var t=localStorage.getItem('aag-theme');"
     "if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}})();"
 )
+
+# A slight shadow behind every helmet (Jason, 2026-10-04, picked in the Helmet Shadow mock at 130%
+# spread): it sits 4.55% of the helmet's size below it with 7.8% blur, so it grows with the helmet. The
+# helmet images carry class "hm"; each place that sizes them sets --hs to that size (48px if not).
+# It's a CSS filter on the <img>, not part of the helmet file, so iPhones keep the helmets sharp.
+HELMET_SHADOW_CSS = """
+img.hm{filter:drop-shadow(0 calc(var(--hs,48px) * .0455) calc(var(--hs,48px) * .078) var(--aag-helmet-shadow))}
+"""
 
 # The switch (2026-09-27): one outline icon for the theme you'd switch TO -- the moon in light
 # mode, the sun in dark mode; tapping it switches. (Earlier the same day: sun and moon side by
