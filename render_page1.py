@@ -2021,10 +2021,10 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .dot.on{height:18px;background:var(--ink)}
 /* Page 1's own deck nav (2026-09-23): icons instead of plain dots, selection read as opacity
    (plus a slight scale-up) rather than size/color. Scoped to ".p1 > .dots" (the exact nav this
-   page renders) so Page 2's sub-deck navs -- the team pages, Player Stats -- keep the plain small
-   dots above, since their ".p2-dots .dot" buttons carry no icon markup. Game Info's nav is the
-   exception: its cards have icons too (render_page2gameinfo.P2_ICONS, 2026-10-04), so its
-   ".p2 > .ic-dots" rides along on every rule here.
+   page renders) so Page 2's sub-deck navs -- Player Stats -- keep the plain small dots above,
+   since their ".p2-dots .dot" buttons carry no icon markup. Game Info's and the team pages' navs
+   are the exception: their cards have icons too (render_page2gameinfo.P2_ICONS and
+   render_page2team.TEAM_ICONS, 2026-10-04), so their ".p2 > .ic-dots" rides along on every rule here.
    Sized small below 680px on purpose: the card there runs edge to edge behind a flat 16px
    gutter (".slot{padding:0 16px}"), the same gutter the old 6px dot already lived in, so a
    much bigger icon has nowhere to go without either overlapping the card or hanging off the
