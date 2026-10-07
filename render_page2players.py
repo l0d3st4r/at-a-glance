@@ -11,7 +11,8 @@ weeks before this game; playoffs use the whole regular season):
   3. Receiving -- everyone with a target or catch       team switch
   4. Defense   -- everyone with any defensive stat      team switch
   5. Kicking   -- field goals / PATs, then punting      both teams stacked
-  6. Returns   -- kick returns, then punt returns       both teams stacked
+  6. Returns   -- kick returns, then punt returns       both teams stacked, or the team switch
+                                                        once a team has 2+ of either (2026-10-07)
 
 Layout (Jason, 2026-09-28, from the mockups' three versions): a box-score table with the
 player column pinned on the left. The short cards (Passing, Kicking, Returns: usually a
@@ -208,7 +209,8 @@ def _cell(label, f, r, medal_stat):
     return f'<td data-v="{v:g}">{inner}</td>' if v is not None else f"<td>{inner}</td>"
 
 
-def _table(rows, cols, empty, medals, sortable=True):
+def _table(rows, cols, empty, medals, sortable=True, corner=None):
+    """corner: a section heading to sit in the header row's empty top-left cell, over the names."""
     if not rows:
         return f'<p class="ps-empty">{esc(empty)}</p>'
     head = "".join(
@@ -219,14 +221,34 @@ def _table(rows, cols, empty, medals, sortable=True):
         f'<tr data-i="{i}"><th scope="row">{name_html(r)}</th>'
         + "".join(_cell(label, f, r, medals.get(label)) for label, f in cols) + "</tr>"
         for i, r in enumerate(rows))
-    return (f'<div class="ps-tw"><table class="ps-t"><thead><tr><th scope="col"><span class="vh">Player</span></th>{head}</tr></thead>'
+    first = f'<span class="ps-corner">{esc(corner)}</span>' if corner else '<span class="vh">Player</span>'
+    return (f'<div class="ps-tw"><table class="ps-t"><thead><tr><th scope="col">{first}</th>{head}</tr></thead>'
             f"<tbody>{body}</tbody></table></div>")
 
 
-def _team_tables(players, sections, empty):
+# Kicking's and Returns' section headings sit in each table's top-left corner, not on a line of
+# their own (Jason, 2026-10-07): with one kicker and one punter a team, Kicking then fits a phone
+# with no scrolling. A short name there, the corner being only as wide as the player names.
+CORNER_CARDS = {"kicking", "returns"}
+CORNER_LABELS = {"Field Goals & PATs": "Kicking", "Kick Returns": "Kickoffs", "Punt Returns": "Punts"}
+
+
+def _layout(cid, sections, layout, stats):
+    """Returns stacks both teams only while each has at most one kick returner and one punt
+    returner; any more and it takes the team switch like Rushing / Receiving (Jason, 2026-10-07)."""
+    if cid == "returns" and any(sum(1 for r in players if keep(r)) > 1
+                                for players in stats.values() for _h, keep, *_ in sections):
+        return "switch"
+    return layout
+
+
+def _team_tables(players, sections, empty, corner=False):
     out = []
     for heading, keep, order, cols, medals in sections:
         rows = sorted((r for r in players if keep(r)), key=order)
+        if heading and corner and rows:
+            out.append(_table(rows, cols, empty, medals, corner=CORNER_LABELS.get(heading, heading)))
+            continue
         if heading:
             out.append(f'<h3 class="ps-sec">{esc(heading)}</h3>')
         out.append(_table(rows, cols, empty, medals))
@@ -249,19 +271,19 @@ def _empty_text(stats, scope):
     return "None this season" if any(stats.values()) else "No games played yet"
 
 
-def card_body(sections, layout, teams, stats, scope="season"):
+def card_body(sections, layout, teams, stats, scope="season", corner=False):
     """teams = (away, home) abbreviations; stats = {abbr: [player totals]}."""
     empty = _empty_text(stats, scope)
     if layout == "stack":
         blocks = "".join(
             f'<div class="ps-team"><div class="ps-th">{_pill(t)}</div>'
-            f"{_team_tables(stats.get(t) or [], sections, empty)}</div>" for t in teams)
+            f"{_team_tables(stats.get(t) or [], sections, empty, corner)}</div>" for t in teams)
         return f'<div class="ps-scroll">{blocks}</div>'
     tabs = "".join(
         f'<button type="button" class="ps-tab{" on" if i == 0 else ""}" data-team="{esc(t)}" aria-pressed="{"true" if i == 0 else "false"}">'
         f'{_pill(t)}</button>' for i, t in enumerate(teams))
     panes = "".join(
-        f'<div class="ps-pane{" on" if i == 0 else ""}" data-team="{esc(t)}">{_team_tables(stats.get(t) or [], sections, empty)}</div>'
+        f'<div class="ps-pane{" on" if i == 0 else ""}" data-team="{esc(t)}">{_team_tables(stats.get(t) or [], sections, empty, corner)}</div>'
         for i, t in enumerate(teams))
     return f'<div class="ps-sw">{tabs}</div><div class="ps-scroll">{panes}</div>'
 
@@ -347,7 +369,7 @@ def render_players_block(d):
     slots = "".join(
         f'<section class="slot"><a class="card p2k p2k-ps p2k-{cid}" tabindex="-1" aria-label="{esc(title)}">'
         f'<span class="peek peek-top">{DOWN}<span class="ttl">{esc(title)}</span></span>'
-        f'<div class="body">{_scope_label(scope)}{card_body(sections, layout, (away, home), stats, scope)}</div>'
+        f'<div class="body">{_scope_label(scope)}{card_body(sections, _layout(cid, sections, layout, stats), (away, home), stats, scope, cid in CORNER_CARDS)}</div>'
         f'<span class="peek peek-bot">{UP}<span class="ttl">{esc(title)}</span></span></a></section>'
         for cid, title, sections, layout in CARDS)
     dots = "".join(f'<button class="dot" type="button" aria-label="{esc(title)}"></button>' for _c, title, _s, _l in CARDS)
@@ -376,13 +398,27 @@ P4_CSS = r"""
 .ps-tab:not(.on){opacity:.55}
 .ps-pane{display:none}
 .ps-pane.on{display:block}
-/* Both teams stacked (Passing, Kicking, Returns): each under its pill + abbreviation */
+/* Both teams stacked (Passing, Kicking, and Returns while each team has one returner of each
+   kind): each under its pill + abbreviation */
 .ps-team+.ps-team{margin-top:18px}
 .ps-th{display:flex;align-items:center;gap:8px;padding:2px 0 4px}
 .ps-th .tpill{height:26px;min-width:68px;font-size:15px}
 .ps-sec{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2);margin:12px 0 2px}
 .ps-th+.ps-sec,.ps-pane>.ps-sec:first-child{margin-top:4px}
 .ps-empty{font-size:13px;color:var(--text-2);padding:6px 0}
+/* Kicking and Returns (2026-10-07): each section's name in its table's top-left corner, styled
+   like the column headers beside it, and everything a little closer together -- one kicker and
+   one punter a team fit a phone screen with no scrolling (more than that can still scroll) */
+.ps-corner{display:block;text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:4px 0}
+:is(.p2k-kicking,.p2k-returns) .ps-team+.ps-team{margin-top:12px}
+:is(.p2k-kicking,.p2k-returns) .ps-th{padding:0 0 2px}
+:is(.p2k-kicking,.p2k-returns) :is(.ps-tw+.ps-tw,.ps-tw+.ps-sec,.ps-empty+.ps-tw){margin-top:6px}
+:is(.p2k-kicking,.p2k-returns) .ps-t :is(td,tbody th){padding-top:4px;padding-bottom:4px}
+@media (max-height:600px){   /* iPhone SE (1st gen)-short screens */
+  :is(.p2k-kicking,.p2k-returns) .ps-team+.ps-team{margin-top:8px}
+  :is(.p2k-kicking,.p2k-returns) .ps-t :is(td,tbody th){padding-top:2px;padding-bottom:2px}
+  :is(.p2k-kicking,.p2k-returns) .ps-corner{padding:2px 0}
+}
 /* Condensed view: the team switch across the top, then Passing / Rushing / Receiving / Defense
    one per row and Kicking + Punt Returns side by side; rows share the height by how many players
    each holds, but never get shorter than their contents -- on a short phone (iPhone SE) that's
