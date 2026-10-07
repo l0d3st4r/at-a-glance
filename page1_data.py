@@ -659,6 +659,23 @@ def _name_key_venue(name):
 
 
 _VENUE_BY_NAME = {_name_key_venue(v["name"]): v for v in STADIUMS.values()}
+_NEUTRAL_BY_NAME = {_name_key_venue(v["name"]): v for v in NEUTRAL_VENUES.values()}
+
+
+def _neutral(g):
+    """(True, venue) for a game at a neutral site, (False, None) for one at the home team's stadium.
+    nflverse marks neutral-site games location "Neutral" -- but not always: it lists 2026_05_PHI_JAX
+    (London) as a Jaguars home game, location "Home" and stadium_id "JAX00", with only the stadium
+    name right, "Tottenham Hotspur Stadium" (2026-10-07). So a stadium name that's a known neutral
+    venue (stadiums.NEUTRAL_VENUES) other than the home team's own stadium counts too."""
+    raw = g["raw"]
+    key = _name_key_venue(raw.get("stadium"))
+    if str(raw.get("location") or "").lower() == "neutral":
+        return True, (NEUTRAL_VENUES.get(str(raw.get("stadium_id") or "")) or _VENUE_BY_NAME.get(key)
+                      or _NEUTRAL_BY_NAME.get(key) or {})
+    if key in _NEUTRAL_BY_NAME and key != _name_key_venue(stadium_for(g["home"]).get("name")):
+        return True, _NEUTRAL_BY_NAME[key]
+    return False, None
 
 
 def _surface_name(raw):
@@ -675,10 +692,8 @@ def venue_full(g):
     Returns {"name", "city", "region", "us", "roof_type", "roof_status", "indoor", "surface", "lat", "lon", "neutral"}.
     """
     raw = g["raw"]
-    neutral = str(raw.get("location") or "").lower() == "neutral"
-    if neutral:
-        v = NEUTRAL_VENUES.get(str(raw.get("stadium_id") or "")) or _VENUE_BY_NAME.get(_name_key_venue(raw.get("stadium"))) or {}
-    else:
+    neutral, v = _neutral(g)
+    if not neutral:
         v = stadium_for(g["home"])
     nf = str(raw.get("roof") or "").strip().lower()
     roof_type = v.get("roof") or {"dome": "dome", "outdoors": "outdoor", "open": "retractable", "closed": "retractable"}.get(nf)
@@ -712,7 +727,7 @@ def venue_full(g):
 def _venue(g):
     raw = g["raw"]
     stadium = stadium_for(g["home"])
-    neutral = str(raw.get("location") or "").lower() == "neutral"
+    neutral = _neutral(g)[0]
     indoor = venue_full(g)["indoor"]  # same roof rules as Page 2 (2026-09-19)
     if neutral:
         city = raw.get("stadium") or "Neutral site"
@@ -970,8 +985,7 @@ def _game_miles(g, team):
     is missing. Jason, 2026-09-20: this is per-game, not a season running total.
     """
     is_home = team == g["home"]
-    neutral = str(g["raw"].get("location") or "").lower() == "neutral"
-    if is_home and not neutral:
+    if is_home and not _neutral(g)[0]:
         return 0
     v = venue_full(g)
     home_stadium = stadium_for(team)
