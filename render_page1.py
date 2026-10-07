@@ -1863,6 +1863,15 @@ a.card:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px}
 .view-c{max-width:var(--col);margin:0 auto;height:100dvh;min-height:720px;padding:calc(var(--bar) + 12px) 16px calc(var(--bbar) + 12px);gap:8px;
   grid-template-rows:auto calc((max(100dvh, 720px) - var(--bar) - var(--bbar) - 48px) * 1.18 / 3.42) minmax(0,1fr)}
 .view-c a.card:hover,.view-c a.card:focus-visible{transform:scale(1.015);border-color:var(--aag-card-line-hover);z-index:1}
+/* A finished game (Jason, 2026-10-07): the cards start 10px higher, closer under the scores in
+   the top bar (there was ~23px between them and Game Info's title), and the team cards take
+   those 10px -- room for the last-game arrow over a winner's record, which otherwise ran up into
+   the card's title pill. The card's top padding doesn't push its subgrid rows down, so row 1 of
+   .c-teams (the spacer above the record) keeps the title's height plus 7px for the arrow, the way
+   row 3 keeps 7px under a loser's. */
+.p1[data-final] .view-c{padding-top:calc(var(--bar) + 2px);
+  grid-template-rows:auto calc((max(100dvh, 720px) - var(--bar) - var(--bbar) - 48px) * 1.18 / 3.42 + 10px) minmax(0,1fr)}
+.p1[data-final] .c-teams{grid-template-rows:minmax(calc(var(--ctitle) + 7px),1fr) auto minmax(7px,1fr) auto minmax(4px,1fr) auto 1fr}
 
 /* Game info (2026-09-27, compact): line 1 is the time with the date/day beside it, weather at
    the right; line 2 is the city, TV at the right. Was a top block + bottom row spread over a
@@ -2178,11 +2187,12 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
   .c-game .ls-mini{margin-top:2px;padding-bottom:0}
   .c-game .ls-mini thead th{font-size:9px;padding-bottom:1px;line-height:1.1}
   .c-game .ls-mini tbody th,.c-game .ls-mini td{font-size:11px;padding:1px 0;line-height:1.2}
-  /* and on a finished game the Leaders rows a pixel closer and the team cards 10px shorter
-     (they have room to spare), so the Leaders card still clears its last row */
+  /* and on a finished game the Leaders rows a pixel closer and the team cards 10px shorter than
+     above (back to their usual height -- the 10px they gain there is what Leaders needs here),
+     so the Leaders card still clears its last row */
   .p1[data-final] .c-cmp-in{gap:5px}
   .p1[data-final] .c-cmp-in>.cmp-row:not(.cmp-head){padding-top:2px}
-  .p1[data-final] .view-c{grid-template-rows:auto calc((max(100dvh, 720px) - var(--bar) - var(--bbar) - 48px) * 1.18 / 3.42 - 10px) minmax(0,1fr)}
+  .p1[data-final] .view-c{grid-template-rows:auto calc((max(100dvh, 720px) - var(--bar) - var(--bbar) - 48px) * 1.18 / 3.42) minmax(0,1fr)}
 }
 .ls .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .city{font-size:18px;padding-left:8px}
