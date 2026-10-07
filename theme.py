@@ -15,8 +15,10 @@ straight through it. So whatever theme Page 0's root is in flows into every moun
 game with no script restyling anything. A standalone game page (site/game/<id>.html,
 opened directly or from a shared link) declares the same tokens on its own root.
 
-The light/dark switch (SWITCH_HTML) sits in the left corner of the bottom bar on every
-page. Until it's used the page follows the phone's setting (prefers-color-scheme).
+The menu (menu_html) sits in the left corner of the bottom bar on every page: the site's
+pages (Games, Standings), then the light/dark switch as its last line (Jason, 2026-10-07 --
+until then the switch had that corner to itself). Until the switch is used the page follows
+the phone's setting (prefers-color-scheme).
 Using it saves a choice on the device (localStorage "aag-theme"); switching back to
 whatever the phone is set to clears the choice, so the page follows the phone again.
 """
@@ -119,33 +121,67 @@ img.hm{filter:drop-shadow(0 calc(var(--hs,48px) * .0455) calc(var(--hs,48px) * .
 
 # The switch (2026-09-27): one outline icon for the theme you'd switch TO -- the moon in light
 # mode, the sun in dark mode; tapping it switches. (Earlier the same day: sun and moon side by
-# side, current one lit; before that, a pill toggle with a sliding knob.) Sits in the bottom
-# bar's left corner, vertically centered on the same line as the week pill and the +/- toggle
-# (both center at y=26px in the 52px bar).
+# side, current one lit; before that, a pill toggle with a sliding knob.) Since 2026-10-07 it's
+# the last line of the menu ("Dark mode" / "Light mode" beside the icon) rather than its own
+# button in the bottom bar's left corner.
 SWITCH_CSS = """
-.theme-switch{position:absolute;left:10px;top:12px;display:flex}
-.ts-btn{width:28px;height:28px;padding:0;border:0;background:none;cursor:pointer;color:var(--aag-text);
-  align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;
-  transition:opacity .2s ease,transform .2s cubic-bezier(.22,1,.36,1)}
-.ts-btn svg{width:18px;height:18px;display:block}
+.ts-btn{padding:0;border:0;background:none;cursor:pointer;color:var(--aag-text);
+  align-items:center;-webkit-tap-highlight-color:transparent}
+.ts-btn svg{width:17px;height:17px;display:block;flex:none}
 .ts-sun{display:var(--aag-sw-sun)}
 .ts-moon{display:var(--aag-sw-moon)}
-.ts-btn:hover{opacity:.7;transform:scale(1.04)}
-.ts-btn:active{transform:scale(1.07)}
-.ts-btn:focus-visible{outline:2px solid var(--aag-focus);outline-offset:1px;border-radius:6px}
+.ts-btn:focus-visible{outline:2px solid var(--aag-focus);outline-offset:1px;border-radius:9px}
 """
 
-SWITCH_HTML = (
-    '<div class="theme-switch">'
-    '<button class="ts-btn ts-sun" type="button" data-pick="light" aria-label="Switch to light mode">'
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">'
-    '<circle cx="12" cy="12" r="4"/>'
-    '<path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg></button>'
-    '<button class="ts-btn ts-moon" type="button" data-pick="dark" aria-label="Switch to dark mode">'
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">'
-    '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></svg></button>'
-    "</div>"
-)
+SUN = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">'
+       '<circle cx="12" cy="12" r="4"/>'
+       '<path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>')
+MOON = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></svg>')
+MENU_ICON = ('<svg viewBox="0 0 20 20" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" '
+             'stroke-linecap="round" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14"/></svg>')
+
+# The menu (Jason, 2026-10-07): three lines in the bottom bar's left corner, vertically centered on
+# the same line as the week pill and the +/- toggle (both center at y=26px in the 52px bar). It opens
+# a small panel up out of the bar: the site's pages, the one you're on in bold, then the light/dark
+# switch. THEME_JS opens and closes it (a tap anywhere else, or Escape, closes it).
+MENU_CSS = SWITCH_CSS + """
+.menu-btn{position:absolute;left:7px;top:9px;width:34px;height:34px;padding:0;border:0;background:none;color:var(--aag-text);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;
+  transition:transform .2s cubic-bezier(.22,1,.36,1)}
+.menu-btn svg{display:block}
+.menu-btn:hover{transform:scale(1.09)}
+.menu-btn:active{transform:scale(1.2)}
+.menu-btn:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px;border-radius:50%}
+.menu{position:absolute;left:10px;bottom:56px;min-width:180px;padding:6px;border-radius:14px;background:var(--aag-bg);
+  border:1px solid var(--aag-tile-border);box-shadow:0 8px 30px rgba(0,0,0,.18);display:none;text-align:left}
+.menu.open{display:block}
+.menu a,.menu .ts-btn{width:100%;gap:10px;padding:8px 10px;border-radius:9px;font:inherit;font-size:14px;
+  line-height:19px;color:var(--aag-text);text-decoration:none}
+.menu a{display:flex}
+.menu a[aria-current]{font-weight:700;background:var(--aag-tile-hover)}
+.menu a:hover,.menu .ts-btn:hover{background:var(--aag-pill-hover)}
+.menu a:focus-visible{outline:2px solid var(--aag-focus);outline-offset:1px}
+.menu hr{border:0;border-top:1px solid var(--aag-tile-border-soft);margin:6px 4px}
+"""
+
+MENU_PAGES = (("games", "Games", "index.html"), ("standings", "Standings", "standings.html"))
+
+
+def menu_html(prefix="", current=None):
+    """The bottom bar's menu. prefix is the path back to the site root ("../" from site/game/);
+    current is the page it's on ("games" / "standings"), shown in bold."""
+    links = "".join(
+        f'<a href="{prefix}{href}"{" aria-current=page" if key == current else ""}>{label}</a>'
+        for key, label, href in MENU_PAGES)
+    return (
+        '<button class="menu-btn" type="button" aria-label="Menu" aria-expanded="false">' + MENU_ICON + "</button>"
+        '<div class="menu" role="menu">' + links + "<hr>"
+        '<button class="ts-btn ts-sun" type="button" data-pick="light">' + SUN + "<span>Light mode</span></button>"
+        '<button class="ts-btn ts-moon" type="button" data-pick="dark">' + MOON + "<span>Dark mode</span></button>"
+        "</div>"
+    )
+
 
 # Runs once per page (Page 0, or a standalone game page). Handles every switch on the
 # page, including the ones inside Page 0's overlay shadow roots (a click in a shadow root
@@ -169,17 +205,39 @@ THEME_JS = r"""
     else { de.setAttribute('data-theme', t); try { localStorage.setItem(KEY, t); } catch (e) {} }
     sync();
   }
+  // the bottom bar's menu (menu_html): one open at a time, wherever it is (a game mounted in
+  // Page 0's overlay has its own, inside a shadow root)
+  var openMenu = null;
+  function closeMenu() {
+    if (!openMenu) return;
+    openMenu.classList.remove('open');
+    var b = openMenu.parentNode && openMenu.parentNode.querySelector('.menu-btn');
+    if (b) b.setAttribute('aria-expanded', 'false');
+    openMenu = null;
+  }
   document.addEventListener('click', function (e) {
-    var path = e.composedPath ? e.composedPath() : [e.target];
+    var path = e.composedPath ? e.composedPath() : [e.target], inMenu = false;
     for (var i = 0; i < path.length && path[i] !== document; i++) {
-      if (path[i].classList && path[i].classList.contains('ts-btn')) {
+      var cl = path[i].classList;
+      if (!cl) continue;
+      if (cl.contains('ts-btn')) {
         e.preventDefault(); e.stopPropagation();
         var t = path[i].getAttribute('data-pick');
         if (t !== current()) choose(t);
         return;
       }
+      if (cl.contains('menu-btn')) {
+        e.preventDefault(); e.stopPropagation();
+        var m = path[i].parentNode.querySelector('.menu'), was = m === openMenu;
+        closeMenu();
+        if (m && !was) { m.classList.add('open'); path[i].setAttribute('aria-expanded', 'true'); openMenu = m; }
+        return;
+      }
+      if (cl.contains('menu')) inMenu = true;
     }
+    if (!inMenu) closeMenu();
   }, true);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeMenu(); });
   if (mq.addEventListener) mq.addEventListener('change', sync); else if (mq.addListener) mq.addListener(sync);
   window.AAG_THEME = { sync: sync };
   sync();

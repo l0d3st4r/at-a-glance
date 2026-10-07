@@ -770,7 +770,7 @@ def render_p1_block(d, prefix="../"):
         f'{render_page2team.team_bar_heads(away, home, prefix)}'
         "</div></header>"
         # back button + view toggle live at the bottom of the screen (2026-09-17)
-        '<nav class="bbar" aria-label="Page controls"><div class="bbar-in">' + theme.SWITCH_HTML +
+        '<nav class="bbar" aria-label="Page controls"><div class="bbar-in">' + theme.menu_html(prefix, "games") +
         f'<a class="week" href="{esc(week_href)}">{CHEV}<span>{esc(week_label)}</span></a>'
         # Page 2's back button takes the week pill's place while Game Info is open (2026-09-19)
         f'<a class="week p2-back" href="#" aria-label="Back to {esc(a)} at {esc(h)}">{CHEV}'
@@ -1275,7 +1275,21 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     on(d.deck, 'scroll', function () {
       if (!tick && detailOpen() && curDetail() === d && large()) { tick = true; requestAnimationFrame(function () { detailSetActive(d, detailCurrent(d)); tick = false; }); }
     }, { passive: true });
-    d.slots.forEach(function (s, k) { on(s.querySelector('a.card'), 'click', function (e) { e.preventDefault(); if (k !== d.active) detailGo(d, k); }); });
+    d.slots.forEach(function (s, k) {
+      var card = s.querySelector('a.card');
+      on(card, 'click', function (e) {
+        e.preventDefault();
+        // a link inside the card (the Overview's division title -> the standings, 2026-10-07)
+        // works once its card is the one in the middle; before that the tap brings the card there
+        var link = k === d.active && e.target.closest && e.target.closest('[data-href]');
+        if (link) { location.href = link.getAttribute('data-href'); return; }
+        if (k !== d.active) detailGo(d, k);
+      });
+      on(card, 'keydown', function (e) {
+        var link = (e.key === 'Enter' || e.key === ' ') && e.target.closest && e.target.closest('[data-href]');
+        if (link) { e.preventDefault(); location.href = link.getAttribute('data-href'); }
+      });
+    });
     d.dots.forEach(function (dot, k) { on(dot, 'click', function () { detailGo(d, k); }); });
     d.cond.forEach(function (c, k) {
       on(c, 'click', function (e) { e.preventDefault(); detailView('large', k); });
@@ -1796,7 +1810,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
 # Colors come only from theme.py's --aag-* tokens (light/dark mode, 2026-09-24): this stylesheet is
 # copied into a shadow root when Page 0 opens a game, and custom properties are the one thing that
 # inherits into it from Page 0's root. The medal colors (gold/silver/bronze) are the same in both themes.
-P1_CSS = "\n:host{display:block}\n" + theme.SWITCH_CSS + theme.HELMET_SHADOW_CSS + (
+P1_CSS = "\n:host{display:block}\n" + theme.MENU_CSS + theme.HELMET_SHADOW_CSS + (
     ".p1{--ink:var(--aag-text);--tile:var(--aag-tile);--tile-border:var(--aag-tile-border);--tile-border-soft:var(--aag-tile-border-soft);"
     "--tile-hover:var(--aag-tile-hover);--tile-border-hover:var(--aag-tile-border-hover);--text-2:var(--aag-text-2);--text-3:var(--aag-text-3);\n"
     "  --out:var(--aag-out);--doubt:var(--aag-doubt);--ques:var(--aag-ques);--win:var(--aag-win);--loss:var(--aag-loss);--tie:var(--aag-tie);"

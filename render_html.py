@@ -6,6 +6,7 @@ Outputs:
   site/raw.html       -- the old v0 unstyled data dump, kept for debugging
   site/helmets/*.svg  -- team-colored helmets used by Page 0 and Page 1 (see helmets.py)
   site/game/*.html    -- Page 1: one matchup page per game (see render_page1.py)
+  site/standings.html -- the standings, opened from the bottom bar's menu (see render_standings.py)
 
 Run with: python render_html.py
 
@@ -64,6 +65,7 @@ from datetime import date
 
 import helmets
 import render_page1
+import render_standings
 import snapshot
 import theme
 from divisions import DIVISIONS
@@ -151,7 +153,7 @@ def format_record(record):
 
 # Colors come only from theme.py's --aag-* tokens (light/dark mode, 2026-09-24) -- see theme.py
 # for why no literal colors belong in here.
-PAGE0_CSS = theme.THEME_CSS + theme.SWITCH_CSS + theme.HELMET_SHADOW_CSS + """
+PAGE0_CSS = theme.THEME_CSS + theme.MENU_CSS + theme.HELMET_SHADOW_CSS + """
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
   --bg:var(--aag-bg);
@@ -1019,7 +1021,7 @@ PAGE1_OVERLAY_JS = r"""
     if (opts.hidden) host.style.visibility = 'hidden';
     if (opts.dx) host.style.transform = 'translateX(' + opts.dx + 'px)';
     s.overlay.appendChild(host);
-    if (window.AAG_THEME) window.AAG_THEME.sync();   // the new game's light/dark switch shows the current state
+    if (window.AAG_THEME) window.AAG_THEME.sync();   // the address-bar color follows the current theme
     var m = { host: host, root: root, title: page.title };
     if (opts.preview) {  // a neighbour shown while swiping: same card as the current game, no listeners yet
       var slots = root.querySelectorAll('.view-l > .slot'), i = Math.max(0, Math.min(slots.length - 1, opts.card || 0));
@@ -1564,7 +1566,7 @@ def render_page0(data):
         f"<main class='track' id='track'>{panels}</main>"
         "<nav class='bottombar' aria-label='Week'>"
         "<div class='bar-in'>"
-        f"{theme.SWITCH_HTML}"
+        f"{theme.menu_html('', 'games')}"
         "<label class='week-picker'>"
         f"<span id='week-label'>{esc(current_label)}</span>"
         "<svg class='chevron' viewBox='0 0 12 12' aria-hidden='true'><path d='M2.5 7.5 6 4l3.5 3.5' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>"
@@ -1641,6 +1643,10 @@ def main():
 
     warnings = []
     pages = render_page1.write_all(data, SITE_DIR, warnings)
+    try:   # a problem here never costs the site its other pages
+        render_standings.write(data, SITE_DIR)
+    except Exception as e:
+        warnings.append(f"render_standings: {e}")
 
     # Published with the site so the next build can read it back (see snapshot.py)
     if os.path.exists(snapshot.LOCAL_PATH):
@@ -1648,7 +1654,7 @@ def main():
     else:
         warnings.append(f"no {snapshot.FILE_NAME} to publish -- the next build can't freeze finished games")
 
-    print(f"Wrote {INDEX_PATH}, {RAW_PATH}, {pages} game pages and helmets to {HELMET_DIR}")
+    print(f"Wrote {INDEX_PATH}, {RAW_PATH}, {pages} game pages, the standings and helmets to {HELMET_DIR}")
     for w in warnings:
         print(f"  - {w}")
 

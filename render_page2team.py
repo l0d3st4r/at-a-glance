@@ -51,6 +51,11 @@ def esc(v):
     return html.escape(str(v), quote=True)
 
 
+# after the division title on the Overview card: it opens the standings (2026-10-07)
+STANDINGS_CHEV = ('<svg viewBox="0 0 6 10" fill="none" stroke="currentColor" stroke-width="1.6" '
+                  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 1l4 4-4 4"/></svg>')
+
+
 # ---------------------------------------------------------------- formatting
 
 def _fmt_int(v):
@@ -175,7 +180,10 @@ def _recent_games_block(schedule, team, prefix):
     return f'<ul class="rg-list">{"".join(rows)}</ul>'
 
 
-def _standings_block(standings, team):
+def _standings_block(standings, team, prefix="../"):
+    """The division title opens the standings page at this division (Jason, 2026-10-07). It's a span,
+    not a link -- the whole card is already an <a> -- and P1_JS follows its data-href once the card
+    is the one in the middle."""
     from render_page1 import helmet_img
     if not standings or not standings.get("rows"):
         return ""
@@ -188,7 +196,9 @@ def _standings_block(standings, team):
     )
     head = ('<div class="st-headrow" aria-hidden="true"><span></span><span></span>'
             '<span>W</span><span>L</span><span>T</span><span></span></div>')
-    return (f'<div class="ov-standings"><h3>{esc(standings["division"])}</h3>'
+    href = f'{prefix}standings.html#{standings["division"].lower().replace(" ", "-")}'
+    return (f'<div class="ov-standings"><h3><span class="st-link" role="link" tabindex="0" data-href="{esc(href)}">'
+            f'{esc(standings["division"])}{STANDINGS_CHEV}</span></h3>'
             f'{head}<ul class="st-list">{rows}</ul></div>')
 
 
@@ -242,7 +252,7 @@ def overview_body(side, team_page, which, prefix):
         + _next_block(team_page, which, prefix)
         + '<h3 class="ov-h">Recent Games</h3>'
         + _recent_games_block(team_page.get("schedule") or [], team, prefix)
-        + _standings_block(team_page.get("standings"), team)
+        + _standings_block(team_page.get("standings"), team, prefix)
     )
 
 
@@ -742,6 +752,11 @@ P3_CSS = r"""
 .rg-score{color:var(--text-2);width:44px;text-align:right;flex:none;font-variant-numeric:tabular-nums}
 .ov-standings{margin-top:16px}
 .ov-standings h3{font-size:13px;font-weight:700;padding:0 4px 6px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-2)}
+/* the division title opens the standings (2026-10-07): a small arrow after it says so */
+.st-link{display:inline-flex;align-items:center;gap:5px;cursor:pointer;border-radius:6px}
+.st-link svg{width:6px;height:10px;flex:none}
+.st-link:hover{color:var(--text)}
+.st-link:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px}
 /* W / L / T headings over the standings columns (2026-09-28); same grid as .st-row */
 .st-headrow{display:grid;grid-template-columns:22px 1fr 24px 24px 24px 52px;gap:6px;padding:0 4px 2px;font-size:11px;
   font-weight:700;letter-spacing:.04em;color:var(--text-3)}

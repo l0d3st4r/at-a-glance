@@ -4,8 +4,26 @@
     {
       "name": "at-a-glance-site",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "site"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8765",
+        "--directory",
+        "site"
+      ],
       "port": 8765
+    },
+    {
+      "name": "mockups",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8766",
+        "--directory",
+        "mockups"
+      ],
+      "port": 8766
     }
   ]
 }
