@@ -786,9 +786,12 @@ def render_p1_block(d, prefix="../"):
         "</div>"
     )
     cmp_head = pill_row(a, h)  # team-color pills replace the helmets + abbreviations (2026-09-17)
+    # the team cards' titles name the location in full ("Baltimore", Jason, 2026-10-07), the same
+    # names as the team pages' top bar; the condensed cards keep the abbreviation
+    loc = lambda t: render_page2team.LOCATION_NAMES.get(t, t)
     cards = [("game-info", "Game Info", "game", game_body(d, hero)),
-             ("away-team", a, "team", l_team(away, final)),
-             ("home-team", h, "team", l_team(home, final)),
+             ("away-team", loc(a), "team", l_team(away, final)),
+             ("home-team", loc(h), "team", l_team(home, final)),
              ("leaders", leaders_name, "compare", cmp_head + rows)]
     slots = "".join(
         f'<section class="slot"><a class="card {kind}" tabindex="-1" data-detail="{cid}" aria-label="{esc(name)}">'
@@ -1325,6 +1328,30 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     });
   }) : null;
   if (injRO) [].slice.call(root.querySelectorAll('.inj-fit')).forEach(function (box) { injRO.observe(box.parentNode); });
+  // Team pages' top bar (render_page2team.team_bar_heads): its helmet the same size and in the same
+  // place as Game Info's (Jason, 2026-10-07) -- which depends on the game (a finished game's bar is
+  // one centered row, so it moves with the scores). Game Info's row stays laid out under a team
+  // page's bar, only hidden, so it's measured there (layout boxes, not mid-animation transforms)
+  // and handed to the team bar as --tp-size and --tp-inset; the CSS falls back to an upcoming
+  // game's 40.8px, 16px in.
+  function syncTeamHeads() {
+    var row = root.querySelector('.bar .teams'), bin = root.querySelector('.bar .bar-in');
+    if (!row || !bin || !large()) return;
+    ['away', 'home'].forEach(function (w) {
+      var img = row.querySelector('.side.' + w + ' img'), head = root.querySelector('.bar .tp-' + w);
+      if (!img || !head || !img.offsetWidth) return;
+      var x = 0, n = img;
+      while (n && n !== bin) { x += n.offsetLeft; n = n.offsetParent; }
+      if (n !== bin) return;
+      head.style.setProperty('--tp-size', img.offsetWidth + 'px');
+      head.style.setProperty('--tp-inset', (w === 'away' ? x : bin.clientWidth - x - img.offsetWidth) + 'px');
+    });
+  }
+  var tpMO = window.MutationObserver ? new MutationObserver(function () { requestAnimationFrame(syncTeamHeads); }) : null;
+  if (tpMO) tpMO.observe(wrap, { attributes: true, attributeFilter: ['data-view', 'data-detail'] });
+  on(window, 'resize', function () { requestAnimationFrame(syncTeamHeads); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(syncTeamHeads);
+  requestAnimationFrame(syncTeamHeads);
   // One switch inside an expanded card changes just that card; the condensed view's single switch
   // changes the whole page -- every condensed card, and the expanded cards' switches with it, so
   // tapping a condensed card opens on the same team.
@@ -1757,6 +1784,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
       if (cdTimer) clearInterval(cdTimer);
       if (psRO) psRO.disconnect();
       if (injRO) injRO.disconnect();
+      if (tpMO) tpMO.disconnect();
       bound.forEach(function (b) { b[0].removeEventListener(b[1], b[2], b[3]); }); bound = [];
     }
   };
@@ -1810,6 +1838,11 @@ a.card:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px}
 .hero .teams .at-final{font-size:.44em;padding:0 .35em}   /* in the Game Info card: label-sized (~16px), so the teams keep their room */
 @media (max-width:400px){.bar .teams .at-final{font-size:.58em;padding:0 .2em}}   /* Page 0 drops FINAL to 11px here too */
 @media (max-width:344px){.p1:not([data-view=large]) .bar .teams,.p1[data-final] .bar .teams{font-size:17px}}
+/* Every top bar's team names one size (Jason, 2026-10-07): the codes here, and the team pages'
+   city name and opponent (render_page2team .tp-name / .tp-opp), all at the finished-game bar's
+   20px -- 17px where that bar drops to 17px. Only the text: the helmets keep their own sizes. */
+.bar .teams .abbr{font-size:20px}
+@media (max-width:344px){.bar .teams .abbr{font-size:17px}}
 .teams img{display:block;width:2.2em;height:2.2em;--hs:2.2em}
 .bar .teams{pointer-events:none}
 .when{display:none;flex-direction:column;align-items:center;font-size:11px;font-weight:700;letter-spacing:.1em;line-height:1.35;color:var(--text-2);white-space:nowrap}

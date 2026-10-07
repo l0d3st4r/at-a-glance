@@ -672,13 +672,21 @@ P3_CSS = r"""
 .p1[data-detail="away-team"] .bar .teams,.p1[data-detail="home-team"] .bar .teams{visibility:hidden}
 .p1[data-detail="away-team"] .bar .tp-away,.p1[data-detail="home-team"] .bar .tp-home{display:flex}
 .bar-in{position:relative}
-.tp-head{position:absolute;inset:0;align-items:center;gap:10px;padding:0 4px}
-.tp-head img{width:46px;height:46px;flex:none;display:block;--hs:46px}
+/* the helmet matches Game Info's bar in size and place (Jason, 2026-10-07): P1_JS's syncTeamHeads
+   measures that bar and sets these; the fallbacks are an upcoming game's (2.4 x 17px, 16px in) */
+.tp-head{position:absolute;inset:0;align-items:center;gap:10px;padding:0 16px 0 var(--tp-inset,16px)}
+.tp-home{padding:0 var(--tp-inset,16px) 0 16px}   /* the opponent's side keeps the bar's usual 16px */
+.tp-head img{width:var(--tp-size,40.8px);height:var(--tp-size,40.8px);flex:none;display:block;--hs:var(--tp-size,40.8px)}
 .tp-name{font-family:Saira,Inter,system-ui,sans-serif;font-weight:800;font-style:italic;font-variation-settings:'wdth' 95;
-  font-size:18px;letter-spacing:.01em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  font-size:20px;letter-spacing:.01em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .tp-rec{font-size:16px;font-weight:700;margin-left:10px;font-variant-numeric:tabular-nums;flex:none}
 .tp-opp{margin-left:auto;padding-left:10px;color:var(--text-3);font-size:16px;white-space:nowrap;flex:none}
-.tp-opp .abbr{font-size:17px}
+.tp-opp .abbr{font-size:20px}
+@media (max-width:344px){.tp-name,.tp-opp .abbr{font-size:17px}}   /* the same size as every top bar's team names (render_page1) */
+/* phones: the helmet, name, record and opponent closer together, so a long city ("San Francisco")
+   still fits beside a finished game's helmet, which sits further in */
+@media (max-width:400px){.bar .tp-head{gap:6px}.bar .tp-rec{margin-left:2px}.bar .tp-opp{padding-left:6px}
+  .bar .tp-home .tp-rec{margin-left:0;margin-right:2px}.bar .tp-home .tp-opp{padding-left:0;padding-right:6px}}
 .tp-home{flex-direction:row-reverse}
 .tp-home .tp-rec{margin-left:0;margin-right:10px}
 .tp-home .tp-opp{margin-left:0;margin-right:auto;padding-left:0;padding-right:10px}

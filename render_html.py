@@ -197,6 +197,18 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
 .track{display:flex;align-items:flex-start;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;
   overscroll-behavior-x:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .track::-webkit-scrollbar{display:none}
+/* Pull down to refresh (Jason, 2026-10-07): PAGE0_JS's own gesture, so it works the same in the
+   browser and saved to the home screen (which has no built-in one). Chrome's built-in one would
+   fire alongside it, so the page opts out of that (contain keeps the bounce). */
+html{overscroll-behavior-y:contain}
+.ptr{position:fixed;left:50%;top:env(safe-area-inset-top);z-index:20;width:36px;height:36px;margin-left:-18px;
+  border-radius:50%;background:var(--tile);border:1px solid var(--tile-border);color:var(--text-2);
+  display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0;
+  transform:translateY(-44px);box-shadow:0 2px 10px rgba(0,0,0,.14)}
+.ptr svg{width:18px;height:18px;display:block}
+.ptr.armed{color:var(--text)}
+.ptr.spin svg{animation:ptr-spin .7s linear infinite}
+@keyframes ptr-spin{to{transform:rotate(360deg)}}
 .week-panel{flex:0 0 100%;min-width:0;scroll-snap-align:start;scroll-snap-stop:always}
 .week-inner{max-width:600px;margin:0 auto;padding:max(6px,env(safe-area-inset-top)) 16px calc(64px + var(--bbar))}
 .day{text-align:center;font-size:16px;font-weight:400;line-height:19px;padding:18px 0 12px}
@@ -838,6 +850,63 @@ PAGE0_JS = """
     document.addEventListener('touchend', pinchEnd);
     document.addEventListener('touchcancel', pinchEnd);
   }
+
+  // Pull down to refresh (Jason, 2026-10-07): from the top of the page (either view), a drag that's
+  // clearly downward brings a refresh icon down after it, turning as it comes; past PULL_ARM it's
+  // armed, and letting go there spins it and reloads the page -- the week stays, it's in the
+  // address. Short of that it slides back up. Not while a game is open (the overlay's own pull
+  // closes it) or for a sideways swipe between weeks.
+  var PULL_ARM = 70, PULL_MAX = 110, pull = null, refreshing = false;
+  var ptr = document.createElement('div');
+  ptr.className = 'ptr';
+  ptr.setAttribute('aria-hidden', 'true');
+  ptr.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg>';
+  document.body.appendChild(ptr);
+  function atTop() { return (window.scrollY || document.documentElement.scrollTop || 0) <= 0; }
+  function showPull(d) {
+    ptr.style.transition = 'none';
+    ptr.style.opacity = Math.min(1, d / PULL_ARM);
+    ptr.style.transform = 'translateY(' + (d - 44) + 'px) rotate(' + (d * 3) + 'deg)' + (d >= PULL_ARM ? ' scale(1.08)' : '');
+    ptr.classList.toggle('armed', d >= PULL_ARM);
+  }
+  function hidePull() {
+    ptr.style.transition = 'transform .2s ease, opacity .2s ease';
+    ptr.style.transform = 'translateY(-44px)';
+    ptr.style.opacity = '0';
+    ptr.classList.remove('armed');
+  }
+  document.addEventListener('touchstart', function (e) {
+    pull = null;
+    if (refreshing || e.touches.length !== 1 || document.documentElement.classList.contains('p1-open') || !atTop()) return;
+    pull = { x0: e.touches[0].clientX, y0: e.touches[0].clientY, mode: 'pending', d: 0 };
+  }, { passive: true });
+  document.addEventListener('touchmove', function (e) {
+    if (!pull) return;
+    if (e.touches.length !== 1) { if (pull.mode === 'pull') hidePull(); pull = null; return; }
+    var mx = e.touches[0].clientX - pull.x0, my = e.touches[0].clientY - pull.y0;
+    if (pull.mode === 'pending') {
+      if (my > 10 && my > Math.abs(mx) * 1.2 && atTop()) pull.mode = 'pull';
+      else if (Math.abs(mx) > 10 || my < -10) { pull = null; return; }
+      else return;
+    }
+    if (e.cancelable) e.preventDefault();
+    pull.d = Math.min(PULL_MAX, Math.max(0, my) * 0.55);   // resistance: the icon trails the finger
+    showPull(pull.d);
+  }, { passive: false });
+  function endPull() {
+    var p = pull;
+    pull = null;
+    if (!p || p.mode !== 'pull') return;
+    if (p.d < PULL_ARM) { hidePull(); return; }
+    refreshing = true;
+    ptr.style.transition = 'transform .15s ease';
+    ptr.style.transform = 'translateY(' + (PULL_ARM - 44) + 'px)';
+    ptr.classList.add('spin');
+    setTimeout(function () { location.reload(); }, 250);   // long enough to see it start spinning
+  }
+  document.addEventListener('touchend', endPull);
+  document.addEventListener('touchcancel', function () { if (pull && pull.mode === 'pull') hidePull(); pull = null; });
 
   // Used by the Page 1 overlay: jump to the week a game belongs to, and the hash to return to.
   window.AAG_P0 = {
