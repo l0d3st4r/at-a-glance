@@ -104,8 +104,9 @@ def split_name(name):
     return " ".join(words[:i]), " ".join(words[i:])
 
 
-ROOKIE_MARK = ' · <span class="rk">R</span>'   # render_page1 shows these too, through marks()
-IR_MARK = ' · <span class="ir">IR</span>'       # injured reserve (2026-10-03, reserve.py), after the R if both
+# the dot and its tag never part across a line break (only before the dot), 2026-10-07
+ROOKIE_MARK = ' ·&nbsp;<span class="rk">R</span>'   # render_page1 shows these too, through marks()
+IR_MARK = ' ·&nbsp;<span class="ir">IR</span>'       # injured reserve (2026-10-03, reserve.py), after the R if both
 
 
 def marks(r):
@@ -136,12 +137,28 @@ def short_name_html(r):
     """The condensed view's name (Jason, 2026-10-07): one line, first initial and last name, then
     jersey number and position -- "L. Jackson #8 QB" -- so the view fits a phone with no scrolling
     (the stacked full name above takes two lines a row)."""
+    return (f'<span class="ps-nm ps-nm1"><span class="ps-ln">{_short_name(r)}</span>'
+            f'{_meta_html(r)}</span>')
+
+
+def _short_name(r):
+    """"L. Jackson": the first initial (kept with the last name, so a line can't break after it) and
+    the last name."""
     first, last = split_name(r["name"])
-    name = f"{first[0]}. {last}" if first else last
+    return f"{esc(first[0])}.&nbsp;{esc_name(last)}" if first else esc_name(last)
+
+
+def _meta_html(r):
+    """The jersey number, then the position with its R / IR tags."""
     num = f'#{r["jersey"]}' if r.get("jersey") is not None else ""
-    return (f'<span class="ps-nm ps-nm1"><span class="ps-ln">{esc_name(name)}</span>'
-            f'{f"<span class=ps-no>{num}</span>" if num else ""}'
-            f'<span class="ps-pos">{esc(r["pos"])}{marks(r)}</span></span>')
+    return (f'{f"<span class=ps-no>{num}</span> " if num else ""}'
+            f'<span class="ps-pos">{esc(r["pos"])}{marks(r)}</span>')
+
+
+def short_name_only_html(r):
+    """The condensed tables' name cell (2026-10-07): just the name -- the number and position have
+    their own column there (_table's meta)."""
+    return f'<span class="ps-nm ps-nm1"><span class="ps-ln">{_short_name(r)}</span></span>'
 
 
 # ---------------------------------------------------------------- the cards
@@ -167,11 +184,11 @@ RECEIVING = (None, lambda r: r["tgt"] > 0 or r["rec"] > 0, lambda r: (-r["reyds"
     ("REC", lambda r: _n(r["rec"])), ("TGT", lambda r: _n(r["tgt"])), ("YDS", lambda r: _n(r["reyds"])),
     ("AVG", lambda r: _avg(r["reyds"], r["rec"])), ("TD", lambda r: _n(r["retd"])), ("1D", lambda r: _n(r["re1d"]))],
     {"REC": "rec", "YDS": "reyds", "TD": "retd"})
-_DEF_KEYS = ("solo", "ast", "tfl", "dsk", "qbh", "dint", "pd", "ff", "fr", "dtd")
+_DEF_KEYS = ("solo", "ast", "tfl", "dsk", "qbh", "dint", "pd", "ff", "fr")
 DEFENSE = (None, lambda r: any(r[k] for k in _DEF_KEYS), lambda r: (-(r["solo"] + r["ast"]), -r["dsk"]), [
     ("TKL", lambda r: _n(r["solo"] + r["ast"])), ("SOLO", lambda r: _n(r["solo"])), ("TFL", lambda r: _n(r["tfl"])),
     ("SCK", lambda r: _sacks(r["dsk"])), ("QBH", lambda r: _n(r["qbh"])), ("INT", lambda r: _n(r["dint"])),
-    ("PD", lambda r: _n(r["pd"])), ("FF", lambda r: _n(r["ff"])), ("FR", lambda r: _n(r["fr"])), ("TD", lambda r: _n(r["dtd"]))],
+    ("PD", lambda r: _n(r["pd"])), ("FF", lambda r: _n(r["ff"])), ("FR", lambda r: _n(r["fr"]))],   # no TD (Jason, 2026-10-07)
     {"TKL": "tkl", "TFL": "tfl", "SCK": "dsk", "INT": "dint", "FF": "ff"})
 KICKING = [
     ("Field Goals & PATs", lambda r: r["fga"] > 0 or r["xpa"] > 0, lambda r: (-r["fga"], -r["xpa"]), [
@@ -461,21 +478,24 @@ def _cell(label, f, r, medal_stat):
     return f'<td data-v="{v:g}">{inner}</td>' if v is not None else f"<td>{inner}</td>"
 
 
-def _table(rows, cols, empty, medals, sortable=True, corner=None, name=name_html):
+def _table(rows, cols, empty, medals, sortable=True, corner=None, name=name_html, meta=None):
     """corner: a section heading to sit in the header row's empty top-left cell, over the names.
-    name: how a player's name is written (short_name_html in the condensed view)."""
+    name: how a player's name is written (short_name_only_html in the condensed view).
+    meta: if given, the number and position in a column of their own after the name (condensed)."""
     if not rows:
         return f'<p class="ps-empty">{esc(empty)}</p>'
     head = "".join(
         f'<th scope="col" aria-sort="none"><button type="button" class="ps-sort">{esc(label)}</button></th>' if sortable
         else f'<th scope="col"><span class="ps-lbl">{esc(label)}</span></th>'
         for label, _f in cols)
+    meta_head = '<th scope="col" class="ps-mh"><span class="vh">Number and position</span></th>' if meta else ""
     body = "".join(
         f'<tr data-i="{i}"><th scope="row">{name(r)}</th>'
+        + (f'<td class="ps-meta">{meta(r)}</td>' if meta else "")
         + "".join(_cell(label, f, r, medals.get(label)) for label, f in cols) + "</tr>"
         for i, r in enumerate(rows))
     first = f'<span class="ps-corner">{esc(corner)}</span>' if corner else '<span class="vh">Player</span>'
-    return (f'<div class="ps-tw"><table class="ps-t"><thead><tr><th scope="col">{first}</th>{head}</tr></thead>'
+    return (f'<div class="ps-tw"><table class="ps-t"><thead><tr><th scope="col">{first}</th>{meta_head}{head}</tr></thead>'
             f"<tbody>{body}</tbody></table></div>")
 
 
@@ -567,12 +587,14 @@ _SCK = (lambda r: r["dsk"] > 0, lambda r: -r["dsk"])
 _INT = (lambda r: r["dint"] > 0, lambda r: -r["dint"])
 
 # (card id, title, section whose columns it shows, who: players -> rows, width, columns left out here)
-# Defense drops SOLO / QBH / PD / FR and Kicking drops PTS in this view (Jason, 2026-09-28).
+# Defense drops SOLO / PD / FR and Kicking drops PTS in this view (Jason, 2026-09-28), and Passing
+# drops SCK (2026-10-07), so the four full-width cards each show six stats that line up -- Defense's
+# six being TKL TFL SCK QBH INT FF since TD came off the page (2026-10-07).
 CONDENSED = [
-    ("passing", "Passing", PASSING, lambda ps: _top(ps, PASSING[1], lambda r: -r["pyds"], 1), "row", ()),
+    ("passing", "Passing", PASSING, lambda ps: _top(ps, PASSING[1], lambda r: -r["pyds"], 1), "row", ("SCK",)),
     ("rushing", "Rushing", RUSHING, lambda ps: _top(ps, RUSHING[1], lambda r: -r["ryds"], 2), "row", ()),
     ("receiving", "Receiving", RECEIVING, lambda ps: _top(ps, RECEIVING[1], lambda r: -r["reyds"], 3), "row", ()),
-    ("defense", "Defense", DEFENSE, lambda ps: _leaders(ps, (_TKL, _SCK, _INT)), "row", ("SOLO", "QBH", "PD", "FR")),
+    ("defense", "Defense", DEFENSE, lambda ps: _leaders(ps, (_TKL, _SCK, _INT)), "row", ("SOLO", "PD", "FR")),
     ("kicking", "Kicking", KICKING[0], lambda ps: _top(ps, lambda r: r["fga"] > 0, lambda r: (-r["fga"], -r["fgm"]), 1), "half", ("PTS",)),
     ("returns", "Punt Returns", RETURNS[1], lambda ps: _top(ps, RETURNS[1][1], lambda r: (-r["pryds"], -r["pr"]), 1), "half", ()),
 ]
@@ -598,7 +620,8 @@ def condensed_view(teams, stats, scope="season"):
         cols = [c for c in cols if c[0] not in left_out]
         panes = "".join(
             f'<div class="pc-p{" on" if i == 0 else ""}" data-team="{esc(t)}">'
-            + (_table(who(stats.get(t) or []), cols, empty, medals, sortable=False, name=short_name_html) if width == "row"
+            + (_table(who(stats.get(t) or []), cols, empty, medals, sortable=False, name=short_name_only_html, meta=_meta_html)
+               if width == "row"
                else _pairs(who(stats.get(t) or []), cols, empty))
             + "</div>"
             for i, t in enumerate(teams))
@@ -643,6 +666,13 @@ P4_CSS = r"""
    they don't fit (a team's Defense runs 25-40 players). */
 .p2 .slot .p2k-ps .body{padding:44px 14px 14px;justify-content:flex-start;gap:12px;min-height:0}
 .ps-scroll{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;margin:0 -14px;padding:0 14px 6px}
+/* The list stops 6px past the card's content edge on the right, not at the card's own edge
+   (Jason, 2026-10-07): the nav icons sit over that edge (7-8px past the content on every phone),
+   and the scroll bar ran under them. The bar now has those 6px to itself, clear of both the icons
+   and the last column. A wide table (.ps-tw) stops at the content edge, so it doesn't push the
+   list sideways. */
+.p2-l .ps-scroll{margin-right:-6px;padding-right:6px}
+.p2-l .ps-tw{margin-right:0;padding-right:0}
 /* Team switch (Rushing, Receiving, Defense, and Returns when it's long): the two teams' pills,
    the chosen one at full strength and the other faded. Just the pills -- no outlined pill around
    each one (Jason, 2026-10-07). */
@@ -716,7 +746,7 @@ P4_CSS = r"""
 .pc-sts{display:flex;flex-wrap:nowrap;justify-content:space-between;gap:6px}
 .pc-st{display:flex;flex-direction:column;line-height:1.1;white-space:nowrap}
 .pc-st b{font-size:14px;font-variant-numeric:tabular-nums}
-@media (max-width:370px){.pc-st b{font-size:13px}.pc .ps-t{font-size:11px}.pc .ps-t td{padding:2px}.pc .ps-t tbody th{padding-right:3px}}
+@media (max-width:370px){.pc-st b{font-size:13px}.pc .ps-t tbody th{padding-right:3px}}
 /* iPhone SE (1st gen)-small: 4px between cards, rows and stats a step smaller, and the narrowest
    type for the widest table (Passing's seven columns) */
 @media (max-height:600px){
@@ -725,8 +755,28 @@ P4_CSS = r"""
   .pc-scope{margin:-4px 0 -4px}
   .pc-st b{font-size:12px}
 }
-@media (max-width:370px){.pc .ps-no{display:none}}   /* no jersey number, so a long name still leaves Passing room */
-@media (max-width:340px){.pc .ps-t,.pc .ps-nm{font-size:10px}.pc .ps-t thead th{font-size:8px}.pc .ps-t td{padding:1px 1.5px}
+/* Passing, Rushing, Receiving and Defense line up (Jason, 2026-10-07): name, then the number and
+   position in a column of their own, then six stats, every column but the name a fixed width --
+   so each stat sits in the same column on all four cards. The first stat is wider (Passing's
+   C/ATT runs to "350/520" late in the season; ATT / REC / TKL take the same width so the rest
+   still line up). The name takes what's left, and a long one breaks after its hyphen
+   ("J. Smith-" / "Njigba"); R / IR tags too wide for their column go to a second line. */
+.pc .ps-t{table-layout:fixed;font-size:10.5px;--pcm:48px;--pc1:42px;--pcs:30px}
+.pc .ps-t td{padding-left:1px;padding-right:1px}
+.pc .ps-t thead th:nth-child(2){width:var(--pcm)}
+.pc .ps-t thead th:nth-child(3){width:var(--pc1)}
+.pc .ps-t thead th:nth-child(n+4){width:var(--pcs)}
+.pc .ps-t td.ps-meta{text-align:left;white-space:normal;padding-left:3px;line-height:1}
+.pc .ps-t .ps-nm{font-size:11.5px}
+.pc .ps-t .ps-nm1>.ps-ln{white-space:normal;overflow-wrap:break-word;line-height:1.05}   /* a wrapped name or tag adds ~4px, not ~9 */
+@media (max-width:370px){.pc .ps-t{font-size:10px;--pcm:46px;--pc1:40px;--pcs:29px}}
+/* iPhone SE (1st gen)-narrow: no room for the number column beside six stats -- it goes, and the
+   name and stats get its width */
+@media (max-width:340px){.pc .ps-t{--pc1:38px;--pcs:28px}.pc .ps-t .ps-nm{font-size:10.5px}
+  .pc .ps-t td.ps-meta,.pc .ps-t thead th.ps-mh{display:none}
+  .pc .ps-t thead th:nth-child(3){width:var(--pc1)}
+  .p2-c.pc a.card.cc{padding-bottom:2px}}
+@media (max-width:340px){.pc .ps-t{font-size:9.5px}.pc .ps-t thead th{font-size:8px}
   .pc-sts{gap:3px}.pc-st b{font-size:12px}}
 .pc-st small{font-size:9px;font-weight:700;letter-spacing:.05em;color:var(--text-2)}
 .pc .ps-empty{padding:0;font-size:12px}
@@ -765,7 +815,28 @@ P4_CSS = r"""
 .ps-fn,.ps-ln{display:block}
 .ps-fn,.ps-nm .ps-pos,.ps-no{white-space:nowrap}
 .ps-no{font-size:10px;font-weight:400;color:var(--text-2);font-variant-numeric:tabular-nums}
-@media (max-width:370px){.p2-l .ps-t,.p2-l .ps-nm{font-size:11px}}   /* small Android phones: Defense still fits */
+@media (max-width:380px){.p2-l .ps-nm{font-size:11px}}   /* iPhone SE / mini and small Androids */
+/* Expanded tables (Jason, 2026-10-07): the name in one fixed column (80px -- the longest name that
+   can't break, "Schoonmaker", fits, its last pixel or two into the gap; longer ones break after a
+   hyphen or a space), and the jersey number over the position and R / IR in a second fixed column
+   beside it, so both line up row to row -- and the whole player column is the same width on every
+   card, so the stats start at the same point all the way down the page. A position with both tags
+   ("WR · R · IR") takes its last tag to a third line.
+   The stats a half step smaller than the names (11.5px, 10.5px on a phone 380px wide or less) and
+   the headers a touch smaller, 2px between columns: with the card narrowed for the nav icons
+   (render_page1, .slot), Passing's seven columns still fit beside the player column on every
+   phone down to 360px. */
+.p2-l .ps-t{font-size:11.5px;--fnw:80px;--mtw:36px;--nmg:7px}
+.p2-l .ps-t thead th{font-size:9.5px;letter-spacing:.03em}
+.p2-l .ps-t td{padding-left:1px;padding-right:1px}
+.p2-l .ps-sort{padding-left:1px;padding-right:1px}
+.p2-l .ps-t tbody th{padding-right:3px}
+@media (max-width:380px){.p2-l .ps-t{font-size:10.5px;--fnw:73px;--mtw:34px;--nmg:6px}.p2-l .ps-t thead th{font-size:9px}}
+@media (max-width:370px){.p2-l .ps-t{--fnw:72px;--nmg:5px}.p2-l .ps-sort{padding-left:0;padding-right:0}}
+.p2-l .ps-nm{grid-template-columns:var(--fnw) var(--mtw);column-gap:var(--nmg)}
+.p2-l .ps-fn,.p2-l .ps-nm .ps-pos{white-space:normal}
+.p2-l .ps-t tbody th,.p2-l .ps-t thead th:first-child{width:calc(var(--fnw) + var(--nmg) + var(--mtw) + 3px);
+  min-width:calc(var(--fnw) + var(--nmg) + var(--mtw) + 3px)}
 .ps-pos{display:inline;font-size:10px;font-weight:400;color:var(--text-2);letter-spacing:.04em}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 /* a hyphen inside a person's name (esc_name), site-wide: Inter's hyphen has ~.06em of empty side

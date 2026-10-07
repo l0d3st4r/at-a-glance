@@ -2082,31 +2082,36 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
    above. Every Page 2 nav has icons now -- Game Info's, the team pages' and Player Stats'
    (render_page2gameinfo.P2_ICONS, render_page2team.TEAM_ICONS, 2026-10-04, and
    render_page2players.PS_ICONS, 2026-10-07) -- so their ".p2 > .ic-dots" rides along on every rule here.
-   Sized small below 680px on purpose: the card there runs edge to edge behind a flat 16px
+   Sized small below 780px (680px until 2026-10-07) on purpose: the card there ran edge to edge behind a flat 16px
    gutter (".slot{padding:0 16px}"), the same gutter the old 6px dot already lived in, so a
    much bigger icon has nowhere to go without either overlapping the card or hanging off the
    physical screen edge. A 10px icon with "right:3px" splits that 16px gutter into a real ~3px
    clearance on both sides of the icon -- sized to still clear both edges once the active icon's
    scale(1.15) below grows it a couple pixels past its own box (transforms don't affect layout,
-   only what's painted, so that growth eats directly into this margin). Past 680px the card is
+   only what's painted, so that growth eats directly into this margin). Past 780px the card is
    capped at --col (600px) and the gutter opens right up, so the icon grows to something more
    legible there with room to spare. Gap is inverted on purpose: the smaller the icon, the more
    room it gets, so a tight cluster of small marks doesn't read as one blob -- 36px apart at the
    small mobile size, down to 28px once the icons are big enough to stay legible closer
    together (both doubled 2026-09-27, were 18px / 14px).
-   Icons doubled (Jason, 2026-10-03): 20px on phones, 44px past 680px. A phone's 20px icon now
-   reaches ~7px past the 16px gutter into the card -- fine since the cards have no outline or
-   fill (theme.CARD_OUTLINES) and every card's own padding is wider than that. */
-.p1 > .dots,.p2 > .ic-dots{right:3px;gap:36px}
+   Icons doubled (Jason, 2026-10-03): 20px on phones, 44px on wide screens; since 2026-10-07 the
+   cards make room for them instead of the icons reaching into the card (see below). */
+/* Where the icons sit (Jason, 2026-10-07) -- the same place on every page, Page 1 and each Page 2
+   page alike. Below 780px every expanded card ends 28px from the right edge (the left stays 16px),
+   and the 20px icons sit centered in the strip beside the card: 4px clear of the card and 4px of
+   the screen on a phone, and still centered in whatever's beside the card on a wider window (the
+   slot is capped at --col there and centered). From 780px the icons are 48px and sit a fixed 24px
+   right of the card -- the first width where they fit there without overlapping it. */
+.p1 > .dots,.p2 > .ic-dots{right:calc((max(0px, 50% - var(--col) / 2) + 8px) / 2);gap:36px}
 .p1 > .dots .dot,.p2 > .ic-dots .dot{width:20px;height:20px;border-radius:0;background:none;opacity:.4;
   display:flex;align-items:center;justify-content:center;transition:opacity .2s}
 .p1 > .dots .dot svg,.p2 > .ic-dots .dot svg{display:block;width:20px;height:auto;color:var(--ink);transition:transform .2s}
 .p1 > .dots .dot.on,.p2 > .ic-dots .dot.on{height:20px;background:none;opacity:1}
 .p1 > .dots .dot.on svg,.p2 > .ic-dots .dot.on svg{transform:scale(1.15)}
 .p1 > .dots .dot:not(.on):hover,.p2 > .ic-dots .dot:not(.on):hover{opacity:.7}
-@media (min-width:680px){
-  .dots{right:calc(50% - 300px - 22px)}
-  .p1 > .dots,.p2 > .ic-dots{gap:28px}
+@media (max-width:779.98px){.slot{padding-right:28px}}
+@media (min-width:780px){
+  .p1 > .dots,.p2 > .ic-dots{right:calc(50% - var(--col) / 2 + 16px - 24px - 48px);gap:28px}
   .p1 > .dots .dot,.p2 > .ic-dots .dot{width:48px;height:48px}
   .p1 > .dots .dot svg,.p2 > .ic-dots .dot svg{width:44px}
   .p1 > .dots .dot.on,.p2 > .ic-dots .dot.on{height:48px}
