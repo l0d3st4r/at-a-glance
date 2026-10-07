@@ -447,7 +447,7 @@ def inj_who_html(position, name, row=None):
     # the tags' span is there even when empty: the condensed card lays these out as grid cells,
     # one column each, so every row needs the same four (2026-10-03)
     return (f'<span class="inj-who"><span class="inj-pos">{esc(position or "")}</span>'
-            f'<span class="inj-name">{esc(name or "")}</span>'
+            f'<span class="inj-name">{render_page2players.esc_name(name)}</span>'
             f'<span class="inj-rk">{rk(row)}</span></span>')
 
 
@@ -673,7 +673,7 @@ def leader_cell(p):
     extra = leader_extra(p.get("extra"))
     return (
         f'<div class="ldr"><div class="ldr-v"><span>{esc(fmt_value(p.get("value"))).replace(",", "<i class=cm>,</i>")}</span>{crown(p.get("league_rank"))}</div>'
-        f'<div class="ldr-n"><span class="nm">{esc(p.get("name") or "")}</span><span class="pos">{esc(p.get("position") or "")}{rk(p)}</span></div>'
+        f'<div class="ldr-n"><span class="nm">{render_page2players.esc_name(p.get("name"))}</span><span class="pos">{esc(p.get("position") or "")}{rk(p)}</span></div>'
         + (f'<div class="ldr-x">{esc(extra)}</div>' if extra else "") + "</div>"
     )
 
@@ -1532,10 +1532,11 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     Object.assign(d.el.style, { transform: 'translateY(' + (dy * 0.55) + 'px) scale(' + sc + ')', borderRadius: (20 / sc) + 'px',
       boxShadow: '0 0 0 ' + (1 / sc) + 'px ' + tileLine(), overflow: 'hidden' });
   }
-  // Swipe sideways between the three Page 2 details (2026-09-24): Game Info <-> away team <->
-  // home team, in DETAIL_KEYS order. Only live once a detail is open and Page 1 is in the
-  // expanded view (the team pages have no condensed layer, so a detail opened on one of them
-  // is already forced into large view). The gesture only claims itself once a drag is clearly
+  // Swipe sideways between the Page 2 details (2026-09-24): Game Info <-> away team <-> home team
+  // <-> Player Stats, in DETAIL_KEYS order, once a detail is open -- in the condensed view too
+  // (Jason, 2026-10-07). The team pages have no condensed layer, so swiping onto one from a
+  // condensed page brings it in expanded (.p2-force-l) and lets go into the expanded view, the
+  // way tapping a team card in the condensed view opens it. The gesture only claims itself once a drag is clearly
   // more horizontal than vertical, same threshold as everywhere else in this file, so it never
   // fights the detail's own vertical card-to-card scroll. The Page 0 overlay's own touch
   // handling already steps aside for a horizontal drag while a detail is open (see
@@ -1558,7 +1559,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     // a sideways swipe on a Player Stats table that's wider than its card scrolls the table instead
     var tw = e.target && e.target.closest && e.target.closest('.ps-tw');
     if (tw && tw.scrollWidth > tw.clientWidth + 2) { detailSwipe = null; return; }
-    detailSwipe = (detailOpen() && large() && !detailBusy && e.touches.length === 1)
+    detailSwipe = (detailOpen() && !detailBusy && e.touches.length === 1)
       ? { x0: e.touches[0].clientX, y0: e.touches[0].clientY, dx: 0, dir: 0, mode: 'pending', t0: Date.now(), neighbor: null }
       : null;
   }, { passive: true });
@@ -1578,8 +1579,12 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     s.dir = dir; s.dx = nb ? mx : mx * 0.3;   // rubber band past the first/last detail
     cur.el.style.transform = 'translateX(' + s.dx + 'px)';
     if (nb !== s.neighbor) {
-      if (s.neighbor) { s.neighbor.el.style.display = ''; s.neighbor.el.style.transform = ''; }
-      if (nb) { rememberCard(cur); nb.el.style.display = 'block'; detailPlace(nb, recalledCard(nb)); }
+      if (s.neighbor) { s.neighbor.el.style.display = ''; s.neighbor.el.style.transform = ''; s.neighbor.el.classList.remove('p2-force-l'); }
+      if (nb) {
+        rememberCard(cur);
+        if (!large() && !nb.cond.length) nb.el.classList.add('p2-force-l');   // a team page, from a condensed one
+        nb.el.style.display = 'block'; detailPlace(nb, recalledCard(nb));
+      }
       s.neighbor = nb;
     }
     if (nb) nb.el.style.transform = 'translateX(' + (dir * w + s.dx) + 'px)';
@@ -1600,6 +1605,11 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
       Promise.all([fin(outAnim), fin(inAnim)]).then(function () {
         cur.el.style.transform = ''; cur.el.style.display = '';
         nb.el.style.transform = ''; nb.el.style.display = '';
+        if (nb.el.classList.contains('p2-force-l')) {   // landed on a team page: the expanded view from here, as openDetail does
+          nb.el.classList.remove('p2-force-l');
+          wrap.setAttribute('data-view', 'large'); labelToggle('large'); go(lastCard, true); setActive(lastCard);
+          setHead('bar');
+        }
         wrap.setAttribute('data-detail', nb.key);
         history.replaceState(Object.assign({}, history.state, { p2: nb.key }), '', (hashBase() || '#') + nb.hash);
         detailBusy = false;
@@ -1612,7 +1622,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     if (nb) {
       var back2 = nb.el.animate([{ transform: 'translateX(' + (dir * w + s.dx) + 'px)' }, { transform: 'translateX(' + (dir * w) + 'px)' }],
                                  { duration: 180, easing: EASE, fill: 'forwards' });
-      fin(back2).then(function () { nb.el.style.transform = ''; nb.el.style.display = ''; });
+      fin(back2).then(function () { nb.el.style.transform = ''; nb.el.style.display = ''; nb.el.classList.remove('p2-force-l'); });
     }
   }
   on(wrap, 'touchend', endDetailSwipe);

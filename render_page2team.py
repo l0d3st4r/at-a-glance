@@ -42,6 +42,8 @@ open here").
 
 import html
 
+from render_page2players import esc_name
+
 DASH = "—"
 
 
@@ -221,7 +223,7 @@ def _staff_block(coaches):
     if not people:
         return ""
     rows = "".join(
-        f'<li class="ov-coach"><b class="ov-coach-name">{esc(name)}</b>'
+        f'<li class="ov-coach"><b class="ov-coach-name">{esc_name(name)}</b>'
         f'<span class="ov-coach-role">{esc(", ".join(roles))}</span></li>'
         for name, roles in people
     )
@@ -284,7 +286,7 @@ def _inj_items(rows, cls_map, ir_tag=True, cut=None, more_base=0, more_fmt="+{n}
         step = cut(r) if cut else None
         items.append(
             f'<li{f" data-cut={step}" if step else ""}><span class="inj-who"><span class="inj-pos">{esc(r.get("position") or "")}</span>'
-            f'<span class="inj-name">{esc(r.get("name") or "")}</span>'
+            f'<span class="inj-name">{esc_name(r.get("name"))}</span>'
             f'{f"<span class=inj-rk>{tags}</span>" if tags else ""}</span>'
             f'<span class="inj-s"><i class="inj-dot inj-{cls_map.get(r.get("status"), "ques")}"></i>{esc(status)}</span></li>'
         )

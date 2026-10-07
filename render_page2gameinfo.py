@@ -450,8 +450,8 @@ P2_CSS = r"""
 .p2-back{display:none}
 .p1[data-detail] .p2-back{display:inline-flex}
 .p2-view{display:none}
-.p1[data-view=large] .p2-l{display:block}
-.p1[data-view=large] .p2-dots{display:flex}
+.p1[data-view=large] .p2-l,.p2.p2-force-l .p2-l{display:block}
+.p1[data-view=large] .p2-dots,.p2.p2-force-l .p2-dots{display:flex}   /* .p2-force-l: a team page swiped onto from a condensed page (P1_JS) */
 .p1[data-view=condensed] .p2-c{display:grid}
 .p2 .na{color:var(--text-3)}
 

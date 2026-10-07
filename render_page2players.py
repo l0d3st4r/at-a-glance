@@ -46,6 +46,13 @@ import helmets
 DASH = "—"
 
 
+def esc_name(name):
+    """A person's name for the page, each hyphen in its own .hy span (Jason, 2026-10-07): Inter's
+    hyphen carries wide side bearings, so "Smith-Njigba" read as "Smith - Njigba"; .hy pulls them in.
+    Used wherever a player's or coach's name is shown, site-wide."""
+    return esc(name or "").replace("-", '<span class="hy">-</span>')
+
+
 def esc(v):
     return html.escape(str(v), quote=True)
 
@@ -112,16 +119,28 @@ def name_html(r):
     so the tables grow down rather than sideways), and beside them his jersey number over his
     position (2026-10-03)."""
     first, last = split_name(r["name"])
-    top = f'<span class="ps-fn">{esc(first)}</span> ' if first else ""
+    top = f'<span class="ps-fn">{esc_name(first)}</span> ' if first else ""
     # the last name stays on one line ("St. Brown") except after a hyphen or before a suffix ("Jr.")
     words = last.split()
     if len(words) > 1 and words[-1].lower() in SUFFIXES:
-        last = "&nbsp;".join(esc(w) for w in words[:-1]) + " " + esc(words[-1])
+        last = "&nbsp;".join(esc_name(w) for w in words[:-1]) + " " + esc(words[-1])
     else:
-        last = "&nbsp;".join(esc(w) for w in words)
+        last = "&nbsp;".join(esc_name(w) for w in words)
     num = f'#{r["jersey"]}' if r.get("jersey") is not None else ""
     return (f'<span class="ps-nm">{top or "<span class=ps-fn></span>"}<span class="ps-no">{num}</span>'
             f'<span class="ps-ln"><span class="ps-lt">{last}</span></span> '
+            f'<span class="ps-pos">{esc(r["pos"])}{marks(r)}</span></span>')
+
+
+def short_name_html(r):
+    """The condensed view's name (Jason, 2026-10-07): one line, first initial and last name, then
+    jersey number and position -- "L. Jackson #8 QB" -- so the view fits a phone with no scrolling
+    (the stacked full name above takes two lines a row)."""
+    first, last = split_name(r["name"])
+    name = f"{first[0]}. {last}" if first else last
+    num = f'#{r["jersey"]}' if r.get("jersey") is not None else ""
+    return (f'<span class="ps-nm ps-nm1"><span class="ps-ln">{esc_name(name)}</span>'
+            f'{f"<span class=ps-no>{num}</span>" if num else ""}'
             f'<span class="ps-pos">{esc(r["pos"])}{marks(r)}</span></span>')
 
 
@@ -442,8 +461,9 @@ def _cell(label, f, r, medal_stat):
     return f'<td data-v="{v:g}">{inner}</td>' if v is not None else f"<td>{inner}</td>"
 
 
-def _table(rows, cols, empty, medals, sortable=True, corner=None):
-    """corner: a section heading to sit in the header row's empty top-left cell, over the names."""
+def _table(rows, cols, empty, medals, sortable=True, corner=None, name=name_html):
+    """corner: a section heading to sit in the header row's empty top-left cell, over the names.
+    name: how a player's name is written (short_name_html in the condensed view)."""
     if not rows:
         return f'<p class="ps-empty">{esc(empty)}</p>'
     head = "".join(
@@ -451,7 +471,7 @@ def _table(rows, cols, empty, medals, sortable=True, corner=None):
         else f'<th scope="col"><span class="ps-lbl">{esc(label)}</span></th>'
         for label, _f in cols)
     body = "".join(
-        f'<tr data-i="{i}"><th scope="row">{name_html(r)}</th>'
+        f'<tr data-i="{i}"><th scope="row">{name(r)}</th>'
         + "".join(_cell(label, f, r, medals.get(label)) for label, f in cols) + "</tr>"
         for i, r in enumerate(rows))
     first = f'<span class="ps-corner">{esc(corner)}</span>' if corner else '<span class="vh">Player</span>'
@@ -564,7 +584,7 @@ def _pairs(rows, cols, empty):
         return f'<p class="ps-empty">{esc(empty)}</p>'
     r = rows[0]
     stats = "".join(f'<span class="pc-st"><b>{esc(f(r))}</b><small>{esc(label)}</small></span>' for label, f in cols)
-    return f'<div class="pc-who">{name_html(r)}</div><div class="pc-sts">{stats}</div>'
+    return f'<div class="pc-who">{short_name_html(r)}</div><div class="pc-sts">{stats}</div>'
 
 
 def condensed_view(teams, stats, scope="season"):
@@ -578,7 +598,7 @@ def condensed_view(teams, stats, scope="season"):
         cols = [c for c in cols if c[0] not in left_out]
         panes = "".join(
             f'<div class="pc-p{" on" if i == 0 else ""}" data-team="{esc(t)}">'
-            + (_table(who(stats.get(t) or []), cols, empty, medals, sortable=False) if width == "row"
+            + (_table(who(stats.get(t) or []), cols, empty, medals, sortable=False, name=short_name_html) if width == "row"
                else _pairs(who(stats.get(t) or []), cols, empty))
             + "</div>"
             for i, t in enumerate(teams))
@@ -656,11 +676,12 @@ P4_CSS = r"""
 }
 /* Condensed view: the team switch across the top, then Passing / Rushing / Receiving / Defense
    one per row and Kicking + Punt Returns side by side; rows share the height by how many players
-   each holds, but never get shorter than their contents -- on a short phone (iPhone SE) that's
-   more than the screen, so the view scrolls there instead of cutting rows off (P1_JS's
-   detailAtTop keeps a pull-down from closing the page until it's scrolled back to the top).
-   Each card shows the chosen team's pane (.pc-p.on). */
-.p2-c.pc{grid-template-columns:1fr 1fr;overflow-y:auto;-webkit-overflow-scrolling:touch;
+   each holds, but never get shorter than their contents. It all fits a phone with no scrolling
+   (Jason, 2026-10-07): one-line names (short_name_html), 6px between cards and tighter rows --
+   down to an iPhone SE (1st gen) with the steps below. It can still scroll as a last resort (a
+   phone on its side), and P1_JS's detailAtTop keeps a pull-down from closing the page until it's
+   back at the top. Each card shows the chosen team's pane (.pc-p.on). */
+.p2-c.pc{grid-template-columns:1fr 1fr;overflow-y:auto;-webkit-overflow-scrolling:touch;row-gap:6px;
   grid-template-rows:auto auto minmax(min-content,1.1fr) minmax(min-content,1.5fr) minmax(min-content,2fr)
     minmax(min-content,2fr) minmax(min-content,1.2fr)}
 .pc-sw{grid-column:1/-1}
@@ -671,7 +692,7 @@ P4_CSS = r"""
   color:var(--text-2);padding:3px 9px;line-height:1.1;white-space:nowrap}
 .p2 .slot .p2k-ps .body>.ps-scope{margin-top:-14px}
 .pc-scope{grid-column:1/-1;justify-self:center;margin:-4px 0 -2px}
-.p2-c.pc a.card.cc{justify-content:flex-start;padding:var(--ctitle) 12px 6px;gap:0}
+.p2-c.pc a.card.cc{justify-content:flex-start;padding:var(--ctitle) 12px 4px;gap:0}
 .p2-c.pc a.card.pc-row{grid-column:1/-1}
 /* "safe": if a pane ever overflows, it's the bottom that's cut, never the player's name */
 .pc-p{display:none;flex-direction:column;justify-content:safe center;flex:1;min-height:0}
@@ -679,17 +700,34 @@ P4_CSS = r"""
 .pc .ps-tw{margin:0 -12px;padding:0 12px}
 /* a little tighter than the expanded tables, so Defense's ten columns need less sideways scrolling */
 .pc .ps-t{font-size:11.5px}
-.pc .ps-t td{padding:3px}
-.pc .ps-t tbody th{padding:3px 6px 3px 0}
-.pc .ps-t thead th{padding:0 3px 2px;font-size:9px}
+.pc .ps-t td{padding:2px}
+.pc .ps-t tbody th{padding:2px 4px 2px 0}
+.pc .ps-t thead th{padding:0 3px;font-size:9px}
+.ps-nm.ps-nm1{display:inline-flex;align-items:baseline;gap:4px;white-space:nowrap}
 .ps-lbl{display:block}
-.pc-who{margin-bottom:4px}
+.pc-who{margin-bottom:2px}
+/* a name too long for its line ("K. Abrams-Draine #31 CB", "R. Spears-Jennings #28 SAF · R")
+   takes its number and position down to a second line rather than running past the card */
+.pc .ps-nm.ps-nm1{flex-wrap:wrap;column-gap:4px;row-gap:0;white-space:normal}
+.pc .ps-nm1>*{white-space:nowrap}
+.pc-who .ps-nm.ps-nm1{display:flex}
 .pc-who .ps-nm{font-weight:700}
 /* Kicking / Punt Returns: the stats always on one line (Jason, 2026-09-28), spread across the card */
 .pc-sts{display:flex;flex-wrap:nowrap;justify-content:space-between;gap:6px}
 .pc-st{display:flex;flex-direction:column;line-height:1.1;white-space:nowrap}
 .pc-st b{font-size:14px;font-variant-numeric:tabular-nums}
-@media (max-width:370px){.pc-st b{font-size:13px}.pc .ps-t{font-size:11px}.pc .ps-t td{padding:3px 2px}.pc .ps-t tbody th{padding-right:3px}}
+@media (max-width:370px){.pc-st b{font-size:13px}.pc .ps-t{font-size:11px}.pc .ps-t td{padding:2px}.pc .ps-t tbody th{padding-right:3px}}
+/* iPhone SE (1st gen)-small: 4px between cards, rows and stats a step smaller, and the narrowest
+   type for the widest table (Passing's seven columns) */
+@media (max-height:600px){
+  .p2-c.pc{row-gap:4px}
+  .pc .ps-t td,.pc .ps-t tbody th{padding-top:1px;padding-bottom:1px}
+  .pc-scope{margin:-4px 0 -4px}
+  .pc-st b{font-size:12px}
+}
+@media (max-width:370px){.pc .ps-no{display:none}}   /* no jersey number, so a long name still leaves Passing room */
+@media (max-width:340px){.pc .ps-t,.pc .ps-nm{font-size:10px}.pc .ps-t thead th{font-size:8px}.pc .ps-t td{padding:1px 1.5px}
+  .pc-sts{gap:3px}.pc-st b{font-size:12px}}
 .pc-st small{font-size:9px;font-weight:700;letter-spacing:.05em;color:var(--text-2)}
 .pc .ps-empty{padding:0;font-size:12px}
 /* The table: player column pinned on the left; a table wider than the card scrolls sideways,
@@ -730,4 +768,8 @@ P4_CSS = r"""
 @media (max-width:370px){.p2-l .ps-t,.p2-l .ps-nm{font-size:11px}}   /* small Android phones: Defense still fits */
 .ps-pos{display:inline;font-size:10px;font-weight:400;color:var(--text-2);letter-spacing:.04em}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+/* a hyphen inside a person's name (esc_name), site-wide: Inter's hyphen has ~.06em of empty side
+   on each side, plus the letters' own, which read as a space either side of it ("Smith - Njigba");
+   .08em in from each side closes it without the hyphen touching the letters */
+.hy{margin:0 -.08em}
 """
