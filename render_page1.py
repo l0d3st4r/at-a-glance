@@ -2351,10 +2351,10 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .compare .cmp-lbl{font-size:14px}
 /* expanded: two-word labels stack, "Passing" centered over "Yards" (min-content = one word per line) */
 .compare .cmp-row>.cmp-lbl{white-space:normal;width:min-content;justify-self:center}
-/* pills sit over their own team's edge, above that side's numbers */
+/* each team's pill centered in its own half of the card, over that side's column (Jason, 2026-10-07;
+   was flush with the card's edge) -- the same place on every game, whatever the names below */
 .cmp-head{grid-template-columns:1fr auto 1fr;align-items:center}
-.cmp-head>:first-child{justify-self:start}
-.cmp-head>:last-child{justify-self:end}
+.cmp-head>:first-child,.cmp-head>:last-child{justify-self:center}
 /* team pills (helmets.pill_html): a shaded fill inside a shaded ring (the ring is a gradient painted
    under a transparent border), with flat white letters */
 .tpill{display:inline-flex;align-items:center;justify-content:center;height:24px;min-width:64px;padding:0 9px;
