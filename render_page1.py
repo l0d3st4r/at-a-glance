@@ -1287,6 +1287,44 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
   psTables.forEach(function (tw) { on(tw, 'scroll', function () { psMore(tw); }, { passive: true }); });
   var psRO = window.ResizeObserver ? new ResizeObserver(function (es) { es.forEach(function (x) { psMore(x.target); }); }) : null;
   if (psRO) psTables.forEach(function (tw) { psRO.observe(tw); });
+  // Team pages' Injuries card (render_page2team.injuries_body) never scrolls (Jason, 2026-10-07):
+  // whenever its card changes height (first shown, a resize, a phone turned) it starts from
+  // everything and gives way until it fits -- tighter spacing (.t1, .t2), then each data-cut step
+  // in turn, then (a screen too short even for that) the remaining rows from the bottom up. Each
+  // list's .inj-more line counts the rows it's hiding on top of the ones it always leaves out.
+  function injMore(box) {
+    [].slice.call(box.querySelectorAll('.inj-more')).forEach(function (m) {
+      var ul = m.previousElementSibling, n = +m.getAttribute('data-base') + (ul ? ul.querySelectorAll('.inj-cut').length : 0);
+      m.hidden = !n;
+      m.textContent = m.getAttribute('data-fmt').replace('{n}', n);
+    });
+  }
+  function injFit(box) {
+    var all = function (sel) { return [].slice.call(box.querySelectorAll(sel)); };
+    var fits = function () { injMore(box); return box.scrollHeight <= box.clientHeight + 1; };
+    box.classList.remove('t1', 't2');
+    all('.inj-cut').forEach(function (el) { el.classList.remove('inj-cut'); });
+    all('[data-show]').forEach(function (el) { el.hidden = true; });
+    if (!box.clientHeight || fits()) return;
+    box.classList.add('t1'); if (fits()) return;
+    box.classList.add('t2'); if (fits()) return;
+    for (var step = 1; step <= 4; step++) {
+      var cut = all('[data-cut="' + step + '"]'), show = all('[data-show="' + step + '"]');
+      if (!cut.length && !show.length) continue;
+      cut.forEach(function (el) { el.classList.add('inj-cut'); });
+      show.forEach(function (el) { el.hidden = false; });
+      if (fits()) return;
+    }
+    var rest = all('li, .inj-irline:not([hidden])').filter(function (el) { return !el.closest('.inj-cut'); });
+    for (var i = rest.length - 1; i >= 0 && !fits(); i--) rest[i].classList.add('inj-cut');
+  }
+  var injRO = window.ResizeObserver ? new ResizeObserver(function (es) {
+    es.forEach(function (x) {
+      var body = x.target, h = body.clientHeight, box = body.querySelector('.inj-fit');
+      if (box && h !== +body.getAttribute('data-fit-h')) { body.setAttribute('data-fit-h', h); injFit(box); }
+    });
+  }) : null;
+  if (injRO) [].slice.call(root.querySelectorAll('.inj-fit')).forEach(function (box) { injRO.observe(box.parentNode); });
   // One switch inside an expanded card changes just that card; the condensed view's single switch
   // changes the whole page -- every condensed card, and the expanded cards' switches with it, so
   // tapping a condensed card opens on the same team.
@@ -1690,15 +1728,14 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     card: function () { return lastCard; },
     head: visibleHead,
     detail: detailOpen,
-    // e (optional): the touch -- a pull that starts inside a Player Stats list (or a finished
-    // game's Injuries lists, or a schedule too long for a short screen) scrolled down scrolls the
-    // list back up instead of closing the page
+    // e (optional): the touch -- a pull that starts inside a Player Stats list (or a schedule too
+    // long for a short screen) scrolled down scrolls the list back up instead of closing the page
     detailAtTop: function (e) {
       var d = curDetail();
       var path = e && e.composedPath ? e.composedPath() : [];
       for (var i = 0; i < path.length; i++) {
         var cl = path[i].classList;
-        if (cl && (cl.contains('ps-scroll') || cl.contains('inj-scroll') || cl.contains('sc-list')) && path[i].scrollTop > 1) return false;
+        if (cl && (cl.contains('ps-scroll') || cl.contains('sc-list')) && path[i].scrollTop > 1) return false;
       }
       if (!large()) { var c = d && d.el.querySelector('.p2-c'); return !c || c.scrollTop <= 1; }   // a condensed view can scroll on short phones
       return !d || !d.deck || d.deck.scrollTop <= 1;
@@ -1709,6 +1746,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     destroy: function () {
       if (cdTimer) clearInterval(cdTimer);
       if (psRO) psRO.disconnect();
+      if (injRO) injRO.disconnect();
       bound.forEach(function (b) { b[0].removeEventListener(b[1], b[2], b[3]); }); bound = [];
     }
   };

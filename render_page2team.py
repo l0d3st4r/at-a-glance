@@ -261,8 +261,11 @@ def _fit_status(name, choices):
     return choices[-1]
 
 
-def _inj_items(rows, cls_map, ir_tag=True):
-    """ir_tag=False for the Injured Reserve list itself, where every row already says IR."""
+def _inj_items(rows, cls_map, ir_tag=True, cut=None, more_base=0, more_fmt="+{n} more"):
+    """ir_tag=False for the Injured Reserve list itself, where every row already says IR.
+    cut(row) -> the step at which P1_JS's injFit may hide that row on a short screen (None: never,
+    short of its last resort); the line after the list then counts what's hidden, on top of
+    more_base players the list already leaves out."""
     items = []
     for r in rows:
         status = r.get("status") or ""
@@ -278,16 +281,28 @@ def _inj_items(rows, cls_map, ir_tag=True):
         tag_text = (" · R" if r.get("rookie") else "") + (" · IR" if ir_tag and r.get("ir") else "")
         status = _fit_status((r.get("name") or "") + tag_text, choices)
         tags = (" · <span class=rk>R</span>" if r.get("rookie") else "") + (" · <span class=ir>IR</span>" if ir_tag and r.get("ir") else "")
+        step = cut(r) if cut else None
         items.append(
-            f'<li><span class="inj-who"><span class="inj-pos">{esc(r.get("position") or "")}</span>'
+            f'<li{f" data-cut={step}" if step else ""}><span class="inj-who"><span class="inj-pos">{esc(r.get("position") or "")}</span>'
             f'<span class="inj-name">{esc(r.get("name") or "")}</span>'
             f'{f"<span class=inj-rk>{tags}</span>" if tags else ""}</span>'
             f'<span class="inj-s"><i class="inj-dot inj-{cls_map.get(r.get("status"), "ques")}"></i>{esc(status)}</span></li>'
         )
-    return f'<ul class="l-inj full-inj">{"".join(items)}</ul>'
+    return (f'<ul class="l-inj full-inj">{"".join(items)}</ul>'
+            f'<p class="ov-empty inj-more" data-base="{more_base}" data-fmt="{esc(more_fmt)}"'
+            f'{"" if more_base else " hidden"}>{esc(more_fmt.format(n=more_base))}</p>')
 
 
 IR_SHOWN = 3   # the IR list's top three, starters first (reserve.py sorts); the rest are counted
+
+# What gives way, in order, when the card won't fit its screen (Jason, 2026-10-07) -- it never
+# scrolls. P1_JS's injFit first tightens the spacing, then hides each step in turn until it fits:
+CUT_INACTIVE_BACKUPS = 1   # inactive non-starters with no injury (healthy scratches) -> "+N more"
+CUT_IR_BACKUPS = 2         # the IR list's non-starters
+CUT_IR_LIST = 3            # the IR section down to one line: how many, and the man-games lost
+CUT_QUESTIONABLE = 4       # Questionable / Limited players on the report
+# "Left the Game" and Out / Doubtful players are in no step; only injFit's last resort (a screen
+# too short even for them, like a phone on its side) hides those, from the bottom up.
 
 
 def _ordinal(n):
@@ -296,28 +311,58 @@ def _ordinal(n):
 
 def _ir_section(team_page, cls_map):
     """The team's injured reserve (2026-10-03): three players, starters first, a count of the rest,
-    then its man-games lost this season with the league rank (reserve.man_games_lost)."""
+    then its man-games lost this season with the league rank (reserve.man_games_lost). On a short
+    screen it shrinks to its starters, then to one line (.inj-irline) in place of all of it."""
     ir = team_page.get("injured_reserve") or []
     mgl = team_page.get("man_games_lost") or {}
     if not ir and not mgl.get("games"):
         return ""
     parts = ['<h3 class="ov-h inj-h">Injured Reserve</h3>']
-    parts.append(_inj_items(ir[:IR_SHOWN], cls_map, ir_tag=False) if ir else '<p class="ov-empty">Nobody on IR</p>')
-    if len(ir) > IR_SHOWN:
-        parts.append(f'<p class="ov-empty">+{len(ir) - IR_SHOWN} more · {len(ir)} on IR</p>')
+    if ir:
+        parts.append(_inj_items(ir[:IR_SHOWN], cls_map, ir_tag=False,
+                                cut=lambda r: None if r.get("starter") else CUT_IR_BACKUPS,
+                                more_base=max(0, len(ir) - IR_SHOWN), more_fmt=f"+{{n}} more · {len(ir)} on IR"))
+    else:
+        parts.append('<p class="ov-empty">Nobody on IR</p>')
     if mgl.get("games"):
         parts.append(f'<div class="inj-mgl"><span>Man-Games Lost</span><span><b>{mgl["games"]}</b>'
                      f' · {_ordinal(mgl["rank"])} most</span></div>')
-    return "".join(parts)
+    line = [f"<b>{len(ir)}</b> on IR" if ir else "Nobody on IR"]
+    if mgl.get("games"):
+        line.append(f'{mgl["games"]} games lost')
+    return (f'<div class="inj-ir"><div data-cut={CUT_IR_LIST}>{"".join(parts)}</div>'
+            f'<div class="inj-mgl inj-irline" data-show={CUT_IR_LIST} hidden><span>Injured Reserve</span>'
+            f'<span>{" · ".join(line)}</span></div></div>')
+
+
+def _cut_report(r):
+    return CUT_QUESTIONABLE if r.get("status") in ("Questionable", "Limited") else None
+
+
+def _cut_inactive(r):
+    return None if r.get("starter") or r.get("designation") else CUT_INACTIVE_BACKUPS
+
+
+def _after_game(rows, inactive):
+    """A finished game's pre-game report, cleaned up (Jason, 2026-10-07): a player who ended up
+    inactive is listed there instead, the injury added to that row ("INA · Knee") rather than
+    twice, and a Questionable player who played is dropped -- that status no longer matters."""
+    by_name = {r.get("name"): r for r in rows}
+    inactive = [dict(r, designation=r.get("designation") or (by_name.get(r.get("name")) or {}).get("designation"))
+                for r in inactive]
+    out = {r.get("name") for r in inactive}
+    return [r for r in rows if r.get("name") not in out and r.get("status") != "Questionable"], inactive
 
 
 def injuries_body(team_page, game_absences=None):
     """Status reads as a colored dot (matching Page 1's cards), plus nflverse's injury
     designation (Knee, Ankle, ...) where it's reported. A finished game (2026-09-30) leads
     with who left injured and didn't return (DNR, red, with the quarter) and its full
-    inactive list (INA, gray, starters noted), then the pre-game report.
+    inactive list (INA, gray, starters noted), then what's left of the pre-game report.
     The team's injured reserve (2026-10-03, _ir_section) closes every version of the card under its
-    own heading -- IR players are off the weekly report, so this is the one place they're listed."""
+    own heading -- IR players are off the weekly report, so this is the one place they're listed.
+    The card never scrolls (2026-10-07): it all sits in .inj-fit, which P1_JS's injFit trims to
+    the screen (the CUT_ steps above)."""
     cls_map = {"Out": "out", "Doubtful": "doubt", "Questionable": "ques", "Inactive": "ina", "Did Not Return": "out",
                "No Practice": "doubt", "Limited": "ques", "IR": "out"}
     rows = team_page.get("injuries_full") or []
@@ -328,19 +373,21 @@ def injuries_body(team_page, game_absences=None):
             return '<p class="ov-empty">No injuries reported</p>'
         practice = bool(rows) and rows[0].get("practice")   # no game designations yet: the practice report stands in (page1_data)
         if not ir_part and not practice:
-            return _inj_items(rows, cls_map)
-        report = _inj_items(rows, cls_map) if rows else '<p class="ov-empty">No injuries reported</p>'
+            return f'<div class="inj-sections inj-fit">{_inj_items(rows, cls_map, cut=_cut_report)}</div>'
+        report = _inj_items(rows, cls_map, cut=_cut_report) if rows else '<p class="ov-empty">No injuries reported</p>'
         note = '<p class="ov-empty">Game statuses not out yet</p>' if practice else ""
-        return (f'<div class="inj-sections inj-scroll"><h3 class="ov-h inj-h">{"Practice Report" if practice else "Injury Report"}</h3>'
+        return (f'<div class="inj-sections inj-fit"><h3 class="ov-h inj-h">{"Practice Report" if practice else "Injury Report"}</h3>'
                 f'{report}{note}{ir_part}</div>')
-    parts = []
-    for title, key, none in (("Left the Game", "left", "Nobody left injured"), ("Inactive", "inactive", "No inactives listed")):
-        parts.append(f'<h3 class="ov-h inj-h">{title}</h3>')
-        parts.append(_inj_items(ga.get(key), cls_map) if ga.get(key) else f'<p class="ov-empty">{none}</p>')
-    parts.append('<h3 class="ov-h inj-h">Pre-game Injury Report</h3>')
-    parts.append(_inj_items(rows, cls_map) if rows else '<p class="ov-empty">No injuries reported</p>')
+    report, inactive = _after_game(rows, ga.get("inactive") or [])
+    parts = ['<h3 class="ov-h inj-h">Left the Game</h3>',
+             _inj_items(ga["left"], cls_map) if ga.get("left") else '<p class="ov-empty">Nobody left injured</p>',
+             '<h3 class="ov-h inj-h">Inactive</h3>',
+             _inj_items(inactive, cls_map, cut=_cut_inactive) if inactive else '<p class="ov-empty">No inactives listed</p>']
+    if report or not rows:   # a report that all folded into the lists above leaves nothing to head
+        parts.append('<h3 class="ov-h inj-h">Pre-game Injury Report</h3>')
+        parts.append(_inj_items(report, cls_map, cut=_cut_report) if report else '<p class="ov-empty">No injuries reported</p>')
     parts.append(ir_part)
-    return f'<div class="inj-sections inj-scroll">{"".join(parts)}</div>'
+    return f'<div class="inj-sections inj-fit">{"".join(parts)}</div>'
 
 
 # ---------------------------------------------------------------- offense/defense card
@@ -354,11 +401,11 @@ STAT_ROWS = [
     ("rush_yards", "Rushing Yards", "per game", True),
     ("third_down_pct", "3rd Down %", None, True),
 ]
-SINGLE_STAT_ROWS = [
-    ("turnover_margin", "Turnover Diff."),
+SINGLE_STATS = [
+    ("turnover_margin", "TO Diff."),
     ("top", "ToP"),
     ("sacks", "D. Sacks"),
-    ("def_ints", "Defensive INTs"),
+    ("def_ints", "Def. INTs"),
 ]
 
 
@@ -383,11 +430,13 @@ def _stat_row(label, sub, left_html, right_html):
             f'<div class="stat-lbl">{esc(label)}{sub_html}</div>{right_html}</div>')
 
 
-def _stat_row_solo(label, cell_html):
+def _stat_row_singles(cells):
     """Turnover diff., ToP, sacks, INTs aren't offense- or defense-specific, so they don't get
-    a paired column each -- just their one value+rank next to the title, not aligned to the
-    Offense/Defense columns above (Jason, 2026-09-24), centered on the card (2026-10-03)."""
-    return f'<div class="stat-row stat-row-solo">{cell_html}<div class="stat-lbl">{esc(label)}</div></div>'
+    a paired column each (Jason, 2026-09-24). All four share one line, each value+rank over its
+    title (2026-10-07) -- four rows of their own ran the card past the bottom of a phone screen."""
+    tiles = "".join(f'<div class="stat-tile">{cell}<div class="stat-lbl">{esc(label)}</div></div>'
+                    for label, cell in cells)
+    return f'<div class="stat-row stat-row-singles">{tiles}</div>'
 
 
 def offense_defense_body(team_stats):
@@ -398,10 +447,11 @@ def offense_defense_body(team_stats):
         left = _stat_cell(s.get("off_value"), s.get("off_rank"), pct=key in PCT_STATS)
         right = _stat_cell(s.get("def_value"), s.get("def_rank"), pct=key in PCT_STATS)
         rows.append(_stat_row(label, sub, left, right))
-    for key, label in SINGLE_STAT_ROWS:
+    singles = []
+    for key, label in SINGLE_STATS:
         s = stats.get(key)
-        cell = _stat_cell((s or {}).get("value"), (s or {}).get("rank"), signed=(key == "turnover_margin"))
-        rows.append(_stat_row_solo(label, cell))
+        singles.append((label, _stat_cell((s or {}).get("value"), (s or {}).get("rank"), signed=(key == "turnover_margin"))))
+    rows.append(_stat_row_singles(singles))
     return (
         '<div class="stat-head"><span>Offense</span><span></span><span>Defense</span></div>'
         f'<div class="stat-list">{"".join(rows)}</div>'
@@ -686,15 +736,27 @@ P3_CSS = r"""
 .st-w,.st-l,.st-t{text-align:center;color:var(--text-2)}
 .st-pct{text-align:right;color:var(--text-2);font-variant-numeric:tabular-nums}
 .full-inj{gap:2px}
-/* a finished game's Injuries card has three lists, each under its own heading (2026-09-30); a
-   long set scrolls inside the card (P1_JS's detailAtTop keeps a pull-down from closing the
-   page until it's back at the top) */
+/* a finished game's Injuries card has three lists, each under its own heading (2026-09-30). It
+   never scrolls (Jason, 2026-10-07): .inj-fit takes the height the card has and P1_JS's injFit
+   trims to it -- .t1/.t2 tighten the spacing first, then whole steps of rows go (data-cut, see
+   injuries_body), each list's .inj-more line counting what's hidden. */
 .p2 .slot .p2k-injuries .body{min-height:0}
 .inj-sections{width:100%}
-.inj-scroll{flex:0 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.inj-fit{flex:0 1 auto;min-height:0;overflow:hidden}
+.inj-fit .inj-cut,.inj-fit [hidden]{display:none}
 .inj-sections .full-inj li{padding:5px 2px}
 .inj-sections .inj-h{padding-top:14px}
-.inj-sections .inj-h:first-child{padding-top:0}
+.inj-sections .inj-h:first-child,.inj-sections .inj-ir:first-child .inj-h{padding-top:0}
+.inj-more{padding:4px 2px 0;font-size:12px}
+.inj-mgl.inj-irline{padding-top:12px;white-space:nowrap;font-size:12px}
+.inj-mgl.inj-irline b{font-size:14px}
+.inj-fit.t1 .full-inj li{padding:3px 2px}
+.inj-fit.t1 .inj-h{padding-top:9px;padding-bottom:4px}
+.inj-fit.t1 .ov-empty{padding:4px}
+.inj-fit.t2 .full-inj{font-size:14px;gap:0}
+.inj-fit.t2 .full-inj li{padding:2px}
+.inj-fit.t2 .inj-h{padding-top:6px;padding-bottom:2px;font-size:12px}
+.inj-fit.t2 .inj-more{padding-top:2px}
 .full-inj li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 2px;
   border-bottom:1px solid var(--tile-border-soft)}
 .full-inj .inj-name{font-weight:700}
@@ -724,23 +786,27 @@ P3_CSS = r"""
 .stat-row{display:grid;grid-template-columns:72px 1fr 72px;align-items:center;gap:8px;padding:6px 2px;
   min-height:44px;border-bottom:1px solid var(--tile-border-soft)}
 /* width:100% so this fills its fixed-width column instead of shrinking to its own content --
-   otherwise a short value ("0") wouldn't be centered on the same axis as a wide one ("263"). */
-.stat{display:flex;flex-direction:row;align-items:baseline;justify-content:center;gap:3px;width:100%}
+   otherwise a short value ("0") wouldn't be centered on the same axis as a wide one ("263").
+   The rank sits centered against its value's height, not on its baseline (Jason, 2026-10-07). */
+.stat{display:flex;flex-direction:row;align-items:center;justify-content:center;gap:3px;width:100%}
 /* Rank sits on the outside of its value, away from the label between them, on both sides
    (2026-09-24) -- the offense column is first in the DOM (value then rank, left to right), so
    reversing just that one puts its rank on the card's outer edge to match the defense column,
    which already reads that way without changing anything. */
-.stat-row:not(.stat-row-solo) > .stat:first-child{flex-direction:row-reverse}
+.stat-row:not(.stat-row-singles) > .stat:first-child{flex-direction:row-reverse}
 /* Turnover diff./ToP/sacks/INTs aren't offense- or defense-specific, so they get their own
-   plainer row instead of the two aligned value columns above: just the value+rank next to its
-   title (2026-09-24). Centered on the card (Jason, 2026-10-03): the value+rank ends just left
-   of the middle and the title starts just right of it, so all four rows pivot on one line. */
-.stat-row.stat-row-solo{grid-template-columns:1fr 1fr;align-items:baseline;gap:12px}
-.stat-row-solo .stat{justify-content:flex-end}
-.stat-row-solo .stat-lbl{display:block;text-align:left}
-.stat-v{font-family:Teko,Inter,system-ui,sans-serif;font-weight:700;font-size:28px;line-height:1;font-variant-numeric:tabular-nums}
+   plainer row instead of the two aligned value columns above (2026-09-24). All four share one
+   line, each value+rank over its title (2026-10-07): a row each ran the card past the bottom of
+   a phone screen and cut off Sacks/INTs. */
+.stat-row.stat-row-singles{grid-template-columns:repeat(4,1fr);align-items:start;gap:4px;padding-top:10px;border-bottom:0}
+.stat-tile{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0}
+.stat-tile .stat-lbl{font-size:11px;color:var(--text-2);white-space:nowrap}
+.stat-v{font-family:Teko,Inter,system-ui,sans-serif;font-weight:700;font-size:var(--vfs);line-height:1;font-variant-numeric:tabular-nums}
 .stat-v.na{color:var(--text-3);font-family:Inter,sans-serif;font-size:20px}
-.stat-rank{font-size:11px;font-weight:700}
+/* Teko's digits sit high in their line box, so a rank centered on the box reads low; lift it by
+   the gap between the box's middle and the digits' middle (about a tenth of the value's size) */
+.stat{--vfs:28px}
+.stat-rank{font-size:11px;font-weight:700;transform:translateY(calc(var(--vfs) * -.095))}
 .stat-lbl{text-align:center;font-size:12px;color:var(--ink);display:flex;flex-direction:column;
   align-items:center;justify-content:center;line-height:1.25}
 .stat-sub{font-size:10px;font-weight:400;color:var(--text-2)}
@@ -801,7 +867,7 @@ P3_CSS = r"""
   .stat-row{min-height:36px;padding:4px 2px}
 }
 @media (max-width:400px){
-  .stat-v{font-size:23px}
+  .stat{--vfs:23px}
   .stat-head{grid-template-columns:62px 1fr 62px}
   .stat-row{grid-template-columns:62px 1fr 62px}
   .ov-facts{gap:10px}
