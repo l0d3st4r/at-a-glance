@@ -6,6 +6,8 @@ The refresh workflow runs this every 15 minutes in season. It builds a small
 the live site was built from (site/nflverse-stamps.json, published alongside the
 pages), and tells the workflow whether a rebuild is worth doing.
 
+Since 2026-10-08 the fingerprint also covers the NBA section's sources (nba_fingerprint, below).
+
 The site reads seven nflverse-data releases (see nflverse_client.py):
 
   schedules     games.csv -- scores, kickoff times, stadiums. Updated MANY times a
@@ -110,6 +112,55 @@ def fingerprint(season=None):
         except (urllib.error.URLError, OSError, ValueError, KeyError) as e:
             print(f"check_updates: {tag} unreadable: {e}", file=sys.stderr)
             out[tag] = None
+    out.update(nba_fingerprint())
+    return out
+
+
+# ---------------------------------------------------------------- the NBA section (2026-10-08)
+# sportsdataverse's ESPN-sourced files (nba_client.py): each release's timestamp.json says when it was
+# last refreshed (daily in season). And ESPN's scoreboard for yesterday and today, US Eastern: its
+# games' status and scores, fingerprinted -- while games are on it changes every check, so the site
+# keeps up with them every 15 minutes; with nothing on it stays the same and costs no rebuilds.
+NBA_RELEASES = "https://github.com/sportsdataverse/sportsdataverse-data/releases/download"
+NBA_TAGS = ["espn_nba_schedules", "espn_nba_team_boxscores", "espn_nba_player_boxscores", "espn_nba_injuries",
+            "espn_nba_rosters", "espn_nba_standings"]
+NBA_SCOREBOARD = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
+BROWSER_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+              "Chrome/129.0 Safari/537.36")
+
+
+def nba_scores_fingerprint(days):
+    """sha256 of each game's id, status, period, clock and scores on ESPN's scoreboard for those days
+    (YYYYMMDD); None if it couldn't be read."""
+    rows = []
+    for day in days:
+        req = urllib.request.Request(f"{NBA_SCOREBOARD}?dates={day}", headers={"User-Agent": BROWSER_UA})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            events = json.loads(r.read()).get("events") or []
+        for ev in events:
+            comp = (ev.get("competitions") or [{}])[0]
+            st = comp.get("status") or {}
+            scores = ",".join(f'{c.get("id")}:{c.get("score")}' for c in comp.get("competitors") or [])
+            rows.append(f'{ev.get("id")}|{(st.get("type") or {}).get("name")}|{st.get("period")}|{st.get("displayClock")}|{scores}')
+    return hashlib.sha256("\n".join(sorted(rows)).encode()).hexdigest()[:16]
+
+
+def nba_fingerprint():
+    out = {}
+    for tag in NBA_TAGS:
+        try:
+            out["nba_" + tag[len("espn_nba_"):]] = json.loads(_get(f"{NBA_RELEASES}/{tag}/timestamp.json")).get("last_updated")
+        except (urllib.error.URLError, OSError, ValueError, AttributeError) as e:
+            print(f"check_updates: NBA {tag} unreadable: {e}", file=sys.stderr)
+            out["nba_" + tag[len("espn_nba_"):]] = None
+    try:
+        from zoneinfo import ZoneInfo
+        today = datetime.datetime.now(ZoneInfo("America/New_York")).date()
+        out["nba_scores"] = nba_scores_fingerprint([(today - datetime.timedelta(days=1)).strftime("%Y%m%d"),
+                                                    today.strftime("%Y%m%d")])
+    except (urllib.error.URLError, OSError, ValueError, AttributeError) as e:
+        print(f"check_updates: NBA scoreboard unreadable: {e}", file=sys.stderr)
+        out["nba_scores"] = None
     return out
 
 

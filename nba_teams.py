@@ -78,3 +78,43 @@ def abbr(team_id):
 def by_abbr(code):
     """Either abbreviation, the NBA's or ESPN's ("GSW" or "GS") -> team dict, or None."""
     return _BY_ABBR.get((code or "").upper())
+
+
+# Names (2026-10-08). LOCATION_NAMES heads a team page's top bar and its card titles, the way
+# render_page2team.LOCATION_NAMES does on the NFL side: the two Los Angeles teams get an initial.
+LOCATION_NAMES = {
+    "ATL": "Atlanta", "BOS": "Boston", "BKN": "Brooklyn", "CHA": "Charlotte", "CHI": "Chicago",
+    "CLE": "Cleveland", "DAL": "Dallas", "DEN": "Denver", "DET": "Detroit", "GSW": "Golden State",
+    "HOU": "Houston", "IND": "Indiana", "LAC": "Los Angeles C", "LAL": "Los Angeles L", "MEM": "Memphis",
+    "MIA": "Miami", "MIL": "Milwaukee", "MIN": "Minnesota", "NOP": "New Orleans", "NYK": "New York",
+    "OKC": "Oklahoma City", "ORL": "Orlando", "PHI": "Philadelphia", "PHX": "Phoenix", "POR": "Portland",
+    "SAC": "Sacramento", "SAS": "San Antonio", "TOR": "Toronto", "UTA": "Utah", "WAS": "Washington",
+}
+NICKNAMES = {
+    "ATL": "Hawks", "BOS": "Celtics", "BKN": "Nets", "CHA": "Hornets", "CHI": "Bulls", "CLE": "Cavaliers",
+    "DAL": "Mavericks", "DEN": "Nuggets", "DET": "Pistons", "GSW": "Warriors", "HOU": "Rockets", "IND": "Pacers",
+    "LAC": "Clippers", "LAL": "Lakers", "MEM": "Grizzlies", "MIA": "Heat", "MIL": "Bucks", "MIN": "Timberwolves",
+    "NOP": "Pelicans", "NYK": "Knicks", "OKC": "Thunder", "ORL": "Magic", "PHI": "76ers", "PHX": "Suns",
+    "POR": "Trail Blazers", "SAC": "Kings", "SAS": "Spurs", "TOR": "Raptors", "UTA": "Jazz", "WAS": "Wizards",
+}
+
+# Each team's home arena, roughly (lat, lon) -- only for the team page's "miles traveled", so a few
+# blocks either way don't matter. Neutral-site games (Paris, Mexico City, ...) count no miles.
+HOME_COORDS = {
+    "ATL": (33.757, -84.396), "BOS": (42.366, -71.062), "BKN": (40.683, -73.976), "CHA": (35.225, -80.839),
+    "CHI": (41.881, -87.674), "CLE": (41.496, -81.688), "DAL": (32.790, -96.810), "DEN": (39.749, -105.008),
+    "DET": (42.341, -83.055), "GSW": (37.768, -122.388), "HOU": (29.751, -95.362), "IND": (39.764, -86.155),
+    "LAC": (33.945, -118.341), "LAL": (34.043, -118.267), "MEM": (35.138, -90.051), "MIA": (25.781, -80.188),
+    "MIL": (43.045, -87.917), "MIN": (44.979, -93.276), "NOP": (29.949, -90.082), "NYK": (40.751, -73.993),
+    "OKC": (35.463, -97.515), "ORL": (28.539, -81.384), "PHI": (39.901, -75.172), "PHX": (33.446, -112.071),
+    "POR": (45.532, -122.667), "SAC": (38.580, -121.500), "SAS": (29.427, -98.437), "TOR": (43.643, -79.379),
+    "UTA": (40.768, -111.901), "WAS": (38.898, -77.021),
+}
+
+
+def full_name(code):
+    """"BOS" -> "Boston Celtics" (the code itself for a team that isn't one of the 30)."""
+    if code in NICKNAMES:
+        loc = {"LAC": "LA", "LAL": "Los Angeles"}.get(code, LOCATION_NAMES[code])
+        return f"{loc} {NICKNAMES[code]}"
+    return code or "TBD"

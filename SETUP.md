@@ -86,3 +86,17 @@ standard step before merging any page change into `main`.
 `check_build.py` (added to the workflow, see `.github/workflows/refresh.yml`)
 double-checks the build isn't broken or empty right before it publishes, as
 a last line of defense.
+
+## The NBA section
+
+The NBA pages live under `site/nba/` (linked from the menu's NBA section) and
+are built the same way, by two scripts of their own:
+`python build_nba_data.py` then `python render_nba.py`, then serve `site/` as
+above and visit `http://localhost:8765/nba/`. The workflow runs both after the
+NFL pages; if either fails, the NFL pages still publish and the run is flagged.
+
+To preview a past season as it looked partway through (handy in the summer,
+or before opening night): `python build_nba_data.py --season 2026 --as-of
+2026-03-15 --out data/nba-2026.json`, then `python render_nba.py --data
+data/nba-2026.json`. Results from that day on are hidden, so the pages show
+upcoming games, countdowns and season-to-date stats the way they would have.

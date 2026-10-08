@@ -258,9 +258,14 @@ def _game_from_espn_event(ev):
     }
 
 
+def _ymd(d):
+    return d.strftime("%Y%m%d") if hasattr(d, "strftime") else str(d)
+
+
 def get_scoreboard(dates=None):
     """ESPN's scoreboard for the given ET dates (datetime.date or "YYYYMMDD"; default yesterday
     and today, ET), normalized exactly like get_games so the two merge with merge_live.
+    A (first, last) pair asks for every day in between in one request (the preseason, say).
     Includes preseason games. Optional by design: on any failure it returns ([], error) and the
     site carries on with the schedule file."""
     if dates is None:
@@ -268,9 +273,9 @@ def get_scoreboard(dates=None):
         dates = [today - datetime.timedelta(days=1), today]
     games, errors = {}, []
     for d in dates:
-        d = d.strftime("%Y%m%d") if hasattr(d, "strftime") else str(d)
+        d = f"{_ymd(d[0])}-{_ymd(d[1])}" if isinstance(d, tuple) else _ymd(d)
         try:
-            r = requests.get(SCOREBOARD, params={"dates": d}, headers=BROWSER_HEADERS, timeout=20)
+            r = requests.get(SCOREBOARD, params={"dates": d, "limit": 500}, headers=BROWSER_HEADERS, timeout=20)
             r.raise_for_status()
             for ev in r.json().get("events") or []:
                 g = _game_from_espn_event(ev)
@@ -365,6 +370,19 @@ def get_standings(season):
         return [], str(e)
 
 
+def get_officials(season):
+    """Each finished game's referees: {game_id (str): crew chief}. ESPN lists the crew chief first
+    (official_order 1). Published with the season's other files, after the games."""
+    try:
+        df = _parquet("espn_nba_officials", f"officials_{season}.parquet")
+        out = {}
+        for r in df.sort("official_order").iter_rows(named=True):
+            out.setdefault(str(r["game_id"]), r.get("official_display_name") or r.get("official_full_name"))
+        return out, None
+    except Exception as e:
+        return {}, str(e)
+
+
 _ROSTER_COLUMNS = ["team_id", "athlete_id", "display_name", "short_name", "jersey", "position_abbreviation",
                    "height", "weight", "age", "experience_years", "headshot_href", "status_name"]
 
@@ -383,14 +401,15 @@ _INJURY_COLUMNS = ["as_of_date", "team_id", "athlete_id", "athlete_display_name"
                    "detail_return_date", "short_comment"]
 
 
-def get_injuries(season):
+def get_injuries(season, every_day=False):
     """ESPN's injury list as of its latest daily snapshot (the file keeps every day's; only the
-    newest is returned): status ("Out", "Day-To-Day", ...), detail_type ("Knee"), detail_side,
-    detail_return_date, short_comment, plus "abbr". Only published as Parquet."""
+    newest is returned unless every_day): status ("Out", "Day-To-Day", ...), detail_type ("Knee"),
+    detail_side, detail_return_date, short_comment, plus "abbr". Only published as Parquet."""
     try:
         import polars as pl
         df = _parquet("espn_nba_injuries", f"injuries_{season}.parquet")
-        df = df.filter(pl.col("as_of_date") == pl.col("as_of_date").max())
+        if not every_day:
+            df = df.filter(pl.col("as_of_date") == pl.col("as_of_date").max())
         return _with_abbr(_to_dicts(df.select([c for c in _INJURY_COLUMNS if c in df.columns]))), None
     except Exception as e:
         return [], str(e)

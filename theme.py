@@ -181,6 +181,11 @@ MENU_CSS = SWITCH_CSS + """
   font-family:Saira,Inter,system-ui,sans-serif;font-style:italic;font-weight:800;font-variation-settings:'wdth' 95;
   font-size:36px;line-height:1.05;letter-spacing:.01em;opacity:.5;transition:opacity .15s}
 .mnu-list a[aria-current]{opacity:1}
+/* the NFL / NBA section names (2026-10-08); six pages to a pane, so the names a size down */
+.mnu-sec{font-size:11px;font-weight:700;letter-spacing:.14em;color:var(--aag-text-3);padding:10px 0 2px}
+.mnu-sec:first-child{padding-top:0}
+.mnu-list a{font-size:30px}
+@media (max-height:640px){.mnu-list a{font-size:24px;padding:4px 0}.mnu-sec{padding-top:6px}}
 .mnu-list a:hover{opacity:.85}
 .mnu-list a:focus-visible{outline:2px solid var(--aag-focus);outline-offset:3px;border-radius:8px}
 /* room for an icon ahead of each page's name -- empty until icons are picked */
@@ -201,22 +206,34 @@ MENU_CSS = SWITCH_CSS + """
 
 MENU_PAGES = (("games", "Games", "index.html"), ("standings", "Standings", "standings.html"),
               ("leaders", "Stat Leaders", "leaders.html"))
+# The menu's sections (2026-10-08): the NFL pages, then the NBA's (site/nba/, render_nba.py). Hrefs
+# are from the site root; menu_html's prefix gets there from wherever the page is.
+MENU_SECTIONS = (
+    ("NFL", MENU_PAGES),
+    ("NBA", (("nba-games", "Games", "nba/index.html"), ("nba-standings", "Standings", "nba/standings.html"),
+             ("nba-leaders", "Stat Leaders", "nba/leaders.html"))),
+)
 # Each page's icon (SVG markup) for the slot ahead of its name -- none picked yet.
 MENU_ICONS = {}
 
 
 def menu_html(prefix="", current=None):
     """The bottom bar's menu button, and the pane it opens. prefix is the path back to the site root
-    ("../" from site/game/); current is the page it's on ("games" / "standings" / "leaders")."""
-    links = "".join(
-        f'<li style="--i:{i}"><a href="{prefix}{href}"{" aria-current=page" if key == current else ""}>'
-        f'<span class="mnu-ic" aria-hidden="true">{MENU_ICONS.get(key, "")}</span><span>{label}</span></a></li>'
-        for i, (key, label, href) in enumerate(MENU_PAGES))
+    ("../" from site/game/ or site/nba/, "../../" from site/nba/game/); current is the page it's on
+    ("games" / "standings" / "leaders", "nba-games" / "nba-standings" / "nba-leaders")."""
+    items, i = [], 0
+    for name, pages in MENU_SECTIONS:
+        items.append(f'<li class="mnu-sec" style="--i:{i}">{name}</li>')
+        i += 1
+        for key, label, href in pages:
+            items.append(f'<li style="--i:{i}"><a href="{prefix}{href}"{" aria-current=page" if key == current else ""}>'
+                         f'<span class="mnu-ic" aria-hidden="true">{MENU_ICONS.get(key, "")}</span><span>{label}</span></a></li>')
+            i += 1
     return (
         '<button class="menu-btn" type="button" aria-label="Menu" aria-expanded="false">' + MENU_ICON + "</button>"
         '<div class="mnu" role="dialog" aria-modal="true" aria-label="Menu"><div class="mnu-in">'
-        '<ul class="mnu-list">' + links + "</ul>"
-        f'<div class="mnu-foot" style="--i:{len(MENU_PAGES)}">'
+        '<ul class="mnu-list">' + "".join(items) + "</ul>"
+        f'<div class="mnu-foot" style="--i:{i}">'
         '<button class="ts-btn ts-sun" type="button" data-pick="light">' + SUN + "<span>Light mode</span></button>"
         '<button class="ts-btn ts-moon" type="button" data-pick="dark">' + MOON + "<span>Dark mode</span></button>"
         "</div></div>"
