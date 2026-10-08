@@ -1,0 +1,36 @@
+name: Probe NBA data sources
+
+# A one-off check for planning the NBA section (2026-10-08): probe_nba_sources.py tries each
+# candidate NBA data source from a GitHub runner and reports what it could read. It runs on a
+# push that touches the probe (so it works from a branch, before this file is on main) or by
+# hand from the Actions tab. The report is on the run's summary page. It builds and publishes
+# nothing.
+
+on:
+  push:
+    paths: ["probe_nba_sources.py", ".github/workflows/nba-probe.yml"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install requests
+        run: pip install requests
+
+      - name: Probe the sources
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python probe_nba_sources.py --summary report.md
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
