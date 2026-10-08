@@ -1,8 +1,9 @@
 """
 Renders the NBA section (2026-10-08) from data/nba.json (after build_nba_data.py has run):
 
-  site/nba/index.html       Page 0: every day's games, a day picker + swipe (the NFL's index.html,
-                            by day instead of by week)
+  site/nba/index.html       Page 0: each day's games, a day picker + swipe (the NFL's index.html,
+                            by day instead of by week) -- the days around today, not the whole
+                            season (build_nba_data.timely)
   site/nba/game/*.html      each game's page and deep dives (render_nba_game.py)
   site/nba/standings.html   Division / Conference / League, with games behind
   site/nba/leaders.html     the league's per-game leaders
@@ -13,8 +14,9 @@ Run with: python render_nba.py  (--data to read another file, e.g. one built wit
 Built as a copy of the NFL pages: the same stylesheets, scripts, layout and gestures, taken from
 render_html.py, render_standings.py and render_leaders.py as they are, with the markup written here
 for basketball. The differences:
-  - Page 0 has a panel per day with games, not per week; the picker lists every such day, and the
-    address is #day-2026-10-20. It opens on today, or the next day with games. No "Teams on Bye".
+  - Page 0 has a panel per day with games, not per week; the picker lists the week before and the
+    two weeks after the day it opens on, and the address is #day-2026-10-20. It opens on today, or
+    the next day with games. No "Teams on Bye".
   - tiles: national TV, or "Local TV" when a game has none; a playoff game's round and game number,
     or the NBA Cup round, under it. A game in progress (from ESPN's scoreboard) shows its score
     and clock; a finished one FINAL, FINAL/OT, FINAL/2OT...

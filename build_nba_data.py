@@ -13,10 +13,11 @@ for scores newer than the files (optional -- the build works without it).
 The output follows build_data.py's shape wherever the NFL pages have the same thing, so the NBA
 pages can use the same layout:
   days          Page 0, one entry per day with games (the NFL's season_weeks, by day instead of
-                by week). Records on each tile are frozen the way the NFL's are: a finished game
+                by week) -- only the week before the day it opens on and the two weeks after
+                (timely). Records on each tile are frozen the way the NFL's are: a finished game
                 shows each team's record right after it, an upcoming one the current record.
-  game_details  every game, "as of tip-off" like page1_data.py's: records, last result and
-                streak, injuries, offense/defense ranks and team stats from games before this
+  game_details  every game on those days, "as of tip-off" like page1_data.py's: records, last
+                result and streak, injuries, offense/defense ranks and team stats from games before this
                 one, the last 5 meetings, recent games, the schedule around the game, the
                 division table, rest and travel. Finished games add their box score.
   player_games  every player's line in every game, by team -- render_nba.py totals these into
@@ -49,6 +50,7 @@ ET = ZoneInfo("America/New_York")
 HISTORY_SEASONS = 3          # earlier seasons searched for the last 5 meetings
 PRESEASON_DAYS = 25          # how far before opening night to ask ESPN for preseason games
 WINDOW = 10                  # the team page's schedule: this many games before and after
+DAYS_BACK, DAYS_AHEAD = 7, 14   # Page 0's days: this many calendar days either side of the day it opens on
 
 PRE, REG, POST, PLAYIN = 1, 2, 3, 5
 PHASE = {PRE: "PRE", REG: "REG", POST: "POST", PLAYIN: "PLAYIN"}
@@ -232,6 +234,18 @@ def current_day(days, today):
         return None
     t = today.isoformat()
     return next((k for k in keys if k >= t), keys[-1])
+
+
+def timely(days, current):
+    """Page 0 only carries the days that matter now (2026-10-08): the week before the day it opens on
+    and the two weeks after -- not the whole season, which made the page (and the game pages behind
+    it) many times bigger for games nobody's looking for in October. At either end of the season the
+    window just has fewer days in it; it moves along with the season every build."""
+    if not current:
+        return days
+    c = datetime.date.fromisoformat(current)
+    lo, hi = (c - datetime.timedelta(days=DAYS_BACK)).isoformat(), (c + datetime.timedelta(days=DAYS_AHEAD)).isoformat()
+    return [d for d in days if lo <= d["key"] <= hi]
 
 
 # ---------------------------------------------------------------- team stats, ranks, standings
@@ -567,8 +581,15 @@ def build(season, today, warnings, as_of=None):
         for side in ("away", "home"):
             team_games[g[side]["abbr"]].append(g)
 
+    # game pages only for Page 0's days (timely) -- every other game is still counted in the records,
+    # standings, stats and schedules, it just gets no page of its own
+    current = current_day(days, today)
+    days = timely(days, current)
+    shown = {t["game_id"] for d in days for t in d["games"]}
     details = {}
     for g in games:
+        if g["game_id"] not in shown:
+            continue
         try:
             details[g["game_id"]] = game_detail(g, records, snap_for(g), team_games, box, pg, officials,
                                                 inj_idx, inj_dates, history, by_id)
@@ -587,7 +608,7 @@ def build(season, today, warnings, as_of=None):
 
     return {
         "season": season, "season_label": nba_client.season_label(season), "today": today.isoformat(),
-        "current_day_key": current_day(days, today), "days": days, "game_details": details,
+        "current_day_key": current, "days": days, "game_details": details,
         "player_games": pg, "standings": list(final_rows.values()), "standings_through": through,
         "reg_games": len(reg),
     }
