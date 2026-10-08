@@ -218,9 +218,27 @@ MENU_SECTIONS = (
 # his Games and Standings drawings -- only the paths on the drawing's canvas, cropped to their bounds
 # (the files also carried a few off-canvas shapes) -- and for Stat Leaders the Leaders crown
 # (render_page1.CROWN_SHAPES) drawn as an outline, between two smaller filled crowns peeking out from
-# behind it. A thin gap (the mask) keeps the small crowns off the big one's outline. The NBA's: none yet.
+# behind it. A thin gap (the mask) keeps the small crowns off the big one's outline. The NBA's Standings and
+# Stat Leaders use the same two (2026-10-08); its Games has none yet.
 _CROWN = "M1.38 11.8 1 3.5l5.2 4.2L10 1l3.8 6.7L19 3.5l-.38 8.3z"
 _CROWN_PILL = '<rect x="1.4" y="13" width="17.2" height="2.3" rx="1.15"/>'
+
+
+def _crowns(mid):
+    """The Stat Leaders crowns; mid names the mask, one per copy on a page."""
+    return (
+        '<svg viewBox="-9.9 0 39.8 15.5" fill="currentColor" aria-hidden="true"><defs>'
+        f'<mask id="{mid}" maskUnits="userSpaceOnUse" x="-12" y="-2" width="44" height="20">'
+        '<rect x="-12" y="-2" width="44" height="20" fill="#fff"/>'
+        f'<g fill="#000" stroke="#000" stroke-width="3" stroke-linejoin="round"><path d="{_CROWN}"/>{_CROWN_PILL}</g>'
+        f'</mask></defs><g mask="url(#{mid})">'
+        f'<g transform="translate(-10.3 5.2) scale(.66)"><path d="{_CROWN}"/>{_CROWN_PILL}</g>'
+        f'<g transform="translate(17.1 5.2) scale(.66)"><path d="{_CROWN}"/>{_CROWN_PILL}</g></g>'
+        f'<path d="{_CROWN}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>{_CROWN_PILL}'
+        '</svg>'
+    )
+
+
 MENU_ICONS = {
     "games": (
         '<svg viewBox="-2000 -1972 4002 3957" fill="currentColor" aria-hidden="true"><path d="M-112.783,1037.07 '
@@ -355,18 +373,10 @@ MENU_ICONS = {
         '1532.5,198.439 1481.61,197.77 L1133.44,197.77 C1081.22,197.77 1048.41,254.012 1074.52,298.873 L1248.61,600.173 '
         'C1274.05,645.033 1339,645.033 1365.11,600.173 L1539.19,299.542 Z"/></svg>'
     ),
-    "leaders": (
-        '<svg viewBox="-9.9 0 39.8 15.5" fill="currentColor" aria-hidden="true"><defs>'
-        '<mask id="mnu-crowns" maskUnits="userSpaceOnUse" x="-12" y="-2" width="44" height="20">'
-        '<rect x="-12" y="-2" width="44" height="20" fill="#fff"/>'
-        f'<g fill="#000" stroke="#000" stroke-width="3" stroke-linejoin="round"><path d="{_CROWN}"/>{_CROWN_PILL}</g>'
-        '</mask></defs><g mask="url(#mnu-crowns)">'
-        f'<g transform="translate(-10.3 5.2) scale(.66)"><path d="{_CROWN}"/>{_CROWN_PILL}</g>'
-        f'<g transform="translate(17.1 5.2) scale(.66)"><path d="{_CROWN}"/>{_CROWN_PILL}</g></g>'
-        f'<path d="{_CROWN}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>{_CROWN_PILL}'
-        '</svg>'
-    ),
+    "leaders": _crowns("mnu-crowns"),
 }
+MENU_ICONS["nba-standings"] = MENU_ICONS["standings"]
+MENU_ICONS["nba-leaders"] = _crowns("mnu-crowns-nba")
 
 
 def menu_html(prefix="", current=None):

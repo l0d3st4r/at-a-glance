@@ -630,9 +630,10 @@ TEAM_ICONS = {
 }
 
 
-def _title(cid, name):
-    """A card's title: its icon (TEAM_ICONS) in front of its name, like Page 1's render_page1.title_icon."""
-    icon = TEAM_ICONS.get(cid)
+def _title(cid, name, icons=None):
+    """A card's title: its icon (TEAM_ICONS) in front of its name, like Page 1's render_page1.title_icon.
+    icons: another set to look in -- the NBA team pages' (render_nba_game.TEAM_ICONS)."""
+    icon = (icons or TEAM_ICONS).get(cid)
     return f'<span class="ttl">{f"<span class=t-ic>{icon}</span>" if icon else ""}{esc(name)}</span>'
 
 
