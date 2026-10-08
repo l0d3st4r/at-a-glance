@@ -7,7 +7,7 @@ Renders the NBA section (2026-10-08) from data/nba.json (after build_nba_data.py
   site/nba/game/*.html      each game's page and deep dives (render_nba_game.py)
   site/nba/standings.html   Division / Conference / League, with games behind
   site/nba/leaders.html     the league's per-game leaders
-  site/nba/helmets/*.svg    the NFL helmet in NBA team colors (nba_helmets.py)
+  site/nba/balls/*.svg      each team's basketball (nba_balls.py)
 
 Run with: python render_nba.py  (--data to read another file, e.g. one built with --season)
 
@@ -37,6 +37,7 @@ from collections import defaultdict
 from datetime import date
 
 import helmets
+import nba_balls
 import nba_helmets
 import nba_stats
 import nba_teams
@@ -97,10 +98,10 @@ def fmt_record(r):
     return f'{(r or {}).get("wins", 0)}-{(r or {}).get("losses", 0)}' if r else ""
 
 
-def team_html(side, mirrored):
+def team_html(side, away):
     team = side.get("team")
     return ('<div class="team">'
-            f'<img class="hm" src="helmets/{esc(nba_helmets.helmet_filename(team, mirrored))}" alt="" width="48" height="48" loading="lazy">'
+            f'<img class="hm" src="balls/{esc(nba_balls.ball_filename(team, away))}" alt="" width="48" height="48" loading="lazy">'
             f'<span class="abbr">{esc(team or "TBD")}</span></div>')
 
 
@@ -115,10 +116,10 @@ def upcoming_tile(m):
     away, home = m.get("away") or {}, m.get("home") or {}
     t = "PPD" if m.get("postponed") else render_html.format_time(m.get("gametime"))
     label = f'{nba_teams.full_name(away.get("team"))} at {nba_teams.full_name(home.get("team"))}, {t}'
-    return (f'<a class="game" href="#game-{esc(m["game_id"])}" aria-label="{esc(label)}">{team_html(away, False)}'
+    return (f'<a class="game" href="#game-{esc(m["game_id"])}" aria-label="{esc(label)}">{team_html(away, True)}'
             f'{render_html.render_stack(away.get("team"), fmt_record(away.get("record")), "away")}'
             f'<div class="center"><span class="time">{render_html.time_html(t)}</span>{network_html(m)}</div>'
-            f'{render_html.render_stack(home.get("team"), fmt_record(home.get("record")), "home")}{team_html(home, True)}</a>')
+            f'{render_html.render_stack(home.get("team"), fmt_record(home.get("record")), "home")}{team_html(home, False)}</a>')
 
 
 def final_tile(m):
@@ -143,10 +144,10 @@ def final_tile(m):
                                   f'<span class="{cls}">{esc(render_html._score_text(score))}</span>'
                                   f'<span class="team-record">{esc(fmt_record((m.get(s) or {}).get("record")))}</span></div>')
     return (f'<a class="game final{" live" if live else ""}" data-win="{win}" href="#game-{esc(m["game_id"])}" aria-label="{esc(label)}">'
-            f'{team_html(away, False)}{side("away", a_cls, a_s)}'
+            f'{team_html(away, True)}{side("away", a_cls, a_s)}'
             f'<div class="center"><span class="final-row"><span class="tri tri-a">{render_html.WIN_TRI}</span>'
             f'<span class="final-label">{esc(text)}</span><span class="tri tri-h">{render_html.WIN_TRI}</span></span></div>'
-            f'{side("home", h_cls, h_s)}{team_html(home, True)}</a>')
+            f'{side("home", h_cls, h_s)}{team_html(home, False)}</a>')
 
 
 def day_panel(day, is_current):
@@ -247,7 +248,7 @@ def _gb(lead, r):
 def _row(r, lead, seed=None, end=False):
     lead_html = f'<span class="seed">{seed}</span>' if seed is not None else ""
     return (f'<div class="row{" end" if end else ""}">{lead_html}'
-            f'<span class="who"><span class="mk">{esc(r.get("clinch") or "")}</span>{nba_helmets.helmet_img(r["team"], 18)}'
+            f'<span class="who"><span class="mk">{esc(r.get("clinch") or "")}</span>{nba_balls.ball_img(r["team"], 18)}'
             f'<span class="abbr">{esc(r["team"])}</span></span>'
             f'<span class="n">{r["w"]}</span><span class="n">{r["l"]}</span><span class="n">{_pct(r)}</span>'
             f'<span class="n">{_gb(lead, r)}</span><span class="n sub">{r["cw"]}-{r["cl"]}</span>'
@@ -505,7 +506,7 @@ def main():
     with open(args.data, encoding="utf-8") as f:
         data = json.load(f)
     os.makedirs(args.out, exist_ok=True)
-    nba_helmets.write_all(os.path.join(args.out, "helmets"))
+    nba_balls.write_all(os.path.join(args.out, "balls"))
     warnings = []
     with open(os.path.join(args.out, "index.html"), "w", encoding="utf-8") as f:
         f.write(render_page0(data))

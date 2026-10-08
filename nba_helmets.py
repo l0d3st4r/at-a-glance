@@ -1,22 +1,19 @@
 """
-The NBA pages' team icons and pills (2026-10-08): the NFL helmet drawing (helmets.py), recolored
-in each NBA team's colors -- a placeholder until there's NBA art, picked over ESPN's logos.
+NBA team colors and pills (2026-10-08).
 
-Same three-part build and shading as the NFL helmets: the shell in the team's primary color, the
-facemask in its secondary, the ear piece in a third. The pills are the NFL pills' shape and
-shading (helmets.pill_html) with an NBA team's fill and ring and the NBA's abbreviations.
+Until the balls (nba_balls.py, later the same day) the NBA pages' team icons were the NFL helmet
+drawing (helmets.py) recolored in these colors -- the shell in the team's primary, the facemask in
+its secondary, the ear piece in a third. The helmets are gone from the pages; HELMET_COLORS still
+gives the Stat Leaders race lines their team colors (nba_colors), and the pills are the NFL pills'
+shape and shading (helmets.pill_html) with an NBA team's fill and ring and the NBA's abbreviations.
 
 Keys are the NBA's abbreviations (nba_teams.py). Colors are the teams' official ones; the Jazz
 follow ESPN's current purple and blue. A team that isn't one of the 30 (a preseason guest from
 overseas, say) gets the gray NFL fallback.
-
-Files go to site/nba/helmets/ -- <TEAM>.svg facing right, <TEAM>-mirrored.svg facing left, the
-big-spot copies in lg/ -- named exactly like the NFL's, so the pages refer to them the same way.
 """
 
 import contextlib
 import html
-import os
 
 import helmets
 
@@ -69,19 +66,6 @@ PILL_COLORS = {
 }
 
 
-def helmet_filename(team, mirrored=False, large=False):
-    base = team if team in HELMET_COLORS else "_unknown"
-    name = f"{base}-mirrored.svg" if mirrored else f"{base}.svg"
-    return f"{helmets.LARGE_DIR}/{name}" if large else name
-
-
-def helmet_img(team, size, mirrored=False, prefix="", large=False):
-    """The <img> for a team's helmet -- render_page1.helmet_img's markup, NBA files.
-    prefix is the path back to site/nba/."""
-    src = prefix + "helmets/" + helmet_filename(team, mirrored=mirrored, large=large)
-    return f'<img class="hm" src="{html.escape(src)}" alt="" width="{size}" height="{size}">'
-
-
 def pill_html(team, label=None):
     """The team pill (render_page1's .tpill rules), in the team's colors."""
     fill, ring = PILL_COLORS.get(team, helmets.FALLBACK_COLORS)
@@ -91,20 +75,6 @@ def pill_html(team, label=None):
              f"--pl:{helmets.PILL_LETTERS}")
     aria = f' role="img" aria-label="{html.escape(label)}"' if label else ""
     return f'<span class="tpill abbr" style="{style}"{aria}>{html.escape(team or "TBD")}</span>'
-
-
-def write_all(out_dir):
-    """Every team's helmet both ways, at both outline widths, plus the gray fallback."""
-    for sub, width in (("", helmets.OUTLINE_WIDTH), (helmets.LARGE_DIR, helmets.LARGE_OUTLINE_WIDTH)):
-        folder = os.path.join(out_dir, sub)
-        os.makedirs(folder, exist_ok=True)
-        for team in list(HELMET_COLORS) + ["_unknown"]:
-            colors = HELMET_COLORS.get(team, helmets.FALLBACK_COLORS + (helmets.FALLBACK_EAR,))
-            for mirrored in (False, True):
-                name = f"{team}-mirrored.svg" if mirrored else f"{team}.svg"
-                with open(os.path.join(folder, name), "w", encoding="utf-8") as f:
-                    f.write(helmets.helmet_svg(team, mirrored=mirrored, outline_width=width, colors=colors))
-    return out_dir
 
 
 @contextlib.contextmanager
