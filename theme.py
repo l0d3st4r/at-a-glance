@@ -15,9 +15,10 @@ straight through it. So whatever theme Page 0's root is in flows into every moun
 game with no script restyling anything. A standalone game page (site/game/<id>.html,
 opened directly or from a shared link) declares the same tokens on its own root.
 
-The menu (menu_html) sits in the left corner of the bottom bar on every page: the site's
-pages (Games, Standings, Stat Leaders), then the light/dark switch as its last line (Jason, 2026-10-07 --
-until then the switch had that corner to itself). Until the switch is used the page follows
+The menu (menu_html) sits in the left corner of the bottom bar on every page; it opens a pane over
+the whole screen with the site's pages (Games, Standings, Stat Leaders) in big type, then the
+light/dark switch as its last line (Jason, 2026-10-07 -- until then the switch had that corner to
+itself). Until the switch is used the page follows
 the phone's setting (prefers-color-scheme).
 Using it saves a choice on the device (localStorage "aag-theme"); switching back to
 whatever the phone is set to clears the choice, so the page follows the phone again.
@@ -141,11 +142,24 @@ MOON = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width
 MENU_ICON = ('<svg viewBox="0 0 20 20" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" '
              'stroke-linecap="round" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14"/></svg>')
 
+CLOSE_ICON = ('<svg viewBox="0 0 20 20" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" '
+              'stroke-linecap="round" aria-hidden="true"><path d="M4.5 4.5l11 11M15.5 4.5l-11 11"/></svg>')
+
 # The menu (Jason, 2026-10-07): three lines in the bottom bar's left corner, vertically centered on
-# the same line as the week pill and the +/- toggle (both center at y=26px in the 52px bar). It opens
-# a small panel up out of the bar: the site's pages, the one you're on in bold, then the light/dark
-# switch. THEME_JS opens and closes it (a tap anywhere else, or Escape, closes it).
+# the same line as the week pill and the +/- toggle (both center at y=26px in the 52px bar).
+# Tapping it opens a pane over the whole screen (Jason, 2026-10-07: "a pane to cover the screen with
+# a similar blur / opacity to the bottom bar") -- the bar's own tint and blur -- with the site's pages
+# in big type (Saira italic, like the year and the team abbreviations) rolling up one after another
+# from the bottom, near the thumb. Each page has an icon slot ahead of its name (.mnu-ic, empty until
+# icons are picked); the page you're on is at full strength, the others faded. Under them, a thin
+# rule and the light/dark switch, which closes the menu once it's switched. An x where the three
+# lines were closes it too, as do a tap on the pane's empty space and Escape.
+#
+# The pane starts out inside the bottom bar (menu_html) but the first open moves it to the top of
+# the page -- or of the game's shadow root on Page 0's overlay: inside the bar, the bar's own
+# backdrop-filter would stop it blurring the page behind, and would pin its position:fixed to the bar.
 MENU_CSS = SWITCH_CSS + """
+.mnu{--mbar:var(--bbar,""" + BBAR_HEIGHT + """)}
 .menu-btn{position:absolute;left:7px;top:9px;width:34px;height:34px;padding:0;border:0;background:none;color:var(--aag-text);
   display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;
   transition:transform .2s cubic-bezier(.22,1,.36,1)}
@@ -153,34 +167,61 @@ MENU_CSS = SWITCH_CSS + """
 .menu-btn:hover{transform:scale(1.09)}
 .menu-btn:active{transform:scale(1.2)}
 .menu-btn:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px;border-radius:50%}
-.menu{position:absolute;left:10px;bottom:56px;min-width:180px;padding:6px;border-radius:14px;background:var(--aag-bg);
-  border:1px solid var(--aag-tile-border);box-shadow:0 8px 30px rgba(0,0,0,.18);display:none;text-align:left}
-.menu.open{display:block}
-.menu a,.menu .ts-btn{width:100%;gap:10px;padding:8px 10px;border-radius:9px;font:inherit;font-size:14px;
-  line-height:19px;color:var(--aag-text);text-decoration:none}
-.menu a{display:flex}
-.menu a[aria-current]{font-weight:700;background:var(--aag-tile-hover)}
-.menu a:hover,.menu .ts-btn:hover{background:var(--aag-pill-hover)}
-.menu a:focus-visible{outline:2px solid var(--aag-focus);outline-offset:1px}
-.menu hr{border:0;border-top:1px solid var(--aag-tile-border-soft);margin:6px 4px}
+.mnu{position:fixed;inset:0;z-index:60;background:var(--aag-bar-bg);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+  color:var(--aag-text);text-align:left;visibility:hidden;opacity:0;transition:opacity .2s ease,visibility 0s linear .2s;
+  -webkit-tap-highlight-color:transparent}
+.mnu.open{visibility:visible;opacity:1;transition:opacity .2s ease}
+.mnu-in{position:absolute;left:0;right:0;bottom:calc(var(--mbar) + 18px);max-width:600px;margin:0 auto;padding:0 24px}
+.mnu-list{list-style:none}
+/* each page rolls up into place, a beat after the one above it (--i) */
+.mnu-list li,.mnu-foot{opacity:0;transform:translateY(18px);transition:opacity .18s ease,transform .18s ease}
+.mnu.open .mnu-list li,.mnu.open .mnu-foot{opacity:1;transform:none;
+  transition:opacity .32s ease calc(.06s + var(--i) * .055s),transform .42s cubic-bezier(.22,1,.36,1) calc(.06s + var(--i) * .055s)}
+.mnu-list a{display:flex;align-items:center;gap:14px;padding:7px 0;color:var(--aag-text);text-decoration:none;
+  font-family:Saira,Inter,system-ui,sans-serif;font-style:italic;font-weight:800;font-variation-settings:'wdth' 95;
+  font-size:36px;line-height:1.05;letter-spacing:.01em;opacity:.5;transition:opacity .15s}
+.mnu-list a[aria-current]{opacity:1}
+.mnu-list a:hover{opacity:.85}
+.mnu-list a:focus-visible{outline:2px solid var(--aag-focus);outline-offset:3px;border-radius:8px}
+/* room for an icon ahead of each page's name -- empty until icons are picked */
+.mnu-ic{flex:none;width:32px;height:32px;display:flex;align-items:center;justify-content:center}
+.mnu-ic svg{display:block;width:100%;height:auto}
+.mnu-foot{margin-top:14px;padding-top:12px;border-top:1px solid var(--aag-tile-border)}
+.mnu .ts-btn{gap:10px;padding:6px 0;font:inherit;font-size:15px;font-weight:600;color:var(--aag-text-2)}
+.mnu .ts-btn svg{width:18px;height:18px}
+.mnu .ts-btn:hover{color:var(--aag-text)}
+/* the x sits where the menu's three lines are */
+.mnu-bar{position:absolute;left:0;right:0;bottom:0;height:var(--mbar)}
+.mnu-bar-in{position:relative;max-width:600px;height:52px;margin:0 auto}
+.mnu-x{position:absolute;left:7px;top:9px;width:34px;height:34px;padding:0;border:0;background:none;color:var(--aag-text);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .2s cubic-bezier(.22,1,.36,1)}
+.mnu-x:hover{transform:scale(1.09)}
+.mnu-x:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px;border-radius:50%}
 """
 
 MENU_PAGES = (("games", "Games", "index.html"), ("standings", "Standings", "standings.html"),
               ("leaders", "Stat Leaders", "leaders.html"))
+# Each page's icon (SVG markup) for the slot ahead of its name -- none picked yet.
+MENU_ICONS = {}
 
 
 def menu_html(prefix="", current=None):
-    """The bottom bar's menu. prefix is the path back to the site root ("../" from site/game/);
-    current is the page it's on ("games" / "standings" / "leaders"), shown in bold."""
+    """The bottom bar's menu button, and the pane it opens. prefix is the path back to the site root
+    ("../" from site/game/); current is the page it's on ("games" / "standings" / "leaders")."""
     links = "".join(
-        f'<a href="{prefix}{href}"{" aria-current=page" if key == current else ""}>{label}</a>'
-        for key, label, href in MENU_PAGES)
+        f'<li style="--i:{i}"><a href="{prefix}{href}"{" aria-current=page" if key == current else ""}>'
+        f'<span class="mnu-ic" aria-hidden="true">{MENU_ICONS.get(key, "")}</span><span>{label}</span></a></li>'
+        for i, (key, label, href) in enumerate(MENU_PAGES))
     return (
         '<button class="menu-btn" type="button" aria-label="Menu" aria-expanded="false">' + MENU_ICON + "</button>"
-        '<div class="menu" role="menu">' + links + "<hr>"
+        '<div class="mnu" role="dialog" aria-modal="true" aria-label="Menu"><div class="mnu-in">'
+        '<ul class="mnu-list">' + links + "</ul>"
+        f'<div class="mnu-foot" style="--i:{len(MENU_PAGES)}">'
         '<button class="ts-btn ts-sun" type="button" data-pick="light">' + SUN + "<span>Light mode</span></button>"
         '<button class="ts-btn ts-moon" type="button" data-pick="dark">' + MOON + "<span>Dark mode</span></button>"
-        "</div>"
+        "</div></div>"
+        '<div class="mnu-bar"><div class="mnu-bar-in"><button class="mnu-x" type="button" aria-label="Close menu">'
+        + CLOSE_ICON + "</button></div></div></div>"
     )
 
 
@@ -208,37 +249,60 @@ THEME_JS = r"""
   }
   // the bottom bar's menu (menu_html): one open at a time, wherever it is (a game mounted in
   // Page 0's overlay has its own, inside a shadow root)
-  var openMenu = null;
-  function closeMenu() {
-    if (!openMenu) return;
-    openMenu.classList.remove('open');
-    var b = openMenu.parentNode && openMenu.parentNode.querySelector('.menu-btn');
-    if (b) b.setAttribute('aria-expanded', 'false');
-    openMenu = null;
+  var open = null;   // { pane, btn }
+  function paneFor(btn) {
+    if (!btn._mnu) {
+      // the first time: move the pane out of the bar to the top of its page (or shadow root) --
+      // inside the bar, the bar's backdrop-filter would stop it blurring the page and pin it to the bar
+      var pane = btn.parentNode.querySelector('.mnu'), root = btn.getRootNode();
+      (root === document ? document.body : root).appendChild(pane);
+      // touches on the pane stay on the pane (no swiping the weeks or pulling to refresh underneath)
+      ['touchstart', 'touchmove'].forEach(function (k) { pane.addEventListener(k, function (e) { e.stopPropagation(); }, { passive: true }); });
+      btn._mnu = pane;
+    }
+    return btn._mnu;
+  }
+  function openMenu(btn) {
+    var pane = paneFor(btn);
+    void pane.offsetWidth;   // a fresh frame, so the roll-up plays the first time too
+    pane.classList.add('open'); btn.setAttribute('aria-expanded', 'true');
+    open = { pane: pane, btn: btn };
+    var first = pane.querySelector('a[aria-current]') || pane.querySelector('a');
+    if (first) first.focus({ preventScroll: true });
+  }
+  function closeMenu(refocus) {
+    if (!open) return;
+    open.pane.classList.remove('open'); open.btn.setAttribute('aria-expanded', 'false');
+    if (refocus) open.btn.focus({ preventScroll: true });
+    open = null;
   }
   document.addEventListener('click', function (e) {
-    var path = e.composedPath ? e.composedPath() : [e.target], inMenu = false;
+    var path = e.composedPath ? e.composedPath() : [e.target];
     for (var i = 0; i < path.length && path[i] !== document; i++) {
       var cl = path[i].classList;
       if (!cl) continue;
       if (cl.contains('ts-btn')) {
+        // switching light / dark closes the menu (Jason, 2026-10-07)
         e.preventDefault(); e.stopPropagation();
         var t = path[i].getAttribute('data-pick');
         if (t !== current()) choose(t);
+        closeMenu(true);
         return;
       }
       if (cl.contains('menu-btn')) {
         e.preventDefault(); e.stopPropagation();
-        var m = path[i].parentNode.querySelector('.menu'), was = m === openMenu;
-        closeMenu();
-        if (m && !was) { m.classList.add('open'); path[i].setAttribute('aria-expanded', 'true'); openMenu = m; }
+        if (open && open.btn === path[i]) closeMenu(true); else { closeMenu(); openMenu(path[i]); }
         return;
       }
-      if (cl.contains('menu')) inMenu = true;
+      if (cl.contains('mnu-x')) { e.preventDefault(); e.stopPropagation(); closeMenu(true); return; }
+      if (path[i].tagName === 'A' && open && open.pane.contains(path[i])) return;   // a page: follow it
+      if (cl.contains('mnu')) { e.preventDefault(); e.stopPropagation(); closeMenu(true); return; }   // the pane's empty space
     }
-    if (!inMenu) closeMenu();
   }, true);
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeMenu(); });
+  // Escape closes the menu -- and only the menu, if it's open (Page 1 uses Escape too)
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && open) { e.stopPropagation(); closeMenu(true); }
+  }, true);
   if (mq.addEventListener) mq.addEventListener('change', sync); else if (mq.addListener) mq.addListener(sync);
   window.AAG_THEME = { sync: sync };
   sync();
