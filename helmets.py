@@ -166,8 +166,8 @@ def helmet_svg(team, mirrored=False, id_prefix=None, outline_width=OUTLINE_WIDTH
     mirrored=True flips it horizontally (used for the home team on the right, so the two
     helmets face each other).
     id_prefix keeps gradient ids unique if several helmets are inlined on one page.
-    outline_width / outline_pad: the favicon draws the same sticker outline thicker, so it
-    still reads at 16-32px (see favicon_svg).
+    outline_width / outline_pad: the sticker outline's width and the room left for it (the big spots
+    use LARGE_OUTLINE_WIDTH; until 2026-10-08 the favicon drew it thicker).
     colors: (shell, facemask, ear) to use instead of TEAM_COLORS / EAR_COLORS -- the NBA pages'
     placeholder helmets in NBA team colors (nba_helmets.py, 2026-10-08).
     """
@@ -232,14 +232,6 @@ def write_all(out_dir):
     return out_dir
 
 
-# Site favicon (2026-09-27): the gray "unknown" helmet with the same white sticker outline, drawn
-# 2x thicker than on the pages -- at the site's width it would be under half a pixel in a 16-32px
-# browser tab and vanish. Browsers that don't take SVG favicons (and iPhone home screens) use the
-# PNGs in assets/, rendered from this SVG (see assets/README.md).
-FAVICON_OUTLINE_WIDTH = 5
-FAVICON_OUTLINE_PAD = 6
-
-
 # Team pills (2026-09-30): the abbreviation inside a pill with one ring. Fill and ring picked team
 # by team by Jason in the Team Pill Color Picker artifact; the letters are plain white on every team.
 PILL_COLORS = {
@@ -298,21 +290,6 @@ def pill_html(team, label=None):
              f"--pr1:{_mix(ring, BLACK, PILL_RING_DARKEN)};--pr2:{_mix(ring, WHITE, PILL_RING_LIGHTEN)};--pl:{letters}")
     aria = f' role="img" aria-label="{html.escape(label)}"' if label else ""
     return f'<span class="tpill abbr" style="{style}"{aria}>{html.escape(team)}</span>'
-
-
-def favicon_svg():
-    return helmet_svg("_unknown", id_prefix="favicon",
-                      outline_width=FAVICON_OUTLINE_WIDTH, outline_pad=FAVICON_OUTLINE_PAD)
-
-
-FAVICON_PNGS = ("favicon-32.png", "apple-touch-icon.png")  # committed in assets/, copied into site/
-
-
-def favicon_links(prefix=""):
-    """<head> tags; prefix is the path back to the site root ("../" from site/game/)."""
-    return (f"<link rel='icon' href='{prefix}favicon-32.png' type='image/png' sizes='32x32'>"
-            f"<link rel='icon' href='{prefix}favicon.svg' type='image/svg+xml'>"
-            f"<link rel='apple-touch-icon' href='{prefix}apple-touch-icon.png'>")
 
 
 def helmet_filename(team, mirrored=False, large=False):

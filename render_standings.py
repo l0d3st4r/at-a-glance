@@ -48,7 +48,7 @@ in build_data.py for Page 0), so nothing new is fetched for this page.
 import html
 import os
 
-import helmets
+import logo
 import theme
 from divisions import DIVISIONS, normalize_abbr
 from render_page1 import CHEV, DOWN, UP, helmet_img
@@ -248,7 +248,7 @@ def render(data):
         f"<script>{theme.THEME_HEAD_JS}</script>"
         f"<title>{esc(season)} Standings · At A Glance</title>"
         "<meta name='description' content='Pro Football Standings'>"
-        f"{helmets.favicon_links()}"
+        f"{logo.favicon_links()}"
         "<link rel='preconnect' href='https://fonts.googleapis.com'>"
         "<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>"
         "<link href='https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;700;900&display=swap' rel='stylesheet'>"

@@ -36,7 +36,7 @@ import traceback
 from collections import defaultdict
 from datetime import date
 
-import helmets
+import logo
 import nba_balls
 import nba_helmets
 import nba_stats
@@ -73,7 +73,7 @@ def head(title, description):
             "<meta name='viewport' content='width=device-width,initial-scale=1,viewport-fit=cover'>"
             "<meta name='theme-color' content='#F3F3EE'>"
             f"<script>{theme.THEME_HEAD_JS}</script><title>{esc(title)}</title>"
-            f"<meta name='description' content='{esc(description)}'>{helmets.favicon_links('../')}{fonts()}")
+            f"<meta name='description' content='{esc(description)}'>{logo.favicon_links('../')}{fonts()}")
 
 
 def short_day(iso):
@@ -506,6 +506,9 @@ def main():
     with open(args.data, encoding="utf-8") as f:
         data = json.load(f)
     os.makedirs(args.out, exist_ok=True)
+    # the site's icons live at its root (args.out's parent), where every page's links point; written here
+    # too so the NBA pages have them even if the NFL build failed
+    logo.write_icons(os.path.dirname(os.path.abspath(args.out)))
     nba_balls.write_all(os.path.join(args.out, "balls"))
     warnings = []
     with open(os.path.join(args.out, "index.html"), "w", encoding="utf-8") as f:

@@ -65,6 +65,7 @@ import traceback
 from datetime import date
 
 import helmets
+import logo
 import render_leaders
 import render_page1
 import render_standings
@@ -1557,7 +1558,7 @@ def render_page0(data):
         f"<script>{theme.THEME_HEAD_JS}</script>"
         f"<title>{esc(current_label)} · At A Glance</title>"
         "<meta name='description' content='Pro Football Upcoming Game Information'>"
-        f"{helmets.favicon_links()}"
+        f"{logo.favicon_links()}"
         "<link rel='preconnect' href='https://fonts.googleapis.com'>"
         "<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>"
         "<link href='https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;700;900&display=swap' rel='stylesheet'>"
@@ -1600,7 +1601,7 @@ def dict_to_html(d):
 
 def render_raw(data):
     parts = [
-        "<!doctype html><html><head><meta charset='utf-8'><title>At a Glance -- raw data</title></head><body>",
+        f"<!doctype html><html><head><meta charset='utf-8'><title>At a Glance -- raw data</title>{logo.favicon_links()}</head><body>",
         f"<p><i>Generated {esc(data.get('generated_at_utc'))} -- season {esc(data.get('season'))}, week {esc(data.get('week'))}</i></p>",
     ]
     if data.get("warnings"):
@@ -1630,13 +1631,7 @@ def main():
 
     os.makedirs(SITE_DIR, exist_ok=True)
     helmets.write_all(HELMET_DIR)
-    # favicon (2026-09-27): the SVG is generated like the helmets; the PNG versions are committed
-    with open(os.path.join(SITE_DIR, "favicon.svg"), "w", encoding="utf-8") as f:
-        f.write(helmets.favicon_svg())
-    for name in helmets.FAVICON_PNGS:
-        src = os.path.join(ROOT, "assets", name)
-        if os.path.exists(src):
-            shutil.copyfile(src, os.path.join(SITE_DIR, name))
+    logo.write_icons(SITE_DIR)   # the site's favicons and home-screen icons (logo.py)
 
     with open(INDEX_PATH, "w", encoding="utf-8") as f:
         f.write(render_page0(data))

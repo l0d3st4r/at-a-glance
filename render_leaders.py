@@ -60,6 +60,7 @@ import os
 from collections import defaultdict
 
 import helmets
+import logo
 import player_stats
 import team_line_colors
 import render_standings
@@ -242,7 +243,7 @@ def render(data):
         f"<script>{theme.THEME_HEAD_JS}</script>"
         f"<title>{esc(season)} Stat Leaders · At A Glance</title>"
         "<meta name='description' content='Pro Football Stat Leaders'>"
-        f"{helmets.favicon_links()}"
+        f"{logo.favicon_links()}"
         "<link rel='preconnect' href='https://fonts.googleapis.com'>"
         "<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>"
         "<link href='https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;700;900&display=swap' rel='stylesheet'>"

@@ -19,11 +19,27 @@ SITE_DIR = os.path.join(ROOT, "site")
 MIN_INDEX_BYTES = 5_000     # a real Week N page is tens of KB; a near-empty file means something broke
 MIN_GAME_PAGES = 1
 MIN_HELMET_FILES = 2        # at least one team + its mirrored copy
+# the site's icons (logo.py), at its root; every page must link them, the NFL's and the NBA's alike
+ICON_FILES = ("favicon.svg", "favicon-32.png", "favicon-dark-32.png", "apple-touch-icon.png", "apple-touch-icon-dark.png")
 
 
 def fail(message):
     print(f"check_build: FAIL -- {message}")
     sys.exit(1)
+
+
+def check_icons(pages, where):
+    """The icon files are at the site's root, and every one of `pages` links them."""
+    missing = [n for n in ICON_FILES if not os.path.isfile(os.path.join(SITE_DIR, n))]
+    if missing:
+        fail(f"site/ is missing {', '.join(missing)} -- logo.write_icons() should put them there")
+    bare = []
+    for path in pages:
+        with open(path, encoding="utf-8") as f:
+            if "favicon.svg" not in f.read(4096 * 4):
+                bare.append(os.path.relpath(path, SITE_DIR))
+    if bare:
+        fail(f"{len(bare)} page(s) in {where} have no favicon links (logo.favicon_links()), e.g. {bare[0]}")
 
 
 def check_nba():
@@ -43,6 +59,7 @@ def check_nba():
     ball_files = glob.glob(os.path.join(nba, "balls", "*.svg"))
     if len(ball_files) < MIN_HELMET_FILES:
         fail(f"site/nba/balls/ has {len(ball_files)} file(s), expected at least {MIN_HELMET_FILES}")
+    check_icons(glob.glob(os.path.join(nba, "**", "*.html"), recursive=True), "site/nba/")
     print(f"check_build: NBA OK -- {len(pages)} game page(s), {len(ball_files)} ball file(s)")
 
 
@@ -66,6 +83,8 @@ def main():
     if len(helmet_files) < MIN_HELMET_FILES:
         fail(f"site/helmets/ has {len(helmet_files)} file(s), expected at least {MIN_HELMET_FILES}")
 
+    nba = os.path.join(SITE_DIR, "nba") + os.sep
+    check_icons([p for p in glob.glob(os.path.join(SITE_DIR, "**", "*.html"), recursive=True) if not p.startswith(nba)], "site/")
     print(f"check_build: OK -- index.html {size} bytes, {len(game_pages)} game page(s), {len(helmet_files)} helmet file(s)")
 
 
