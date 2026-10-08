@@ -15,9 +15,12 @@ that category's stats (small tabs under the title say which is showing and jump 
   (FG Long and Inside 20 were their own stats until Jason dropped them, 2026-10-07 -- each kicker's
   long is on his FG row's stat line, and punts inside the 20 on the punting line)
 Each stat:
-  * the race -- the top 5's running totals week by week, each line named
+  * the race -- the top 5 week by week, each line named
     at its end, a crosshair + tooltip on touch. Not for the averages (Y/A, Y/C, punt and return
-    averages), whose list gets the whole card (Jason, 2026-10-07). Each line is in its player's team
+    averages), whose list gets the whole card (Jason, 2026-10-07). A Total | Behind switch over it
+    (Jason, 2026-10-07; opens on Behind, remembered on the device): Total draws the running totals from
+    zero; Behind draws each line as his total minus that week's best among the five, so the leader rides
+    the top line and the gaps keep their real size as the totals climb. Each line is in its player's team
     colors, picked separately for the light and dark grounds so the five stay visible and tell apart
     (higher-ranked players pick first; team_line_colors.py has the rules), and its end dot is ringed in
     a second team color
@@ -333,6 +336,12 @@ button{font:inherit;color:inherit}
 
 /* the race */
 .e-chart{position:relative;flex:none}
+/* Total | Behind, on its own line over the chart's right edge (the leader's end label sits in the corner) */
+.mode-sw{width:max-content;margin:0 0 2px auto;display:flex;gap:1px;padding:1px;border:1px solid var(--line);border-radius:999px}
+.mode-sw button{background:none;border:0;border-radius:999px;padding:1px 7px;font-size:9px;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--text-3);cursor:pointer}
+.mode-sw button.on{background:var(--text);color:var(--aag-bg)}
+.mode-sw button:focus-visible{outline:2px solid var(--aag-focus);outline-offset:1px}
 .race{width:100%;height:auto;display:block;overflow:visible}
 .gl{stroke:var(--line-soft);stroke-width:1}
 .ax{font-size:9px;fill:var(--text-3)}
@@ -467,23 +476,43 @@ JS = r"""
   function tl(r) { var c = r[5]; return '--lc:' + c.lc + ';--lr:' + c.lr + ';--ld:' + c.ld + ';--dc:' + c.dc + ';--dr:' + c.dr + ';--dd:' + c.dd; }
   // ---- the race: the top 5's running totals, week by week
   var W = 330, H = 150, PL = 30, PR = 62, PT = 8, PB = 18;
+  // Total | Behind (Jason, 2026-10-07): "behind" draws each line as his total minus that week's best total
+  // among the five, so the leader rides the top line and the gaps keep their real size all season (on
+  // an axis from zero they shrink to a sliver as the totals climb -- mockups/build_race_scale_mockup.py).
+  // One choice for every chart, remembered on this device; it opens on Behind.
+  var mode = 'behind';
+  try { if (localStorage.getItem('aag-race') === 'total') mode = 'total'; } catch (e) {}
+  function plotted(s) {
+    var top = s.rows.slice(0, 5), n = D.through, best = [];
+    for (var i = 0; i < n; i++) best.push(Math.max.apply(null, top.map(function (r) { return r[4][i]; })));
+    return top.map(function (r) { return r[4].map(function (v, i) { return mode === 'behind' ? v - best[i] : v; }); });
+  }
+  function signed(s, v) { return v === 0 ? '0' : '−' + fmt(s, -v); }
   function chart(s) {
-    var top = s.rows.slice(0, 5), n = D.through, hi = 0;
-    top.forEach(function (r) { r[4].forEach(function (v) { hi = Math.max(hi, v); }); });
-    hi = hi || 1;
-    var x = function (i) { return PL + (W - PL - PR) * i / Math.max(1, n - 1); }, y = function (v) { return PT + (H - PT - PB) * (1 - v / hi); };
-    var g = [0, hi / 2, hi].map(function (t) { return '<line class="gl" x1="' + PL + '" x2="' + (W - PR) + '" y1="' + y(t) + '" y2="' + y(t) + '"/><text class="ax" x="' + (PL - 6) + '" y="' + (y(t) + 3) + '" text-anchor="end">' + fmt(s, t) + '</text>'; }).join('');
+    var top = s.rows.slice(0, 5), n = D.through, pts = plotted(s), lo = 0, hi = 0;
+    pts.forEach(function (p) { p.forEach(function (v) { hi = Math.max(hi, v); lo = Math.min(lo, v); }); });
+    if (mode === 'behind') { hi = 0; lo = lo || -1; } else { lo = 0; hi = hi || 1; }
+    var x = function (i) { return PL + (W - PL - PR) * i / Math.max(1, n - 1); },
+        y = function (v) { return PT + (H - PT - PB) * (1 - (v - lo) / (hi - lo)); };
+    var g = [lo, (lo + hi) / 2, hi].map(function (t) {
+      var label = mode === 'behind' ? (t === 0 ? 'Leader' : signed(s, t)) : fmt(s, t);
+      return '<line class="gl" x1="' + PL + '" x2="' + (W - PR) + '" y1="' + y(t) + '" y2="' + y(t) + '"/><text class="ax" x="' + (PL - 6) + '" y="' + (y(t) + 3) + '" text-anchor="end">' + label + '</text>';
+    }).join('');
     for (var i = 0; i < n; i++) g += '<text class="ax" x="' + x(i) + '" y="' + (H - 4) + '" text-anchor="middle">Wk ' + (i + 1) + '</text>';
     // end labels nudged apart so they don't collide
-    var ends = top.map(function (r, i) { return [y(r[4][n - 1]), i]; }).sort(function (a, b) { return a[0] - b[0]; }), placed = {}, prev = -99;
+    var ends = pts.map(function (p, i) { return [y(p[n - 1]), i]; }).sort(function (a, b) { return a[0] - b[0]; }), placed = {}, prev = -99;
     ends.forEach(function (e) { var ly = Math.max(e[0], prev + 11); placed[e[1]] = ly; prev = ly; });
     var lines = top.map(function (r, i) {
-      return '<polyline class="ln tl" style="' + tl(r) + '" points="' + r[4].map(function (v, j) { return x(j) + ',' + y(v); }).join(' ') + '"/>'
-        + '<circle class="dt tl" style="' + tl(r) + '" cx="' + x(n - 1) + '" cy="' + y(r[4][n - 1]) + '" r="4.5"/>'
+      var p = pts[i];
+      return '<polyline class="ln tl" style="' + tl(r) + '" points="' + p.map(function (v, j) { return x(j) + ',' + y(v); }).join(' ') + '"/>'
+        + '<circle class="dt tl" style="' + tl(r) + '" cx="' + x(n - 1) + '" cy="' + y(p[n - 1]) + '" r="4.5"/>'
         + '<text class="lb" x="' + (x(n - 1) + 8) + '" y="' + (placed[i] + 3) + '">' + esc(endName(P[r[1]][0])) + '</text>';
     }).join('');
-    return '<div class="e-chart"><svg class="race" viewBox="0 0 ' + W + ' ' + H + '" data-stat="' + s.key + '" role="img" aria-label="' + esc(s.name)
-      + ': running totals by week for the top five">' + g + lines + '<line class="xh" y1="' + PT + '" y2="' + (H - PB) + '"/></svg><div class="tip" hidden></div></div>';
+    var sw = '<div class="mode-sw" role="group" aria-label="Chart shows">'
+      + ['total', 'behind'].map(function (m) { return '<button type="button" data-mode="' + m + '"' + (m === mode ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>' + (m === 'total' ? 'Total' : 'Behind') + '</button>'; }).join('') + '</div>';
+    var what = mode === 'behind' ? ': how far each of the top five trails the leader, week by week' : ': running totals by week for the top five';
+    return '<div class="e-chart">' + sw + '<svg class="race" viewBox="0 0 ' + W + ' ' + H + '" data-stat="' + s.key + '" role="img" aria-label="' + esc(s.name)
+      + what + '">' + g + lines + '<line class="xh" y1="' + PT + '" y2="' + (H - PB) + '"/></svg><div class="tip" hidden></div></div>';
   }
   function hook(svg) {
     var s = S[svg.getAttribute('data-stat')], top = s.rows.slice(0, 5), n = D.through, tip = svg.parentNode.querySelector('.tip'), xh = svg.querySelector('.xh');
@@ -491,7 +520,10 @@ JS = r"""
       var b = svg.getBoundingClientRect(), px = (ev.clientX - b.left) / b.width * W,
           i = Math.max(0, Math.min(n - 1, Math.round((px - PL) / ((W - PL - PR) / Math.max(1, n - 1))))), x = PL + (W - PL - PR) * i / Math.max(1, n - 1);
       xh.setAttribute('x1', x); xh.setAttribute('x2', x); svg.classList.add('hover');
-      tip.innerHTML = '<b>Through week ' + (i + 1) + '</b>' + top.map(function (r) { return esc(P[r[1]][1]) + ' &nbsp;' + fmt(s, r[4][i]); }).join('<br>');
+      var pts = plotted(s);
+      tip.innerHTML = '<b>Through week ' + (i + 1) + '</b>' + top.map(function (r, k) {
+        return esc(P[r[1]][1]) + ' &nbsp;' + fmt(s, r[4][i]) + (mode === 'behind' && pts[k][i] < 0 ? ' (' + signed(s, pts[k][i]) + ')' : '');
+      }).join('<br>');
       tip.hidden = false;
       var left = x / W * b.width + 10; if (left + 150 > b.width) left = x / W * b.width - 160; tip.style.left = left + 'px';
     }
@@ -522,6 +554,16 @@ JS = r"""
     // averages have no race chart -- their list gets the whole card
     el.innerHTML = '<div class="qual">' + (s.qual || '') + '</div>' + (race ? chart(s) : '') + '<div class="list">' + list(s) + '</div>';
     if (race) hook(el.querySelector('.race'));
+  }
+  // flip every chart between Total and Behind (only the charts redraw -- the lists keep their place)
+  function setMode(m) {
+    mode = m;
+    try { localStorage.setItem('aag-race', m); } catch (e) {}
+    document.querySelectorAll('.e-chart').forEach(function (c) {
+      var k = c.querySelector('.race').getAttribute('data-stat'), wrap = document.createElement('div');
+      wrap.innerHTML = chart(S[k]); c.replaceWith(wrap.firstChild);
+      hook(document.querySelector('.stat[data-stat="' + k + '"] .race'));
+    });
   }
   function redraw(k) {
     var l = document.querySelector('.stat[data-stat="' + k + '"] .list'), y = l.scrollTop;
@@ -565,6 +607,7 @@ JS = r"""
       var tr = t.closest('.card').querySelector('.strack');
       tr.scrollTo({ left: +t.getAttribute('data-i') * tr.clientWidth, behavior: 'smooth' }); return;
     }
+    if ((t = e.target.closest('[data-mode]'))) { if (t.getAttribute('data-mode') !== mode) setMode(t.getAttribute('data-mode')); return; }
     if ((t = e.target.closest('[data-more]'))) { var k = t.getAttribute('data-more'); shown[k] += 10; redraw(k); return; }
     if ((t = e.target.closest('[data-fewer]'))) { var k2 = t.getAttribute('data-fewer'); shown[k2] = 10; redraw(k2); }
   });
