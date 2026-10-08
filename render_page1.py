@@ -572,17 +572,18 @@ def pill_row(a, h):
     return f'<div class="cmp-row cmp-head">{team_pill(a)}<div></div>{team_pill(h)}</div>'
 
 
-def title_icon(cid):
-    """The card's nav icon (NAV_ICONS) in front of its title, sized to the title's text (2026-10-03)."""
-    icon = NAV_ICONS.get(cid)
+def title_icon(cid, icons=None):
+    """The card's nav icon (NAV_ICONS) in front of its title, sized to the title's text (2026-10-03).
+    icons: another set to look in -- the NBA game page's (render_nba_game.NAV_ICONS)."""
+    icon = (icons or NAV_ICONS).get(cid)
     return f'<span class="t-ic">{icon}</span>' if icon else ""
 
 
-def card_title(name, abbr=False, cid=None):
+def card_title(name, abbr=False, cid=None, icons=None):
     """The card's name at the top center of the card -- the same label its peeking sliver shows,
     led by the same icon as its nav dot. abbr=True for a team-code title (Saira, matching every
-    other abbreviation on the site)."""
-    return (f'<span class="card-title"><span class="ttl">{title_icon(cid)}'
+    other abbreviation on the site). icons: as title_icon's."""
+    return (f'<span class="card-title"><span class="ttl">{title_icon(cid, icons)}'
             f'<span{" class=abbr" if abbr else ""}>{esc(name)}</span></span></span>')
 
 
