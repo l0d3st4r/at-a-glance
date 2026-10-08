@@ -40,10 +40,10 @@ def check_nba():
     for shared in ("game.css", "game.js"):
         if not os.path.isfile(os.path.join(nba, "game", shared)):
             fail(f"site/nba/game/{shared} is missing -- every game page needs it")
-    helmet_files = glob.glob(os.path.join(nba, "helmets", "*.svg"))
-    if len(helmet_files) < MIN_HELMET_FILES:
-        fail(f"site/nba/helmets/ has {len(helmet_files)} file(s), expected at least {MIN_HELMET_FILES}")
-    print(f"check_build: NBA OK -- {len(pages)} game page(s), {len(helmet_files)} helmet file(s)")
+    ball_files = glob.glob(os.path.join(nba, "balls", "*.svg"))
+    if len(ball_files) < MIN_HELMET_FILES:
+        fail(f"site/nba/balls/ has {len(ball_files)} file(s), expected at least {MIN_HELMET_FILES}")
+    print(f"check_build: NBA OK -- {len(pages)} game page(s), {len(ball_files)} ball file(s)")
 
 
 def main():

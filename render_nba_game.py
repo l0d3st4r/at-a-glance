@@ -36,6 +36,7 @@ import shutil
 import traceback
 from datetime import date
 
+import nba_balls
 import nba_helmets
 import nba_stats
 import nba_teams
@@ -55,8 +56,9 @@ def esc(v):
     return html.escape(str(v), quote=True)
 
 
-def img(team, size, mirrored=False, prefix="../", large=False):
-    return nba_helmets.helmet_img(team, size, mirrored, prefix, large)
+def img(team, size, away=False, prefix="../", large=False):
+    """A team's ball: the home one as drawn, the away one mirrored (nba_balls.py)."""
+    return nba_balls.ball_img(team, size, away, prefix, large)
 
 
 def loc(team):
@@ -403,7 +405,7 @@ def team_bar_head(side, opp, which, prefix):
     team = side.get("team")
     opp_abbr = f'<span class="abbr">{esc(opp or "TBD")}</span>'
     opp_html = f"@ {opp_abbr}" if which == "away" else f"{opp_abbr} @"
-    return (f'<div class="tp-head tp-{which}" aria-hidden="true">{img(team, 46, which == "home", prefix)}'
+    return (f'<div class="tp-head tp-{which}" aria-hidden="true">{img(team, 46, which == "away", prefix)}'
             f'<span class="tp-name">{esc(loc(team))}</span>'
             f'<span class="tp-rec">{esc(fmt_record(side.get("record")))}</span><span class="tp-opp">{opp_html}</span></div>')
 
@@ -743,11 +745,11 @@ def render_p1_block(d, stats, scope, tops, team_games, prefix="../", root="../..
     rows = leader_rows(lead)
     leaders_name = "Game Leaders" if scope == "game" else "Season Leaders"
     row_html = lambda big: (
-        f'<div class="side away">{img(a, 44, large=big, prefix=prefix)}<span class="abbr">{esc(a)}</span>{a_score}</div>'
+        f'<div class="side away">{img(a, 44, True, large=big, prefix=prefix)}<span class="abbr">{esc(a)}</span>{a_score}</div>'
         f'<div class="mid"><span class="at{" at-final" if final else ""}">{final_label_html(d) if final else "@"}</span>'
         f'<span class="when"><span>{esc(when_day)}</span><span>{esc(when_time)}</span></span>'
         f'<span class="final-lbl">{final_label_html(d)}</span></div>'
-        f'<div class="side home">{h_score}<span class="abbr">{esc(h)}</span>{img(h, 44, True, large=big, prefix=prefix)}</div>')
+        f'<div class="side home">{h_score}<span class="abbr">{esc(h)}</span>{img(h, 44, large=big, prefix=prefix)}</div>')
     hero = f'<div class="hero" aria-hidden="true"><div class="teams">{row_html(True)}</div></div>'
     day_href = f"{prefix}index.html#day-{d.get('week_key')}"
     bar = ('<header class="bar"><div class="bar-in">'
