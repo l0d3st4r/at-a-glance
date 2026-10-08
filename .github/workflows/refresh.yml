@@ -10,6 +10,11 @@ name: Refresh matchup data and publish
 # daily at 09:00, injuries/rosters/depth charts daily at 07:00, snap counts every
 # 6 hours, and the schedule (scores, kickoff times) many times a day.
 #
+# Since 2026-10-08 the same check covers the NBA section's sources (check_updates.nba_fingerprint):
+# sportsdataverse's NBA files (refreshed daily at 07:00 UTC in season) and ESPN's scoreboard, so a
+# night of NBA games is followed within ~15 minutes. That's why checks run every 15 minutes from
+# September through June now (they stopped at February), every 3 hours in July and August.
+#
 # It also rebuilds regardless of nflverse:
 #   - twice a day (08:05 and 16:05 UTC) for the parts that don't come from nflverse:
 #     weather forecasts and which week is "current"
@@ -22,8 +27,8 @@ name: Refresh matchup data and publish
 
 on:
   schedule:
-    - cron: "7,22,37,52 * * 1,2,9-12 *"   # in season (Sep-Feb): check every 15 minutes
-    - cron: "7 */3 * 3-8 *"               # offseason (Mar-Aug): check every 3 hours
+    - cron: "7,22,37,52 * * 1-6,9-12 *"   # in season (NFL Sep-Feb, NBA Oct-Jun): check every 15 minutes
+    - cron: "7 */3 * 7-8 *"               # offseason (Jul-Aug): check every 3 hours
     - cron: "5 8,16 * * *"                # rebuild twice a day no matter what
   push:
     branches: [main]
@@ -97,6 +102,21 @@ jobs:
 
       - name: Render v0 page
         run: python render_html.py
+
+      # The NBA section (2026-10-08): site/nba/, built from sportsdataverse's ESPN files and ESPN's
+      # scoreboard (build_nba_data.py, render_nba.py). continue-on-error: a problem there never holds
+      # back the NFL pages -- the run is flagged instead, and the menu's NBA links wait for the next build.
+      - name: Pull NBA data
+        continue-on-error: true
+        run: python build_nba_data.py
+
+      - name: Render NBA pages
+        continue-on-error: true
+        run: python render_nba.py
+
+      - name: Verify the NBA section
+        continue-on-error: true
+        run: python check_build.py --nba
 
       - name: Verify build before publishing
         run: python check_build.py

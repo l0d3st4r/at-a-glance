@@ -5,7 +5,8 @@ silently goes live: if the pipeline threw away all its data (bad nflverse
 response, empty schedule, etc.) but still exited 0, this catches it before
 deploy instead of after.
 
-Run with: python check_build.py
+Run with: python check_build.py         (the NFL pages)
+          python check_build.py --nba   (the NBA section)
 """
 
 import glob
@@ -25,7 +26,30 @@ def fail(message):
     sys.exit(1)
 
 
+def check_nba():
+    """The NBA section (site/nba/, render_nba.py, 2026-10-08), checked on its own (--nba): the workflow
+    runs it as a separate step that flags a broken NBA build without holding back the NFL pages."""
+    nba = os.path.join(SITE_DIR, "nba")
+    for name in ("index.html", "standings.html", "leaders.html"):
+        path = os.path.join(nba, name)
+        if not os.path.isfile(path) or os.path.getsize(path) < MIN_INDEX_BYTES:
+            fail(f"site/nba/{name} is missing or nearly empty")
+    pages = glob.glob(os.path.join(nba, "game", "*.html"))
+    if len(pages) < MIN_GAME_PAGES:
+        fail(f"site/nba/game/ has {len(pages)} page(s), expected at least {MIN_GAME_PAGES}")
+    for shared in ("game.css", "game.js"):
+        if not os.path.isfile(os.path.join(nba, "game", shared)):
+            fail(f"site/nba/game/{shared} is missing -- every game page needs it")
+    helmet_files = glob.glob(os.path.join(nba, "helmets", "*.svg"))
+    if len(helmet_files) < MIN_HELMET_FILES:
+        fail(f"site/nba/helmets/ has {len(helmet_files)} file(s), expected at least {MIN_HELMET_FILES}")
+    print(f"check_build: NBA OK -- {len(pages)} game page(s), {len(helmet_files)} helmet file(s)")
+
+
 def main():
+    if "--nba" in sys.argv[1:]:
+        check_nba()
+        return
     index_path = os.path.join(SITE_DIR, "index.html")
     if not os.path.isfile(index_path):
         fail(f"{index_path} does not exist")

@@ -158,7 +158,8 @@ LARGE_OUTLINE_WIDTH = 1.8   # = 1.68px * 106 units / 99px
 LARGE_DIR = "lg"
 
 
-def helmet_svg(team, mirrored=False, id_prefix=None, outline_width=OUTLINE_WIDTH, outline_pad=OUTLINE_PAD):
+def helmet_svg(team, mirrored=False, id_prefix=None, outline_width=OUTLINE_WIDTH, outline_pad=OUTLINE_PAD,
+               colors=None):
     """
     Return the SVG markup for one team's helmet: shell, ear piece and facemask, each with
     its own colour and gradient (the same three-part build as the helmet picker).
@@ -167,9 +168,14 @@ def helmet_svg(team, mirrored=False, id_prefix=None, outline_width=OUTLINE_WIDTH
     id_prefix keeps gradient ids unique if several helmets are inlined on one page.
     outline_width / outline_pad: the favicon draws the same sticker outline thicker, so it
     still reads at 16-32px (see favicon_svg).
+    colors: (shell, facemask, ear) to use instead of TEAM_COLORS / EAR_COLORS -- the NBA pages'
+    placeholder helmets in NBA team colors (nba_helmets.py, 2026-10-08).
     """
-    shell, mask = TEAM_COLORS.get(team, FALLBACK_COLORS)
-    ear = EAR_COLORS.get(team, FALLBACK_EAR)
+    if colors:
+        shell, mask, ear = colors
+    else:
+        shell, mask = TEAM_COLORS.get(team, FALLBACK_COLORS)
+        ear = EAR_COLORS.get(team, FALLBACK_EAR)
     shell_top, shell_bottom = SHADING_OVERRIDES.get(team, (SHELL_LIGHTEN_TOP, SHELL_DARKEN_BOTTOM))
     pid = id_prefix or f"helmet-{team or 'x'}{'-m' if mirrored else ''}"
     flip = ' transform="translate(100 0) scale(-1 1)"' if mirrored else ""
