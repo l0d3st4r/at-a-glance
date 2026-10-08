@@ -7,6 +7,7 @@ Outputs:
   site/helmets/*.svg  -- team-colored helmets used by Page 0 and Page 1 (see helmets.py)
   site/game/*.html    -- Page 1: one matchup page per game (see render_page1.py)
   site/standings.html -- the standings, opened from the bottom bar's menu (see render_standings.py)
+  site/leaders.html   -- the stat leaders, also from the menu (see render_leaders.py)
 
 Run with: python render_html.py
 
@@ -64,6 +65,7 @@ import traceback
 from datetime import date
 
 import helmets
+import render_leaders
 import render_page1
 import render_standings
 import snapshot
@@ -1647,6 +1649,10 @@ def main():
         render_standings.write(data, SITE_DIR)
     except Exception as e:
         warnings.append(f"render_standings: {e}")
+    try:
+        render_leaders.write(data, SITE_DIR)
+    except Exception as e:
+        warnings.append(f"render_leaders: {e}")
 
     # Published with the site so the next build can read it back (see snapshot.py)
     if os.path.exists(snapshot.LOCAL_PATH):
@@ -1654,7 +1660,7 @@ def main():
     else:
         warnings.append(f"no {snapshot.FILE_NAME} to publish -- the next build can't freeze finished games")
 
-    print(f"Wrote {INDEX_PATH}, {RAW_PATH}, {pages} game pages, the standings and helmets to {HELMET_DIR}")
+    print(f"Wrote {INDEX_PATH}, {RAW_PATH}, {pages} game pages, the standings, the stat leaders and helmets to {HELMET_DIR}")
     for w in warnings:
         print(f"  - {w}")
 

@@ -16,7 +16,7 @@ game with no script restyling anything. A standalone game page (site/game/<id>.h
 opened directly or from a shared link) declares the same tokens on its own root.
 
 The menu (menu_html) sits in the left corner of the bottom bar on every page: the site's
-pages (Games, Standings), then the light/dark switch as its last line (Jason, 2026-10-07 --
+pages (Games, Standings, Stat Leaders), then the light/dark switch as its last line (Jason, 2026-10-07 --
 until then the switch had that corner to itself). Until the switch is used the page follows
 the phone's setting (prefers-color-scheme).
 Using it saves a choice on the device (localStorage "aag-theme"); switching back to
@@ -165,12 +165,13 @@ MENU_CSS = SWITCH_CSS + """
 .menu hr{border:0;border-top:1px solid var(--aag-tile-border-soft);margin:6px 4px}
 """
 
-MENU_PAGES = (("games", "Games", "index.html"), ("standings", "Standings", "standings.html"))
+MENU_PAGES = (("games", "Games", "index.html"), ("standings", "Standings", "standings.html"),
+              ("leaders", "Stat Leaders", "leaders.html"))
 
 
 def menu_html(prefix="", current=None):
     """The bottom bar's menu. prefix is the path back to the site root ("../" from site/game/);
-    current is the page it's on ("games" / "standings"), shown in bold."""
+    current is the page it's on ("games" / "standings" / "leaders"), shown in bold."""
     links = "".join(
         f'<a href="{prefix}{href}"{" aria-current=page" if key == current else ""}>{label}</a>'
         for key, label, href in MENU_PAGES)
