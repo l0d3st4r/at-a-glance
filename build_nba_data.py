@@ -126,8 +126,7 @@ def load_games(season, today, warnings, as_of=None):
         opener = datetime.date.fromisoformat(reg_starts[0])
         # one request a day: ESPN turns down a date range here (400, seen 2026-10-08), single days are fine
         first_pre = opener - datetime.timedelta(days=PRESEASON_DAYS)
-        days = [first_pre + datetime.timedelta(days=i) for i in range(PRESEASON_DAYS) if first_pre + datetime.timedelta(days=i) <= today]
-        pre, err = nba_client.get_scoreboard(days) if days else ([], None)
+        pre, err = nba_client.get_scoreboard([first_pre + datetime.timedelta(days=i) for i in range(PRESEASON_DAYS)])
         if err:
             warnings.append(f"preseason scoreboard: {err}")
         live += [g for g in pre if g.get("season_type") == PRE]
