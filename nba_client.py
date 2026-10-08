@@ -265,7 +265,8 @@ def _ymd(d):
 def get_scoreboard(dates=None):
     """ESPN's scoreboard for the given ET dates (datetime.date or "YYYYMMDD"; default yesterday
     and today, ET), normalized exactly like get_games so the two merge with merge_live.
-    A (first, last) pair asks for every day in between in one request (the preseason, say).
+    A (first, last) pair asks for every day in between in one request -- which ESPN turned down with
+    a 400 from a GitHub runner (2026-10-08), so build_nba_data.py asks day by day instead.
     Includes preseason games. Optional by design: on any failure it returns ([], error) and the
     site carries on with the schedule file."""
     if dates is None:
