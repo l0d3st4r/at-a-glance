@@ -41,8 +41,8 @@ that category's card, turned to that stat.
 Leaders are the regular season to date (every week in player_weeks, which is regular season only).
 Rate stats count qualified players only, as the NFL does: Y/A 14 attempts a team game
 (player_stats.YPA_ATTEMPTS_PER_GAME), Y/C 6.25 carries, punt average 2.5 punts; kick / punt return
-averages 1 return a team game (Jason asked for return averages "with minimum qualifications" -- 1 a
-team game is our pick, not the NFL's published number). Ties share a place.
+averages 1.25 returns a team game (the minimum Pro-Football-Reference publishes for kick and punt
+returns, about 21-22 over a 17-game season; was 1 until 2026-10-07). Ties share a place.
 
 The numbers ride in the page once as JSON and the page's script draws the lists, so 100 players a stat
 doesn't make the file huge. #defense opens on that card, #defense-2 on its third stat, #condensed on
@@ -128,8 +128,8 @@ STATS = [
     ("ff", "defense", "Forced Fumbles", "FF", lambda r: r["ff"], 0, None, "defense", "FF", True),
     ("fgm", "kicking", "Field Goals Made", "FG", lambda r: r["fgm"], 0, None, "fg", "FG", True),
     ("pavg", "kicking", "Punting Average", "Punt Avg", lambda r: _div(r["pyd"], r["p"]), 1, ("p", 2.5, "punts"), "punt", "AVG", False),
-    ("kravg", "returns", "Kick Return Average", "KR Avg", lambda r: _div(r["kryds"], r["kr"]), 1, ("kr", 1, "kick return"), "kr", "AVG", False),
-    ("pravg", "returns", "Punt Return Average", "PR Avg", lambda r: _div(r["pryds"], r["pr"]), 1, ("pr", 1, "punt return"), "pr", "AVG", False),
+    ("kravg", "returns", "Kick Return Average", "KR Avg", lambda r: _div(r["kryds"], r["kr"]), 1, ("kr", 1.25, "kick returns"), "kr", "AVG", False),
+    ("pravg", "returns", "Punt Return Average", "PR Avg", lambda r: _div(r["pryds"], r["pr"]), 1, ("pr", 1.25, "punt returns"), "pr", "AVG", False),
 ]
 CATS = [("passing", "Passing"), ("rushing", "Rushing"), ("receiving", "Receiving"),
         ("defense", "Defense"), ("kicking", "Kicking"), ("returns", "Returns")]
