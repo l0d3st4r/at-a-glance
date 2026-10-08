@@ -5,10 +5,13 @@ name: Probe NBA data sources
 # push that touches the probe (so it works from a branch, before this file is on main) or by
 # hand from the Actions tab. The report is on the run's summary page. It builds and publishes
 # nothing.
+#
+# It also runs nba_client.py's quick look, so the client is tried against the real files and
+# ESPN's scoreboard from a runner (2026-10-08).
 
 on:
   push:
-    paths: ["probe_nba_sources.py", ".github/workflows/nba-probe.yml"]
+    paths: ["probe_nba_sources.py", "nba_client.py", "nba_teams.py", ".github/workflows/nba-probe.yml"]
   workflow_dispatch: {}
 
 permissions:
@@ -25,8 +28,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install requests
-        run: pip install requests
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
       - name: Probe the sources
         env:
@@ -34,3 +37,11 @@ jobs:
         run: |
           python probe_nba_sources.py --summary report.md
           cat report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Try the NBA data client
+        run: |
+          set -o pipefail
+          echo '## nba_client.py' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          python nba_client.py 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
