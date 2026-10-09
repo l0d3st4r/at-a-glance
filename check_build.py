@@ -20,7 +20,7 @@ MIN_INDEX_BYTES = 5_000     # a real Week N page is tens of KB; a near-empty fil
 MIN_GAME_PAGES = 1
 MIN_HELMET_FILES = 2        # at least one team + its mirrored copy
 # the site's icons (logo.py), at its root; every page must link them, the NFL's and the NBA's alike
-ICON_FILES = ("favicon.svg", "favicon-32.png", "favicon-dark-32.png", "apple-touch-icon.png", "apple-touch-icon-dark.png")
+ICON_FILES = ("favicon.svg", "favicon-32.png", "favicon-dark-32.png", "apple-touch-icon.png", "apple-touch-icon-light.png")
 
 
 def fail(message):
