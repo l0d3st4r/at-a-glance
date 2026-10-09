@@ -175,7 +175,7 @@ html{background:var(--bg)}""" + r"""
 /* Type follows the Framer design: Inter only, Regular 400 / Bold 700,
    sizes 11px (date/time labels), 16px (week label, records), 20px (team abbreviations),
    plus Inter Black 900 for the big final scores (the Framer type spec's "big numbers" weight). */
-body{height:100dvh;overflow:hidden;color:var(--text);font-family:Inter,system-ui,-apple-system,sans-serif;font-weight:400;
+body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-system,sans-serif;font-weight:400;
   -webkit-font-smoothing:antialiased;background:var(--bg)}
 /* Week picker lives in a bar pinned to the bottom of the screen (Page 1 puts its "‹ Week N" back
    button and +/− toggle in the same spot, same size). --bbar = bar height incl. the iPhone home-indicator area. */
@@ -206,12 +206,8 @@ body{height:100dvh;overflow:hidden;color:var(--text);font-family:Inter,system-ui
 /* The real <select> sits invisibly on top, so phones get their native week picker. */
 .week-picker select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;
   font-size:16px;-webkit-appearance:none;appearance:none;border:0}
-/* Weeks sit side by side; swipe (or the dropdown) snaps between them. The page itself doesn't scroll
-   (2026-10-09): the row of weeks scrolls sideways and each week scrolls up and down on its own, both
-   done by the browser, so swiping and scrolling are as smooth as the phone's own -- and the dates'
-   position:sticky works inside each week (it can't when the week sits in a sideways scroller and the
-   page does the up-and-down). Each week keeps its own place when you swipe away and back. */
-.track{display:flex;height:100dvh;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;
+/* Weeks sit side by side; swipe (or the dropdown) snaps between them. */
+.track{display:flex;align-items:flex-start;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;
   overscroll-behavior-x:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .track::-webkit-scrollbar{display:none}
 /* Pull down to refresh (Jason, 2026-10-07): PAGE0_JS's own gesture, so it works the same in the
@@ -226,22 +222,24 @@ html{overscroll-behavior-y:contain}
 .ptr.armed{color:var(--text)}
 .ptr.spin svg{animation:ptr-spin .7s linear infinite}
 @keyframes ptr-spin{to{transform:rotate(360deg)}}
-.week-panel{flex:0 0 100%;min-width:0;height:100%;overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:contain;
-  -webkit-overflow-scrolling:touch;scroll-snap-align:start;scroll-snap-stop:always}
+.week-panel{flex:0 0 100%;min-width:0;scroll-snap-align:start;scroll-snap-stop:always}
 .week-inner{max-width:600px;margin:0 auto;padding:max(6px,env(safe-area-inset-top)) 16px calc(64px + var(--bbar))}
 .day{text-align:center;font-size:16px;font-weight:400;line-height:19px;padding:18px 0 12px}
 /* each day's date in a pill outline, like the card titles on the game pages (Jason, 2026-10-03) --
    "Teams on Bye" too (2026-10-09). Filled with the page color so cards can pass under it. */
 .day-pill{display:inline-block;border:1px solid var(--aag-tile-border);border-radius:999px;padding:4px 14px;background:var(--bg)}
 /* NFL (2026-10-09): a day's date stays at the top of the screen while its games scroll under it,
-   and the next day's date pushes it off as it comes up -- position:sticky in the week's own scroller,
-   so the browser keeps it in place as smoothly as the scrolling itself (the pill lands 6px under the
-   safe area; the header's own 18px top padding is above it). Taps go through the header's empty
-   sides to the cards. */
-.day{position:relative;z-index:3;pointer-events:none}
-[data-sticky-days] .day{position:sticky;top:calc(max(6px,env(safe-area-inset-top)) - 12px)}
-[data-view=condensed] [data-sticky-days] .day{position:relative;top:auto}
-.day.stuck .day-pill{box-shadow:0 2px 10px rgba(0,0,0,.08)}
+   and the next day's date pushes it off as it comes up. The weeks sit in a sideways scroller, which
+   rules out position:sticky inside them (and moving the date itself on every scroll trails the
+   scrolling by a frame -- it jittered), so the stuck date is a separate copy, .day-float, fixed to
+   the screen: the browser holds it perfectly still. PAGE0_JS (floatDay) only changes its words when
+   a new day reaches the top, and moves it just while the next day's date is pushing it off. */
+.day{position:relative;z-index:3}
+.day-pill.under{visibility:hidden}   /* the date in the list while its copy is stuck at the top */
+.day-float{position:fixed;left:0;right:0;top:calc(max(6px,env(safe-area-inset-top)) + 6px);z-index:5;
+  display:flex;justify-content:center;pointer-events:none;font-size:16px;font-weight:400;line-height:19px;visibility:hidden}
+.day-float.on{visibility:visible}
+.day-float .day-pill{box-shadow:0 2px 10px rgba(0,0,0,.08)}
 .games{list-style:none;display:flex;flex-direction:column;gap:10px}
 /* thin lines between the games of the same day (2026-10-09), centered in the gap between cards */
 .games>li{position:relative}
@@ -341,7 +339,9 @@ a.bye-team:active{transform:scale(.94)}
    Same philosophy as Page 1's condensed view: nothing scrolls. The coverage line is cut, the
    abbreviation moves off the helmet and sits over the record, and the tiles share whatever
    height is left over (flex:1 1 0), so a 16-game week and a 1-game week both fill the screen. */
-[data-view=condensed] .week-panel{overflow-y:hidden}
+body[data-view=condensed]{height:100dvh;overflow:hidden}
+[data-view=condensed] .track{height:100dvh}
+[data-view=condensed] .week-panel{height:100dvh}
 [data-view=condensed] .week-inner{height:100dvh;display:flex;flex-direction:column;gap:4px;
   padding:max(6px,env(safe-area-inset-top)) 12px calc(6px + var(--bbar))}
 /* day sections and their lists fall away, so every tile is a flex child of the week column
@@ -863,6 +863,16 @@ PAGE0_JS = """
     var m = location.hash.match(/^#week-(.+)$/);
     return m ? keyIndex(decodeURIComponent(m[1])) : -1;
   }
+  // Track height = tallest of the current week and its neighbours, so a short
+  // week (e.g. the Super Bowl) doesn't leave a long blank page, and nothing is
+  // cut off while swiping to the next week.
+  function sizeTrack() {
+    // The condensed view is exactly one screen tall, so the track sizes itself.
+    if (document.body.dataset.view === 'condensed') { track.style.height = ''; return; }
+    var h = 0;
+    for (var i = idx - 1; i <= idx + 1; i++) if (panels[i]) h = Math.max(h, panels[i].offsetHeight);
+    track.style.height = h + 'px';
+  }
 
   // +/- toggle: expanded (the scrolling week) <-> condensed (the whole week on one screen).
   // Page 0 opens expanded every time, the same way Page 1 opens expanded every time.
@@ -877,7 +887,7 @@ PAGE0_JS = """
     var room = window.innerHeight - (bottombar ? bottombar.offsetHeight : 0);
     fitsCache = panels.map(function (p) {
       var inner = p.querySelector('.week-inner'), last = inner && inner.lastElementChild;
-      return !last || last.getBoundingClientRect().bottom - p.getBoundingClientRect().top + p.scrollTop <= room;
+      return !last || last.getBoundingClientRect().bottom - p.getBoundingClientRect().top <= room;
     });
     if (v !== 'expanded') body.dataset.view = v;
   }
@@ -886,7 +896,8 @@ PAGE0_JS = """
     document.body.dataset.view = v;
     toggle.setAttribute('aria-label', v === 'condensed' ? 'Switch to expanded view' : 'Switch to condensed view');
     toggle.setAttribute('aria-pressed', v === 'condensed' ? 'true' : 'false');
-    if (v === 'condensed') panels.forEach(function (p) { p.scrollTop = 0; });
+    if (v === 'condensed') window.scrollTo(0, 0);
+    sizeTrack();
     track.scrollLeft = idx * track.clientWidth;
   }
   function applyView() {
@@ -894,24 +905,48 @@ PAGE0_JS = """
     var short = fits(idx), v = short ? 'expanded' : wanted;
     toggle.hidden = short;
     if (document.body.dataset.view !== v) showView(v);
-    markStuck();
+    floatDay();
   }
 
-  // NFL only (the track carries data-sticky-days): the dates stick by CSS (position:sticky); all this
-  // does is give a stuck date its shadow -- a date is stuck when it's sitting lower in its day than
-  // where it started. Once a frame at most, and only reading positions, never moving anything.
-  var sticky = track.hasAttribute('data-sticky-days'), stuckQueued = false;
-  function markStuck() {
-    stuckQueued = false;
-    if (!sticky || !panels[idx]) return;
-    var hs = panels[idx].querySelectorAll('.day'), on = [];
-    for (var i = 0; i < hs.length; i++) on.push(hs[i].getBoundingClientRect().top - hs[i].parentNode.getBoundingClientRect().top > 0.5);
-    for (var j = 0; j < hs.length; j++) hs[j].classList.toggle('stuck', on[j]);
+  // NFL only (the track carries data-sticky-days, 2026-10-09): the date of the day at the top of the
+  // screen stays there (.day-float in PAGE0_CSS, fixed to the screen) while its games scroll by, and
+  // the next day's date pushes it off as it comes up. The day whose date has scrolled up to the
+  // stuck spot is the one shown; its own date in the list hides underneath (it's in the same spot at
+  // that moment, so the swap doesn't show). While a sideways swipe is moving the weeks, the stuck
+  // date steps aside and comes back with the new week's day.
+  var sticky = track.hasAttribute('data-sticky-days'), float = null, floatPill = null, under = null, swiping = false;
+  if (sticky) {
+    float = document.createElement('div');
+    float.className = 'day-float';
+    float.setAttribute('aria-hidden', 'true');
+    float.innerHTML = '<span class="day-pill"></span>';
+    floatPill = float.firstChild;
+    document.body.appendChild(float);
   }
-  document.addEventListener('scroll', function () {   // each week's own scrolling (capture: it doesn't bubble)
-    if (!stuckQueued) { stuckQueued = true; requestAnimationFrame(markStuck); }
-  }, { passive: true, capture: true });
-
+  function floatDay() {
+    if (!float) return;
+    var cur = null, shift = 0;
+    if (!swiping && document.body.dataset.view !== 'condensed' && panels[idx]) {
+      float.style.transform = '';
+      var top = float.getBoundingClientRect().top, h = floatPill.offsetHeight;
+      var secs = panels[idx].querySelectorAll('.week-inner > section');
+      for (var i = 0; i < secs.length; i++) {
+        var pill = secs[i].querySelector('.day-pill');
+        if (pill && pill.getBoundingClientRect().top <= top + 0.5) cur = secs[i];
+      }
+      // pushed off by the end of its own day, where the next day's date comes up
+      if (cur) shift = Math.min(0, cur.getBoundingClientRect().bottom - 12 - (top + h));
+    }
+    var pill = cur && cur.querySelector('.day-pill');
+    if (under !== pill) {
+      if (under) under.classList.remove('under');
+      if (pill) { pill.classList.add('under'); floatPill.textContent = pill.textContent; }
+      under = pill;
+    }
+    float.classList.toggle('on', !!cur);
+    float.style.transform = shift ? 'translateY(' + shift + 'px)' : '';
+  }
+  window.addEventListener('scroll', floatDay, { passive: true });
 
   function setActive(i, opts) {
     opts = opts || {};
@@ -922,6 +957,7 @@ PAGE0_JS = """
     label.textContent = p.dataset.label;
     document.title = p.dataset.label + ' · At A Glance';
     if (opts.scroll) track.scrollTo({ left: i * track.clientWidth, behavior: opts.smooth ? 'smooth' : 'auto' });
+    sizeTrack();
     applyView();
     if (opts.updateHash !== false && !document.documentElement.classList.contains('p1-open')) history.replaceState(null, '', '#week-' + encodeURIComponent(p.dataset.key));
   }
@@ -933,10 +969,13 @@ PAGE0_JS = """
 
   var settle;
   track.addEventListener('scroll', function () {
+    if (float && !swiping && Math.abs(track.scrollLeft - idx * track.clientWidth) > 2) { swiping = true; floatDay(); }
     clearTimeout(settle);
     settle = setTimeout(function () {
       var i = Math.round(track.scrollLeft / track.clientWidth);
+      swiping = false;
       if (i !== idx) setActive(i);
+      else floatDay();
     }, 90);
   }, { passive: true });
 
@@ -953,11 +992,13 @@ PAGE0_JS = """
   });
   window.addEventListener('resize', function () {
     track.scrollLeft = idx * track.clientWidth;
+    sizeTrack();
     fitsCache = null;
     applyView();
   });
   // web fonts change the cards' heights once they arrive
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { fitsCache = null; applyView(); });
+  if ('ResizeObserver' in window) new ResizeObserver(sizeTrack).observe(track);
 
   var fromHash = hashIndex();
   if (fromHash >= 0) idx = fromHash;
@@ -1025,7 +1066,7 @@ PAGE0_JS = """
   ptr.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
     + '<path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg>';
   document.body.appendChild(ptr);
-  function atTop() { return !panels[idx] || panels[idx].scrollTop <= 0; }   // the week on screen, scrolled to its top
+  function atTop() { return (window.scrollY || document.documentElement.scrollTop || 0) <= 0; }
   function showPull(d) {
     ptr.style.transition = 'none';
     ptr.style.opacity = Math.min(1, d / PULL_ARM);
@@ -1392,8 +1433,10 @@ PAGE1_OVERLAY_JS = r"""
     s.extras.forEach(function (el) { el.remove(); });
     if (s.inst) s.inst.destroy();
     var tile = tileFor(s.id);
-    // e.g. after swiping to another game: its week scrolls its tile into view underneath
-    if (tile && !visibleRect(tile) && s.host) tile.scrollIntoView({ block: 'center', inline: 'nearest' });
+    if (tile && !visibleRect(tile) && s.host) {  // e.g. after swiping to another game: bring its tile into view underneath
+      var r = tile.getBoundingClientRect();
+      s.scrollY = Math.max(0, window.scrollY + r.top - innerHeight / 2 + r.height / 2);
+    }
     // Going back to "#week-N" makes the browser jump to that week's top; keep the list where it should be.
     function pin() { if (Math.abs(window.scrollY - s.scrollY) > 1) window.scrollTo(0, s.scrollY); }
     pin();
