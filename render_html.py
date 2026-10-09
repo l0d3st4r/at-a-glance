@@ -175,7 +175,7 @@ html{background:var(--bg)}""" + r"""
 /* Type follows the Framer design: Inter only, Regular 400 / Bold 700,
    sizes 11px (date/time labels), 16px (week label, records), 20px (team abbreviations),
    plus Inter Black 900 for the big final scores (the Framer type spec's "big numbers" weight). */
-body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-system,sans-serif;font-weight:400;
+body{height:100dvh;overflow:hidden;color:var(--text);font-family:Inter,system-ui,-apple-system,sans-serif;font-weight:400;
   -webkit-font-smoothing:antialiased;background:var(--bg)}
 /* Week picker lives in a bar pinned to the bottom of the screen (Page 1 puts its "‹ Week N" back
    button and +/− toggle in the same spot, same size). --bbar = bar height incl. the iPhone home-indicator area. */
@@ -206,13 +206,14 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
 /* The real <select> sits invisibly on top, so phones get their native week picker. */
 .week-picker select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;
   font-size:16px;-webkit-appearance:none;appearance:none;border:0}
-/* Weeks sit side by side; swipe (or the dropdown) slides between them. Since 2026-10-09 the slide is
-   PAGE0_JS moving the row (a transform), not the row scrolling sideways: a sideways scroller would be
-   the nearest scroller for everything in it, and the dates' position:sticky needs that to be the page
-   itself. .track-clip hides the weeks off to the sides (clip, unlike hidden, isn't a scroller either).
-   touch-action:pan-y leaves up-and-down to the browser and hands sideways drags to the script. */
-.track-clip{overflow-x:clip;overflow-y:visible}
-.track{display:flex;align-items:flex-start;touch-action:pan-y;will-change:transform}
+/* Weeks sit side by side; swipe (or the dropdown) snaps between them. The page itself doesn't scroll
+   (2026-10-09): the row of weeks scrolls sideways and each week scrolls up and down on its own, both
+   done by the browser, so swiping and scrolling are as smooth as the phone's own -- and the dates'
+   position:sticky works inside each week (it can't when the week sits in a sideways scroller and the
+   page does the up-and-down). Each week keeps its own place when you swipe away and back. */
+.track{display:flex;height:100dvh;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;
+  overscroll-behavior-x:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.track::-webkit-scrollbar{display:none}
 /* Pull down to refresh (Jason, 2026-10-07): PAGE0_JS's own gesture, so it works the same in the
    browser and saved to the home screen (which has no built-in one). Chrome's built-in one would
    fire alongside it, so the page opts out of that (contain keeps the bounce). */
@@ -225,16 +226,18 @@ html{overscroll-behavior-y:contain}
 .ptr.armed{color:var(--text)}
 .ptr.spin svg{animation:ptr-spin .7s linear infinite}
 @keyframes ptr-spin{to{transform:rotate(360deg)}}
-.week-panel{flex:0 0 100%;min-width:0}
+.week-panel{flex:0 0 100%;min-width:0;height:100%;overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:contain;
+  -webkit-overflow-scrolling:touch;scroll-snap-align:start;scroll-snap-stop:always}
 .week-inner{max-width:600px;margin:0 auto;padding:max(6px,env(safe-area-inset-top)) 16px calc(64px + var(--bbar))}
 .day{text-align:center;font-size:16px;font-weight:400;line-height:19px;padding:18px 0 12px}
 /* each day's date in a pill outline, like the card titles on the game pages (Jason, 2026-10-03) --
    "Teams on Bye" too (2026-10-09). Filled with the page color so cards can pass under it. */
 .day-pill{display:inline-block;border:1px solid var(--aag-tile-border);border-radius:999px;padding:4px 14px;background:var(--bg)}
 /* NFL (2026-10-09): a day's date stays at the top of the screen while its games scroll under it,
-   and the next day's date pushes it off as it comes up -- position:sticky, so the browser keeps it
-   in place as smoothly as the scrolling itself (the pill lands 6px under the safe area; the header's
-   own 18px top padding is above it). Taps go through the header's empty sides to the cards. */
+   and the next day's date pushes it off as it comes up -- position:sticky in the week's own scroller,
+   so the browser keeps it in place as smoothly as the scrolling itself (the pill lands 6px under the
+   safe area; the header's own 18px top padding is above it). Taps go through the header's empty
+   sides to the cards. */
 .day{position:relative;z-index:3;pointer-events:none}
 [data-sticky-days] .day{position:sticky;top:calc(max(6px,env(safe-area-inset-top)) - 12px)}
 [data-view=condensed] [data-sticky-days] .day{position:relative;top:auto}
@@ -338,9 +341,7 @@ a.bye-team:active{transform:scale(.94)}
    Same philosophy as Page 1's condensed view: nothing scrolls. The coverage line is cut, the
    abbreviation moves off the helmet and sits over the record, and the tiles share whatever
    height is left over (flex:1 1 0), so a 16-game week and a 1-game week both fill the screen. */
-body[data-view=condensed]{height:100dvh;overflow:hidden}
-[data-view=condensed] .track{height:100dvh}
-[data-view=condensed] .week-panel{height:100dvh}
+[data-view=condensed] .week-panel{overflow-y:hidden}
 [data-view=condensed] .week-inner{height:100dvh;display:flex;flex-direction:column;gap:4px;
   padding:max(6px,env(safe-area-inset-top)) 12px calc(6px + var(--bbar))}
 /* day sections and their lists fall away, so every tile is a flex child of the week column
@@ -862,16 +863,6 @@ PAGE0_JS = """
     var m = location.hash.match(/^#week-(.+)$/);
     return m ? keyIndex(decodeURIComponent(m[1])) : -1;
   }
-  // Track height = tallest of the current week and its neighbours, so a short
-  // week (e.g. the Super Bowl) doesn't leave a long blank page, and nothing is
-  // cut off while swiping to the next week.
-  function sizeTrack() {
-    // The condensed view is exactly one screen tall, so the track sizes itself.
-    if (document.body.dataset.view === 'condensed') { track.style.height = ''; return; }
-    var h = 0;
-    for (var i = idx - 1; i <= idx + 1; i++) if (panels[i]) h = Math.max(h, panels[i].offsetHeight);
-    track.style.height = h + 'px';
-  }
 
   // +/- toggle: expanded (the scrolling week) <-> condensed (the whole week on one screen).
   // Page 0 opens expanded every time, the same way Page 1 opens expanded every time.
@@ -886,7 +877,7 @@ PAGE0_JS = """
     var room = window.innerHeight - (bottombar ? bottombar.offsetHeight : 0);
     fitsCache = panels.map(function (p) {
       var inner = p.querySelector('.week-inner'), last = inner && inner.lastElementChild;
-      return !last || last.getBoundingClientRect().bottom - p.getBoundingClientRect().top <= room;
+      return !last || last.getBoundingClientRect().bottom - p.getBoundingClientRect().top + p.scrollTop <= room;
     });
     if (v !== 'expanded') body.dataset.view = v;
   }
@@ -895,9 +886,8 @@ PAGE0_JS = """
     document.body.dataset.view = v;
     toggle.setAttribute('aria-label', v === 'condensed' ? 'Switch to expanded view' : 'Switch to condensed view');
     toggle.setAttribute('aria-pressed', v === 'condensed' ? 'true' : 'false');
-    if (v === 'condensed') window.scrollTo(0, 0);
-    sizeTrack();
-    place(idx);
+    if (v === 'condensed') panels.forEach(function (p) { p.scrollTop = 0; });
+    track.scrollLeft = idx * track.clientWidth;
   }
   function applyView() {
     if (!toggle) return;
@@ -918,69 +908,10 @@ PAGE0_JS = """
     for (var i = 0; i < hs.length; i++) on.push(hs[i].getBoundingClientRect().top - hs[i].parentNode.getBoundingClientRect().top > 0.5);
     for (var j = 0; j < hs.length; j++) hs[j].classList.toggle('stuck', on[j]);
   }
-  window.addEventListener('scroll', function () {
+  document.addEventListener('scroll', function () {   // each week's own scrolling (capture: it doesn't bubble)
     if (!stuckQueued) { stuckQueued = true; requestAnimationFrame(markStuck); }
-  }, { passive: true });
+  }, { passive: true, capture: true });
 
-  // ------------------------------------------------ sliding between weeks
-  // The row of weeks moves with a transform (see .track in PAGE0_CSS): follows the finger while
-  // dragging, then glides to the week it lands on -- far enough (22% of the screen) or fast enough
-  // and it's the next one. Trackpads' sideways scrolling and the arrow keys step a week at a time.
-  var SLIDE = 'transform .34s cubic-bezier(.22,1,.36,1)';
-  function place(i, dx, glide) {
-    track.style.transition = glide ? SLIDE : 'none';
-    track.style.transform = 'translateX(' + (-i * track.clientWidth + (dx || 0)) + 'px)';
-  }
-  var drag = null;
-  track.addEventListener('touchstart', function (e) {
-    drag = null;
-    if (e.touches.length !== 1 || document.documentElement.classList.contains('p1-open')) return;
-    var t = e.touches[0];
-    drag = { x0: t.clientX, y0: t.clientY, mode: 'pending', dx: 0, last: [[t.clientX, Date.now()]] };
-  }, { passive: true });
-  track.addEventListener('touchmove', function (e) {
-    if (!drag) return;
-    if (e.touches.length !== 1) { if (drag.mode === 'swipe') place(idx, 0, true); drag = null; return; }
-    var t = e.touches[0], mx = t.clientX - drag.x0, my = t.clientY - drag.y0;
-    if (drag.mode === 'pending') {
-      if (Math.abs(mx) > 8 && Math.abs(mx) > Math.abs(my)) { drag.mode = 'swipe'; drag.x0 = t.clientX; mx = 0; }
-      else if (Math.abs(my) > 8) { drag = null; return; }
-      else return;
-    }
-    if (e.cancelable) e.preventDefault();
-    var edge = (idx === 0 && mx > 0) || (idx === panels.length - 1 && mx < 0);
-    drag.dx = edge ? mx * 0.3 : mx;   // a rubber band past the first and last weeks
-    drag.last.push([t.clientX, Date.now()]);
-    if (drag.last.length > 4) drag.last.shift();
-    place(idx, drag.dx);
-  }, { passive: false });
-  function endDrag() {
-    var d = drag;
-    drag = null;
-    if (!d || d.mode !== 'swipe') return;
-    var a = d.last[0], b = d.last[d.last.length - 1], v = (b[0] - a[0]) / Math.max(1, b[1] - a[1]);
-    var dir = d.dx < 0 ? 1 : -1, go = Math.abs(d.dx) > track.clientWidth * 0.22 || (Math.abs(v) > 0.35 && (v < 0 ? 1 : -1) === dir);
-    var to = go && panels[idx + dir] ? idx + dir : idx;
-    if (to !== idx) setActive(to, { scroll: true, smooth: true });
-    else place(idx, 0, true);
-  }
-  track.addEventListener('touchend', endDrag);
-  track.addEventListener('touchcancel', function () { if (drag && drag.mode === 'swipe') place(idx, 0, true); drag = null; });
-  var wheelAcc = 0, wheelIdle = 0, wheelLocked = false;
-  track.addEventListener('wheel', function (e) {
-    if (Math.abs(e.deltaX) <= Math.abs(e.deltaY) || document.documentElement.classList.contains('p1-open')) return;
-    e.preventDefault();   // and no browser back/forward swipe
-    clearTimeout(wheelIdle);
-    wheelIdle = setTimeout(function () { wheelAcc = 0; wheelLocked = false; }, 200);
-    if (wheelLocked) return;
-    wheelAcc += e.deltaX;
-    if (Math.abs(wheelAcc) > 50) { wheelLocked = true; setActive(idx + (wheelAcc > 0 ? 1 : -1), { scroll: true, smooth: true }); wheelAcc = 0; }
-  }, { passive: false });
-  // tabbing onto a game in another week brings that week over
-  track.addEventListener('focusin', function (e) {
-    var i = panels.indexOf(e.target.closest && e.target.closest('.week-panel'));
-    if (i >= 0 && i !== idx) setActive(i, { scroll: true, smooth: true });
-  });
 
   function setActive(i, opts) {
     opts = opts || {};
@@ -990,8 +921,7 @@ PAGE0_JS = """
     select.value = p.dataset.key;
     label.textContent = p.dataset.label;
     document.title = p.dataset.label + ' · At A Glance';
-    if (opts.scroll) place(i, 0, opts.smooth);
-    sizeTrack();
+    if (opts.scroll) track.scrollTo({ left: i * track.clientWidth, behavior: opts.smooth ? 'smooth' : 'auto' });
     applyView();
     if (opts.updateHash !== false && !document.documentElement.classList.contains('p1-open')) history.replaceState(null, '', '#week-' + encodeURIComponent(p.dataset.key));
   }
@@ -1000,6 +930,15 @@ PAGE0_JS = """
     var i = keyIndex(select.value);
     if (i >= 0) setActive(i, { scroll: true, smooth: Math.abs(i - idx) === 1 });
   });
+
+  var settle;
+  track.addEventListener('scroll', function () {
+    clearTimeout(settle);
+    settle = setTimeout(function () {
+      var i = Math.round(track.scrollLeft / track.clientWidth);
+      if (i !== idx) setActive(i);
+    }, 90);
+  }, { passive: true });
 
   document.addEventListener('keydown', function (e) {
     if (e.target === select || e.altKey || e.metaKey || e.ctrlKey) return;
@@ -1013,18 +952,16 @@ PAGE0_JS = """
     if (i >= 0 && i !== idx) setActive(i, { scroll: true, updateHash: false });
   });
   window.addEventListener('resize', function () {
-    place(idx);
-    sizeTrack();
+    track.scrollLeft = idx * track.clientWidth;
     fitsCache = null;
     applyView();
   });
   // web fonts change the cards' heights once they arrive
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { fitsCache = null; applyView(); });
-  if ('ResizeObserver' in window) new ResizeObserver(sizeTrack).observe(track);
 
   var fromHash = hashIndex();
   if (fromHash >= 0) idx = fromHash;
-  place(idx);
+  track.scrollLeft = idx * track.clientWidth;
   setActive(idx, { updateHash: false });
 
   // Weeks: the current week and the next one (the previous one at the last week) slide over together,
@@ -1035,7 +972,7 @@ PAGE0_JS = """
     var dir = panels[idx + 1] ? 1 : panels[idx - 1] ? -1 : 0;
     if (!dir) return;
     nudgeMark('weeks');
-    // the weeks' contents move, not the panels or the row, which a swipe may be moving
+    // the weeks' contents move, not the panels themselves -- moving a snap target makes the track re-snap after it
     [panels[idx], panels[idx + dir]].forEach(function (p) {
       var inner = p.querySelector('.week-inner') || p;
       inner.animate(nudgeFrames(0, dir), NUDGE_TIMING);
@@ -1088,7 +1025,7 @@ PAGE0_JS = """
   ptr.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
     + '<path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg>';
   document.body.appendChild(ptr);
-  function atTop() { return (window.scrollY || document.documentElement.scrollTop || 0) <= 0; }
+  function atTop() { return !panels[idx] || panels[idx].scrollTop <= 0; }   // the week on screen, scrolled to its top
   function showPull(d) {
     ptr.style.transition = 'none';
     ptr.style.opacity = Math.min(1, d / PULL_ARM);
@@ -1455,10 +1392,8 @@ PAGE1_OVERLAY_JS = r"""
     s.extras.forEach(function (el) { el.remove(); });
     if (s.inst) s.inst.destroy();
     var tile = tileFor(s.id);
-    if (tile && !visibleRect(tile) && s.host) {  // e.g. after swiping to another game: bring its tile into view underneath
-      var r = tile.getBoundingClientRect();
-      s.scrollY = Math.max(0, window.scrollY + r.top - innerHeight / 2 + r.height / 2);
-    }
+    // e.g. after swiping to another game: its week scrolls its tile into view underneath
+    if (tile && !visibleRect(tile) && s.host) tile.scrollIntoView({ block: 'center', inline: 'nearest' });
     // Going back to "#week-N" makes the browser jump to that week's top; keep the list where it should be.
     function pin() { if (Math.abs(window.scrollY - s.scrollY) > 1) window.scrollTo(0, s.scrollY); }
     pin();
@@ -1787,7 +1722,7 @@ def render_page0(data):
         # own link so a bad request here can never take Inter down with it.
         "<link href='https://fonts.googleapis.com/css2?family=Saira:ital,wdth,wght@1,50..125,400..900&family=Teko:wght@400..700&display=swap' rel='stylesheet'>"
         f"<style>{PAGE0_CSS}</style></head><body data-view='expanded'>"
-        f"<div class='track-clip'><main class='track' id='track' data-sticky-days data-days='week'>{panels}</main></div>"
+        f"<main class='track' id='track' data-sticky-days data-days='week'>{panels}</main>"
         "<nav class='bottombar' aria-label='Week'>"
         "<div class='bar-in'>"
         f"{theme.menu_html('', 'games')}"
