@@ -204,7 +204,7 @@ def render_page0(data):
     css_src = render_nba_game.p1_css().replace("</", "<\\/")
     return (head(f"{label} · NBA · At A Glance", "Pro Basketball Game Information")
             + f"<style>{render_html.PAGE0_CSS}{PAGE0_EXTRA_CSS}</style></head><body data-view='expanded'>"
-            f"<main class='track' id='track' data-days='day'>{panels}</main>"
+            f"<div class='track-clip'><main class='track' id='track' data-days='day'>{panels}</main></div>"
             "<nav class='bottombar' aria-label='Day'><div class='bar-in'>"
             f"{theme.menu_html('../', 'nba-games')}"
             f"<label class='week-picker'><span id='week-label'>{esc(label)}</span>"
