@@ -2132,7 +2132,11 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .ttl{display:inline-flex;align-items:center;gap:6px}
 .slot.active .peek-top>.ttl,.card-title>.ttl{border:1px solid var(--tile-border);border-radius:999px;
   padding:4px calc(11px - .12em) 4px 11px;line-height:1.1}
-.t-ic svg{display:block;width:auto;height:1em}
+/* overflow:visible (2026-10-09): several icons are drawn right up to the edge of their frame (the
+   clipboard, stadium, flag, cross, jersey, calendars), and a phone rounds the frame's edge to its pixel
+   grid when it cuts the drawing off there -- at title size that shaved a hair to a pixel off those
+   edges. Nothing in any icon reaches more than 0.3% past its frame, so nothing needs cutting. */
+.t-ic svg{display:block;width:auto;height:1em;overflow:visible}
 .slot.below .peek-top,.slot.above .peek-bot{opacity:1}
 /* the card in the middle keeps its name at the top, where its sliver showed it (no arrow) */
 .slot.active .peek-top{opacity:1}
@@ -2176,7 +2180,7 @@ a.card.c-cmp{display:flex;align-items:center;justify-content:center;padding:var(
 .p1 > .dots,.p2 > .ic-dots{right:calc((max(0px, 50% - var(--col) / 2) + 8px) / 2);gap:36px}
 .p1 > .dots .dot,.p2 > .ic-dots .dot{width:20px;height:20px;border-radius:0;background:none;opacity:.4;
   display:flex;align-items:center;justify-content:center;transition:opacity .2s}
-.p1 > .dots .dot svg,.p2 > .ic-dots .dot svg{display:block;width:20px;height:auto;color:var(--ink);transition:transform .2s}
+.p1 > .dots .dot svg,.p2 > .ic-dots .dot svg{display:block;width:20px;height:auto;color:var(--ink);transition:transform .2s;overflow:visible}
 .p1 > .dots .dot.on,.p2 > .ic-dots .dot.on{height:20px;background:none;opacity:1}
 .p1 > .dots .dot.on svg,.p2 > .ic-dots .dot.on svg{transform:scale(1.15)}
 .p1 > .dots .dot:not(.on):hover,.p2 > .ic-dots .dot:not(.on):hover{opacity:.7}

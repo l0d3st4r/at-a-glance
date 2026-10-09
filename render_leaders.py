@@ -278,7 +278,7 @@ body{color:var(--text);font-family:Inter,system-ui,-apple-system,sans-serif;-web
 button{font:inherit;color:inherit}
 .abbr{line-height:1;font-family:Saira,Inter,system-ui,sans-serif;font-weight:800;font-style:italic;font-variation-settings:'wdth' 95;letter-spacing:.02em}
 .t-ic{display:inline-flex;align-items:center;flex:none}
-.t-ic svg{display:block;width:auto;height:1em}
+.t-ic svg{display:block;width:auto;height:1em;overflow:visible}   /* as render_page1's .t-ic svg */
 .empty{text-align:center;font-size:12px;color:var(--text-3);padding:24px 0}
 
 /* the header: the year over "STAT LEADERS · Through Week N" */
@@ -319,7 +319,7 @@ button{font:inherit;color:inherit}
   top:calc(var(--top-h) + (100dvh - var(--top-h) - var(--bbar)) / 2);transform:translateY(-50%);z-index:10;
   display:flex;flex-direction:column;align-items:center;gap:36px}
 .dot{width:20px;height:20px;border:0;background:none;opacity:.4;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;transition:opacity .2s}
-.dot svg{display:block;width:20px;height:auto;color:var(--text);transition:transform .2s}
+.dot svg{display:block;width:20px;height:auto;color:var(--text);transition:transform .2s;overflow:visible}
 .dot.on{opacity:1}.dot.on svg{transform:scale(1.15)}
 .dot:not(.on):hover{opacity:.7}
 .dot:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px}

@@ -196,7 +196,7 @@ MENU_CSS = SWITCH_CSS + """
 /* the icon ahead of each page's name, fitted inside a 40x32 box whatever its shape (empty where none is
    picked) -- a little wider than tall, so the wide Stat Leaders crowns don't come out tiny */
 .mnu-ic{flex:none;width:40px;height:32px;display:flex;align-items:center;justify-content:center}
-.mnu-ic svg{display:block;width:100%;height:100%}
+.mnu-ic svg{display:block;width:100%;height:100%;overflow:visible}   /* as render_page1's .t-ic svg */
 .mnu-foot{margin-top:14px;padding-top:12px;border-top:1px solid var(--aag-tile-border)}
 .mnu .ts-btn{gap:10px;padding:6px 0;font:inherit;font-size:15px;font-weight:600;color:var(--aag-text-2)}
 .mnu .ts-btn svg{width:18px;height:18px}
