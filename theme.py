@@ -116,6 +116,11 @@ THEME_HEAD_JS = (
 # spread): it sits 4.55% of the helmet's size below it with 7.8% blur, so it grows with the helmet. The
 # helmet images carry class "hm"; each place that sizes them sets --hs to that size (48px if not).
 # It's a CSS filter on the <img>, not part of the helmet file, so iPhones keep the helmets sharp.
+# The winner arrow (Jason, 2026-09-18): a small triangle pointing left, at the team that won -- beside
+# FINAL on Page 0's finished tiles, and (2026-10-09) between the scores of a game page's last meeting.
+# Mirrored (scaleX(-1)) to point right at the home side.
+WIN_TRI = ('<svg viewBox="0 0 8 10" aria-hidden="true"><path d="M8 0 0 5l8 5z" fill="currentColor"/></svg>')
+
 HELMET_SHADOW_CSS = """
 img.hm{filter:drop-shadow(0 calc(var(--hs,48px) * .0455) calc(var(--hs,48px) * .078) var(--aag-helmet-shadow))}
 """

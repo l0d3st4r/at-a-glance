@@ -40,6 +40,7 @@ from datetime import date, datetime, timezone
 import local_time
 import stadium_icons
 import temp_colors
+import theme
 
 DASH = "—"
 MONTHS_UPPER = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
@@ -120,6 +121,17 @@ def _meeting(d, info):
     if not (m and isinstance(m.get("score"), dict)):
         return a, h, None, None, None
     return a, h, m, _num(m["score"].get(a)), _num(m["score"].get(h))
+
+
+def win_arrow(sa, sh):
+    """Page 0's FINAL arrow (theme.WIN_TRI) between a last meeting's two scores (Jason, 2026-10-09),
+    pointing at the winner: left at the away side, right at the home side. A tie, or a missing score,
+    leaves the slot empty, so the scores stay where they'd be either way."""
+    try:
+        side = "a" if sa > sh else "h" if sh > sa else ""
+    except TypeError:
+        side = ""
+    return f'<span class="mtri{" mtri-h" if side == "h" else ""}" aria-hidden="true">{theme.WIN_TRI if side else ""}</span>'
 
 
 def _lose(mine, theirs):
@@ -209,7 +221,7 @@ def kickoff_body(d, info, time_html):
         meeting = (
             f'<p class="ko-line">Last matchup <span class="ko-date-sm">{esc(fmt_meeting_date(m.get("date")))}</span></p>'
             f'<div class="ko-meet" aria-label="{esc(a)} {fmt_int(sa)}, {esc(h)} {fmt_int(sh)}">'
-            f'<span class="abbr{_lose(sa, sh)}">{esc(a)}</span><span class="sc{_lose(sa, sh)}">{fmt_int(sa)}</span>'
+            f'<span class="abbr{_lose(sa, sh)}">{esc(a)}</span><span class="sc{_lose(sa, sh)}">{fmt_int(sa)}</span>{win_arrow(sa, sh)}'
             f'<span class="sc{_lose(sh, sa)}">{fmt_int(sh)}</span><span class="abbr{_lose(sh, sa)}">{esc(h)}</span></div>'
         )
     else:
@@ -301,7 +313,7 @@ def kickoff_condensed(d, info, time_html):
     date_line, weekday = _date_parts(d)
     a, h, m, sa, sh = _meeting(d, info)
     if m:
-        meet = (f'<span class="mm"><span class="abbr{_lose(sa, sh)}">{esc(a)}</span><span class="sc{_lose(sa, sh)}">{fmt_int(sa)}</span>'
+        meet = (f'<span class="mm"><span class="abbr{_lose(sa, sh)}">{esc(a)}</span><span class="sc{_lose(sa, sh)}">{fmt_int(sa)}</span>{win_arrow(sa, sh)}'
                 f'<span class="sc{_lose(sh, sa)}">{fmt_int(sh)}</span><span class="abbr{_lose(sh, sa)}">{esc(h)}</span></span>')
         meet_sub = esc(fmt_meeting_date(m.get("date")))
     else:
@@ -491,7 +503,12 @@ P2_CSS = r"""
 .sc{font-family:Teko,Inter,system-ui,sans-serif;font-weight:700;font-size:1.25em;line-height:1;min-width:1.2em;text-align:center;font-variant-numeric:tabular-nums}
 .sc.lose{opacity:.3}
 .ko-meet .abbr.lose,.mm .abbr.lose{opacity:.3}   /* the loser's abbreviation dims with its score (2026-10-03) */
-.ko-meet .sc+.sc{margin-left:.4em}
+/* the winner arrow between the scores (win_arrow): Page 0's, the same size as beside its FINAL */
+.mtri{display:flex;align-items:center;justify-content:center;flex:none;width:8px}
+.mtri svg{display:block;width:8px;height:10px}
+.mtri-h svg{transform:scaleX(-1)}
+.ko-meet .mtri{margin:0 -.1em}
+.mm .mtri{width:6px}.mm .mtri svg{width:6px;height:8px}
 .ko-tv{display:flex;justify-content:center;align-items:center;gap:24px;font-size:16px}
 .ko-lines .ko-tv{margin-bottom:14px}   /* TV above the last matchup (2026-10-03) */
 .ko-ref{text-align:center}

@@ -150,7 +150,7 @@ def format_network(networks):
 
 # Winner arrow on a finished tile (Jason, 2026-09-18): a small black triangle between the
 # score and the word FINAL, pointing at the team that won. Ties get none.
-WIN_TRI = ('<svg viewBox="0 0 8 10" aria-hidden="true"><path d="M8 0 0 5l8 5z" fill="currentColor"/></svg>')
+WIN_TRI = theme.WIN_TRI   # shared with the game pages' last meetings
 
 
 def format_record(record):

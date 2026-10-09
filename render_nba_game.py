@@ -466,7 +466,7 @@ def _meeting_row(a, h, m):
     where = f'@ {m.get("home")}'
     return (f'<li class="mt-row"><span class="mt-date">{esc(gi.fmt_meeting_date(m.get("date")))}'
             f'<small>{esc(where)}{" · " + esc(tag) if tag else ""}</small></span>'
-            f'<span class="abbr{_lose(sa, sh)}">{esc(a)}</span><span class="sc{_lose(sa, sh)}">{f0(sa)}</span>'
+            f'<span class="abbr{_lose(sa, sh)}">{esc(a)}</span><span class="sc{_lose(sa, sh)}">{f0(sa)}</span>{gi.win_arrow(sa, sh)}'
             f'<span class="sc{_lose(sh, sa)}">{f0(sh)}</span><span class="abbr{_lose(sh, sa)}">{esc(h)}</span></li>')
 
 
@@ -506,7 +506,7 @@ def tipoff_condensed(d, info, time_html):
     if ms:
         m = ms[0]
         sa, sh = (m.get("score") or {}).get(a), (m.get("score") or {}).get(h)
-        meet = (f'<span class="mm"><span class="abbr{_lose(sa, sh)}">{esc(a)}</span><span class="sc{_lose(sa, sh)}">{f0(sa)}</span>'
+        meet = (f'<span class="mm"><span class="abbr{_lose(sa, sh)}">{esc(a)}</span><span class="sc{_lose(sa, sh)}">{f0(sa)}</span>{gi.win_arrow(sa, sh)}'
                 f'<span class="sc{_lose(sh, sa)}">{f0(sh)}</span><span class="abbr{_lose(sh, sa)}">{esc(h)}</span></span>')
         sub = f'{esc(gi.fmt_meeting_date(m.get("date")))} · {esc(_series(a, h, ms))}'
     else:
@@ -980,10 +980,11 @@ EXTRA_CSS = """
 .p1 .game-bottom .city{flex:1 1 auto;min-width:0;margin-right:10px}
 .nba-note{font-size:12px;color:var(--aag-text-2);margin-top:2px}
 .mt-list{list-style:none;display:flex;flex-direction:column;gap:2px;margin:6px auto 0;max-width:340px}
-.mt-row{display:grid;grid-template-columns:1fr 3.2em 2.4em 2.4em 3.2em;align-items:center;gap:4px;font-size:15px}
+.mt-row{display:grid;grid-template-columns:1fr 3.2em 2.4em 6px 2.4em 3.2em;align-items:center;gap:4px;font-size:15px}
 .mt-row .abbr{font-size:16px;text-align:center}
 .mt-row .sc{font-family:Teko,Inter,system-ui,sans-serif;font-weight:700;font-size:20px;text-align:center;font-variant-numeric:tabular-nums}
 .mt-row .lose{opacity:.3}
+.mt-row .mtri{width:6px}.mt-row .mtri svg{width:6px;height:8px}
 .mt-date{display:flex;flex-direction:column;text-align:left;font-size:12px;line-height:1.15;white-space:nowrap}
 .mt-date small{font-size:10px;color:var(--aag-text-3)}
 .nba-lead{display:flex;justify-content:space-around;gap:8px}
