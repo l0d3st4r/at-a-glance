@@ -49,6 +49,7 @@ try:
 except Exception:  # pragma: no cover
     EASTERN = None
 
+import local_time
 from coaches import coaches_for
 from divisions import DIVISIONS, get_division, normalize_abbr
 from stadiums import STADIUMS, STATE_NAMES, NEUTRAL_VENUES
@@ -165,13 +166,7 @@ def competition_ranks(values, higher_is_better=True):
 
 def kickoff_utc(gameday, gametime):
     """nflverse gameday 'YYYY-MM-DD' + gametime 'HH:MM' (US Eastern) -> aware UTC datetime, or None."""
-    try:
-        naive = datetime.fromisoformat(f"{str(gameday)[:10]}T{str(gametime)[:5]}")
-    except (TypeError, ValueError):
-        return None
-    if EASTERN is None:
-        return (naive + timedelta(hours=4)).replace(tzinfo=timezone.utc)  # EDT fallback
-    return naive.replace(tzinfo=EASTERN).astimezone(timezone.utc)
+    return local_time.eastern_to_utc(gameday, gametime)
 
 
 def stadium_for(abbr):

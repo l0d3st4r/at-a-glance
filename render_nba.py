@@ -36,6 +36,7 @@ import traceback
 from collections import defaultdict
 from datetime import date
 
+import local_time
 import logo
 import nba_balls
 import nba_helmets
@@ -115,10 +116,13 @@ def network_html(m):
 def upcoming_tile(m):
     away, home = m.get("away") or {}, m.get("home") or {}
     t = "PPD" if m.get("postponed") else render_html.format_time(m.get("gametime"))
-    label = f'{nba_teams.full_name(away.get("team"))} at {nba_teams.full_name(home.get("team"))}, {t}'
-    return (f'<a class="game" href="#game-{esc(m["game_id"])}" aria-label="{esc(label)}">{team_html(away, True)}'
+    names = f'{nba_teams.full_name(away.get("team"))} at {nba_teams.full_name(home.get("team"))}'
+    # the tip-off in the viewer's own time zone (local_time.py); a postponed game keeps its PPD
+    lt = (lambda mode, aria=None: "") if m.get("postponed") else \
+        (lambda mode, aria=None: local_time.attrs(m.get("gameday"), m.get("gametime"), mode, aria))
+    return (f'<a class="game" href="#game-{esc(m["game_id"])}" aria-label="{esc(names + ", " + t)}"{lt("a", names + ", {t}")}>{team_html(away, True)}'
             f'{render_html.render_stack(away.get("team"), fmt_record(away.get("record")), "away")}'
-            f'<div class="center"><span class="time">{render_html.time_html(t)}</span>{network_html(m)}</div>'
+            f'<div class="center"><span class="time"{lt("t")}>{render_html.time_html(t)}</span>{network_html(m)}</div>'
             f'{render_html.render_stack(home.get("team"), fmt_record(home.get("record")), "home")}{team_html(home, False)}</a>')
 
 
@@ -152,11 +156,11 @@ def final_tile(m):
 
 def day_panel(day, is_current):
     rows = []
-    for m in day["games"]:
+    for i, m in enumerate(day["games"]):
         try:
-            rows.append(f"<li>{final_tile(m) if (m.get('final') or m.get('live')) else upcoming_tile(m)}</li>")
+            rows.append(f'<li style="{render_html.rise_delay(i)}">{final_tile(m) if (m.get("final") or m.get("live")) else upcoming_tile(m)}</li>')
         except Exception:
-            rows.append(f'<li><div class="error">Failed to render one game\n{esc(traceback.format_exc())}</div></li>')
+            rows.append(f'<li style="{render_html.rise_delay(i)}"><div class="error">Failed to render one game\n{esc(traceback.format_exc())}</div></li>')
     return (f'<div class="week-panel" id="day-{esc(day["key"])}" data-key="{esc(day["key"])}" data-label="{esc(day["label"])}"'
             f' data-current="{"true" if is_current else "false"}" role="group" aria-label="{esc(day["long_label"])}">'
             f'<div class="week-inner"><section><h2 class="day"><span class="day-pill">{esc(day["long_label"])}</span></h2>'
@@ -209,7 +213,7 @@ def render_page0(data):
             f"<span class='i-plus'>{render_page1.PLUS}</span><span class='i-minus'>{render_page1.MINUS}</span></button>"
             "</div></nav>"
             f"<script type='text/plain' id='p1-css-src'>{css_src}</script>"
-            f"<script>{theme.THEME_JS}</script><script>{PAGE0_JS}</script>"
+            f"<script>{theme.THEME_JS}</script><script>{local_time.JS}</script><script>{PAGE0_JS}</script>"
             f"<script>{render_page1.P1_JS}</script><script>{OVERLAY_JS}</script></body></html>")
 
 

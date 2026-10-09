@@ -37,6 +37,7 @@ import traceback
 from datetime import date
 
 import helmets
+import local_time
 import logo
 import player_stats
 import render_page2gameinfo
@@ -302,6 +303,11 @@ def fmt_time(gametime):
     return f"{hh % 12 or 12}:{mm:02d}", ("AM ET" if hh < 12 else "PM ET")
 
 
+def lt_split(d):
+    """The big kickoff time ("8:15<small>PM ET</small>") in the viewer's own time zone (local_time.py)."""
+    return local_time.attrs(d.get("gameday"), d.get("gametime"), "s")
+
+
 def fmt_date(gameday):
     """'2026-10-19' -> 'OCT 19 Monday'."""
     try:
@@ -389,7 +395,7 @@ def game_body_compact(d):
     return (
         linescore_html(d, mini=True) +
         '<div class="gc-row gc-1"><div class="gc-when">'
-        f'<div class="time">{esc(t)}{small}</div><div class="date">{esc(day)}</div></div>'
+        f'<div class="time"{lt_split(d)}>{esc(t)}{small}</div><div class="date">{esc(day)}</div></div>'
         f'<div class="weather">{weather_html(d)}</div></div>'
         f'<div class="gc-row gc-2"><div class="city">{esc(venue.get("city") or "")}</div>'
         f'<div class="network">{esc(fmt_network(d.get("networks")))}</div></div>'
@@ -420,7 +426,7 @@ def game_body(d, hero=""):
     venue = d.get("venue") or {}
     weather = weather_html(d)
     small = f"<small>{ampm}</small>" if ampm else ""
-    headline = f'<div class="time">{esc(t)}{small}</div>'
+    headline = f'<div class="time"{lt_split(d)}>{esc(t)}{small}</div>'
     corner = f'<div class="network">{esc(fmt_network(d.get("networks")))}</div>'
     final = bool(d.get("final"))
     top = (f'<div class="game-top{" final-top" if final else ""}">'
@@ -759,7 +765,7 @@ def render_p1_block(d, prefix="../"):
         # header animation that moves the "@" carries the label instead. The winner triangle
         # (2026-09-21) rides along inside both copies since they're just cloned for the animation.
         f'<div class="mid"><span class="at{" at-final" if final else ""}">{final_label_html(d) if final else "@"}</span>'
-        f'<span class="when"><span>{esc(when_day)}</span><span>{esc(when_time)}</span></span>'
+        f'<span class="when"><span>{esc(when_day)}</span><span{local_time.attrs(d.get("gameday"), d.get("gametime"))}>{esc(when_time)}</span></span>'
         f'<span class="final-lbl">{final_label_html(d)}</span></div>'
         f'<div class="side home">{h_score}<span class="abbr">{esc(h)}</span>{img(h, 44, True, large=big)}</div>'
     )
@@ -805,7 +811,7 @@ def render_p1_block(d, prefix="../"):
     dots = "".join(f'<button class="dot" type="button" aria-label="{esc(name)}">{NAV_ICONS.get(cid, "")}</button>' for cid, name, _k, _b in cards)
     large = f'<div class="view view-l deck" aria-label="Expanded matchup">{slots}</div><nav class="dots" aria-label="Cards">{dots}</nav>'
     t, ampm = fmt_time(d.get("gametime"))
-    time_html = f'<div class="time">{esc(t)}{f"<small>{ampm}</small>" if ampm else ""}</div>'
+    time_html = f'<div class="time"{lt_split(d)}>{esc(t)}{f"<small>{ampm}</small>" if ampm else ""}</div>'
     try:
         page2 = render_page2gameinfo.render_p2_block(d, time_html, weather_icon)
     except Exception:  # Page 2 trouble never costs the game its Page 1
@@ -850,7 +856,7 @@ def render_standalone(d):
         # the theme tokens sit on this page's own root (on Page 0 they come from Page 0's root)
         f"<style>{theme.THEME_CSS}html,body{{margin:0;background:var(--aag-bg)}}</style></head><body>"
         f"{render_p1_block(d)}"
-        f"<script>{theme.THEME_JS}</script><script>{P1_JS}</script><script>AAG_P1.init(document);</script>"
+        f"<script>{theme.THEME_JS}</script><script>{local_time.JS}</script><script>{P1_JS}</script><script>AAG_P1.init(document);</script>"
         "</body></html>"
     )
 

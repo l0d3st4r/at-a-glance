@@ -36,6 +36,7 @@ import shutil
 import traceback
 from datetime import date
 
+import local_time
 import logo
 import nba_balls
 import nba_helmets
@@ -276,7 +277,7 @@ def game_body_compact(d):
     return (
         p1.linescore_html(d, mini=True) +
         '<div class="gc-row gc-1"><div class="gc-when">'
-        f'<div class="time">{esc(t)}{small}</div><div class="date">{esc(day)}</div></div>'
+        f'<div class="time"{p1.lt_split(d)}>{esc(t)}{small}</div><div class="date">{esc(day)}</div></div>'
         f'<div class="network">{esc(tv(d))}</div></div>'
         # the arena takes the second line, beside the city, rather than the weather's spot up top --
         # it's longer than a temperature, and there it crowded the date
@@ -291,7 +292,7 @@ def game_body(d, hero=""):
     final = bool(d.get("final") or d.get("live"))
     note = f'<div class="date nba-note">{esc(d["note"])}</div>' if d.get("note") else ""
     top = (f'<div class="game-top{" final-top" if final else ""}">'
-           f'<div><div class="time">{esc(t)}{small}</div><div class="date">{esc(p1.fmt_date(d.get("gameday")))}</div>{note}</div>'
+           f'<div><div class="time"{p1.lt_split(d)}>{esc(t)}{small}</div><div class="date">{esc(p1.fmt_date(d.get("gameday")))}</div>{note}</div>'
            f'<div class="network">{esc(tv(d))}</div></div>')
     lead = hero + p1.linescore_html(d) + top if final else top + hero
     city = ((d.get("info") or {}).get("arena") or {}).get("city") or ""
@@ -720,7 +721,7 @@ def schedule_body(tpage, prefix):
             mid = (f'<span class="sc-res sc-{"win" if res == "W" else "loss"}">{esc(res)}</span>'
                    f'<span class="sc-score">{f0(sc.get("team"))}-{f0(sc.get("opp"))}</span>')
         else:
-            mid = f'<span class="sc-time">{esc(_fmt_time(e.get("gametime")))}</span>'
+            mid = f'<span class="sc-time"{local_time.attrs(e.get("gameday"), e.get("gametime"))}>{esc(_fmt_time(e.get("gametime")))}</span>'
         rec = fmt_record(e["record_after"]) if e.get("final") and e.get("record_after") and e.get("phase") == "REG" else ""
         rows.append(f'<li class="sc-row{" sc-this" if e.get("this") else ""}"><span class="sc-wk">{esc(e.get("number") or "")}</span>'
                     f'{date_html}<span class="sc-vs">{"vs" if e.get("home") else "@"}</span>{img(opp, 20, prefix=prefix)}'
@@ -919,7 +920,7 @@ def render_p1_block(d, stats, scope, tops, team_games, prefix="../", root="../..
     row_html = lambda big: (
         f'<div class="side away">{img(a, 44, True, large=big, prefix=prefix)}<span class="abbr">{esc(a)}</span>{a_score}</div>'
         f'<div class="mid"><span class="at{" at-final" if final else ""}">{final_label_html(d) if final else "@"}</span>'
-        f'<span class="when"><span>{esc(when_day)}</span><span>{esc(when_time)}</span></span>'
+        f'<span class="when"><span>{esc(when_day)}</span><span{local_time.attrs(d.get("gameday"), d.get("gametime"))}>{esc(when_time)}</span></span>'
         f'<span class="final-lbl">{final_label_html(d)}</span></div>'
         f'<div class="side home">{h_score}<span class="abbr">{esc(h)}</span>{img(h, 44, large=big, prefix=prefix)}</div>')
     hero = f'<div class="hero" aria-hidden="true"><div class="teams">{row_html(True)}</div></div>'
@@ -951,7 +952,7 @@ def render_p1_block(d, stats, scope, tops, team_games, prefix="../", root="../..
     dots = "".join(f'<button class="dot" type="button" aria-label="{esc(name)}">{NAV_ICONS.get(cid, "")}</button>' for cid, name, _k, _b in cards)
     large = f'<div class="view view-l deck" aria-label="Expanded matchup">{slots}</div><nav class="dots" aria-label="Cards">{dots}</nav>'
     t, ampm = p1.fmt_time(d.get("gametime"))
-    time_html = f'<div class="time">{esc(t)}{f"<small>{ampm}</small>" if ampm else ""}</div>'
+    time_html = f'<div class="time"{p1.lt_split(d)}>{esc(t)}{f"<small>{ampm}</small>" if ampm else ""}</div>'
     blocks = {}
     for key, make in (("game-info", lambda: render_gameinfo_block(d, time_html)),
                       ("away-team", lambda: render_team_block(away, "away", prefix)),
@@ -1053,7 +1054,7 @@ def render_standalone(d, block):
             # outweigh the pages); Page 0 hands its overlay the same stylesheet from its own copy
             "<link id='p1-css' rel='stylesheet' href='game.css'>"
             f"<style>{theme.THEME_CSS}html,body{{margin:0;background:var(--aag-bg)}}</style></head><body>"
-            f"{block}<script>{theme.THEME_JS}</script><script src='game.js'></script><script>AAG_P1.init(document);</script>"
+            f"{block}<script>{theme.THEME_JS}</script><script>{local_time.JS}</script><script src='game.js'></script><script>AAG_P1.init(document);</script>"
             "</body></html>")
 
 

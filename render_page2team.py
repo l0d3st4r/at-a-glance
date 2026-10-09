@@ -42,6 +42,8 @@ open here").
 
 import html
 
+import local_time
+
 from render_page2players import esc_name
 
 DASH = "—"
@@ -511,7 +513,7 @@ def schedule_body(team_page, prefix):
             mid = (f'<span class="sc-res sc-{cls}">{esc(res)}</span>'
                    f'<span class="sc-score">{esc(_fmt_int(e["score"]["team"]))}-{esc(_fmt_int(e["score"]["opp"]))}</span>')
         else:
-            mid = f'<span class="sc-time">{esc(_fmt_time(e.get("gametime")))}</span>'
+            mid = f'<span class="sc-time"{local_time.attrs(e.get("gameday"), e.get("gametime"))}>{esc(_fmt_time(e.get("gametime")))}</span>'
         rec = _fmt_record(e.get("record_after") or {}) if e.get("final") else ""
         rows.append(
             '<li class="sc-row">'

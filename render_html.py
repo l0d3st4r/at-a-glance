@@ -33,7 +33,7 @@ Page 0 design (revised 2026-09-16, layout modeled on Apple Sports' NFL
   - one centered column (max 600px wide); games grouped under day headers
     like "Thursday, Sep 17"; each game is its own outlined tile
   - each tile: away helmet + abbreviation | away record | kickoff time
-    ("1:00 PM" + small "ET") with TV network under it ("TV TBD" until we
+    (in the viewer's own time zone, local_time.py; 2026-10-09) with TV network under it ("TV TBD" until we
     have a source) | home record | home helmet (mirrored) + abbreviation
   - tiles scale up slightly with a brighter outline on hover/keyboard focus,
     so they read as clickable
@@ -50,6 +50,12 @@ Page 0 design (revised 2026-09-16, layout modeled on Apple Sports' NFL
     16-game week and a 1-game week both fill the screen exactly. Both
     placements of the abbreviation are in the markup (see render_stack) and
     CSS shows one of them; the Page 1 flight picks whichever is on screen.
+  - (2026-10-09) the cards fade in and rise into place, one after another, when
+    the page loads; thin lines separate games on the same day; "Teams on Bye"
+    gets the day headers' pill; while scrolling, the day's date sticks to the
+    top until the next day's date pushes it off (NFL only -- the NBA's Page 0
+    has one day per panel); and a week whose expanded view already fits on the
+    screen has no condensed view (the +/- toggle hides there, NFL and NBA).
 
 Defensive on purpose (same reasoning as the 2026-09-16 KeyError fix):
 every field is read with .get(), and each matchup is rendered inside
@@ -65,6 +71,7 @@ import traceback
 from datetime import date
 
 import helmets
+import local_time
 import logo
 import render_leaders
 import render_page1
@@ -186,6 +193,7 @@ body{min-height:100vh;color:var(--text);font-family:Inter,system-ui,-apple-syste
 .toggle:hover{transform:scale(1.09)}
 .toggle:active{transform:scale(1.30)}
 .toggle:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px;border-radius:50%}
+.toggle[hidden]{display:none}   /* a week that fits on the screen has no condensed view (PAGE0_JS) */
 .toggle .i-plus{display:none}
 .toggle .i-minus{display:block}
 [data-view=condensed] .toggle .i-minus{display:none}
@@ -217,9 +225,24 @@ html{overscroll-behavior-y:contain}
 .week-panel{flex:0 0 100%;min-width:0;scroll-snap-align:start;scroll-snap-stop:always}
 .week-inner{max-width:600px;margin:0 auto;padding:max(6px,env(safe-area-inset-top)) 16px calc(64px + var(--bbar))}
 .day{text-align:center;font-size:16px;font-weight:400;line-height:19px;padding:18px 0 12px}
-/* each day's date in a pill outline, like the card titles on the game pages (Jason, 2026-10-03) */
-.day-pill{display:inline-block;border:1px solid var(--aag-tile-border);border-radius:999px;padding:4px 14px}
+/* each day's date in a pill outline, like the card titles on the game pages (Jason, 2026-10-03) --
+   "Teams on Bye" too (2026-10-09). Filled with the page color so cards can pass under it. */
+.day-pill{display:inline-block;border:1px solid var(--aag-tile-border);border-radius:999px;padding:4px 14px;background:var(--bg)}
+/* NFL (2026-10-09): a day's date stays at the top of the screen while its games scroll under it,
+   and the next day's date pushes it off as it comes up. The track scrolls sideways, which rules out
+   position:sticky inside it, so PAGE0_JS moves the header itself (stickDays). */
+.day{position:relative;z-index:3}
+.day.stuck .day-pill{box-shadow:0 2px 10px rgba(0,0,0,.08)}
 .games{list-style:none;display:flex;flex-direction:column;gap:10px}
+/* thin lines between the games of the same day (2026-10-09), centered in the gap between cards */
+.games>li{position:relative}
+.games>li+li::before{content:"";position:absolute;left:16px;right:16px;top:-6px;height:1px;background:var(--aag-tile-border);pointer-events:none}
+[data-view=condensed] .games>li+li::before{top:-3px;left:12px;right:12px}
+/* Page 0 opens with its game cards fading in and rising into place one after another (2026-10-09).
+   Each card's delay is in the markup (rise_delay); it stops growing after the first screenful, so
+   cards further down are already in place by the time they're scrolled to. */
+@keyframes p0-rise{from{opacity:0;transform:translateY(28px)}}
+.games>li,.bye-list{animation:p0-rise .55s cubic-bezier(.22,1,.36,1) backwards}
 /* Fixed-width side columns (2026-09-21, were 1fr) -- each tile is its own independent grid, so a
    1fr column's actual pixel width used to depend on THAT tile's own content (a wide final score
    vs. a short "0-1" record), which shifted the record/score column from tile to tile. Fixed widths
@@ -497,13 +520,17 @@ def render_game(m):
     away_name = TEAM_NAMES.get(away.get("team"), away.get("team", "?"))
     home_name = TEAM_NAMES.get(home.get("team"), home.get("team", "?"))
     label = f"{away_name} at {home_name}, {time_text}"
+    # the time in the viewer's own time zone (local_time.py): the label and the time are written in
+    # Eastern and rewritten on the viewer's phone
+    when = (m.get("gameday"), m.get("gametime"))
     # "#game-<id>" opens Page 1 (PAGE1_OVERLAY_JS); the week switcher ignores these hashes.
     return (
-        f'<a class="game" href="#game-{esc(m.get("game_id") or "")}" aria-label="{esc(label)}">'
+        f'<a class="game" href="#game-{esc(m.get("game_id") or "")}" aria-label="{esc(label)}"'
+        f'{local_time.attrs(*when, "a", f"{away_name} at {home_name}, {{t}}")}>'
         f"{render_team(away, mirrored=False)}"
         f"{render_stack(away.get('team'), format_record(away.get('record')), 'away')}"
         '<div class="center">'
-        f'<span class="time">{time_html(time_text)}</span>'
+        f'<span class="time"{local_time.attrs(*when)}>{time_html(time_text)}</span>'
         f'<span class="network">{esc(network)}</span>'
         "</div>"
         f"{render_stack(home.get('team'), format_record(home.get('record')), 'home')}"
@@ -669,7 +696,7 @@ def weeks_for_page0(data):
     return weeks, current
 
 
-def render_byes(byes):
+def render_byes(byes, n=0):
     """The "Teams on Bye" section under a week's last day: helmet over abbreviation for each team,
     each a link to that team's next game (PAGE1_OVERLAY_JS opens it like a game tile)."""
     if not byes:
@@ -686,26 +713,33 @@ def render_byes(byes):
     teams = "".join(team(*b) for b in byes)
     # On phones the helmets wrap in even rows (6 teams -> 3 + 3, not 5 + 1); bye counts are always even.
     phone_cols = len(byes) if len(byes) <= 4 else (len(byes) + 1) // 2
-    return (f'<section class="byes" aria-label="Teams on bye"><h2 class="day">Teams on Bye</h2>'
-            f'<ul class="bye-list" style="--bye-cols:{phone_cols}">{teams}</ul></section>')
+    return (f'<section class="byes" aria-label="Teams on bye"><h2 class="day"><span class="day-pill">Teams on Bye</span></h2>'
+            f'<ul class="bye-list" style="--bye-cols:{phone_cols};{rise_delay(n)}">{teams}</ul></section>')
+
+
+def rise_delay(i):
+    """The i-th card's delay in Page 0's opening fade-and-rise (PAGE0_CSS's p0-rise)."""
+    return f"animation-delay:{min(i, 10) * 45}ms"
 
 
 def render_week_panel(key, label, games, is_current, byes=None):
     sections = []
+    n = 0   # cards so far this week, for the opening stagger
     for d, day_games in group_by_day(games):
         rows = []
         for m in day_games:
             try:
-                rows.append(f"<li>{render_game(m)}</li>")
+                rows.append(f'<li style="{rise_delay(n)}">{render_game(m)}</li>')
             except Exception:
-                rows.append(f'<li><div class="error">Failed to render one matchup\n{esc(traceback.format_exc())}</div></li>')
+                rows.append(f'<li style="{rise_delay(n)}"><div class="error">Failed to render one matchup\n{esc(traceback.format_exc())}</div></li>')
+            n += 1
         sections.append(
             f'<section><h2 class="day"><span class="day-pill">{esc(format_day_header(d))}</span></h2>'
             f'<ul class="games">{"".join(rows)}</ul></section>'
         )
     if not sections:
         sections.append('<p class="empty">No games this week.</p>')
-    sections.append(render_byes(byes))
+    sections.append(render_byes(byes, n))
     return (
         f'<div class="week-panel" id="week-{esc(key)}" data-key="{esc(key)}" data-label="{esc(label)}"'
         f' data-current="{"true" if is_current else "false"}" role="group" aria-label="{esc(label)}">'
@@ -752,6 +786,72 @@ PAGE0_JS = """
     for (var i = idx - 1; i <= idx + 1; i++) if (panels[i]) h = Math.max(h, panels[i].offsetHeight);
     track.style.height = h + 'px';
   }
+
+  // +/- toggle: expanded (the scrolling week) <-> condensed (the whole week on one screen).
+  // Page 0 opens expanded every time, the same way Page 1 opens expanded every time.
+  // Condensed only where it's needed (2026-10-09): a week whose expanded view already fits on the
+  // screen has no condensed view -- the toggle goes away there and pinching does nothing. The choice
+  // is kept: swipe on to a longer week and it's condensed again.
+  var toggle = document.getElementById('view-toggle'), bottombar = document.querySelector('.bottombar');
+  var wanted = 'expanded', fitsCache = null;
+  function measureFits() {   // does each week's expanded view end above the bottom bar?
+    var body = document.body, v = body.dataset.view;
+    if (v !== 'expanded') body.dataset.view = 'expanded';
+    var room = window.innerHeight - (bottombar ? bottombar.offsetHeight : 0);
+    fitsCache = panels.map(function (p) {
+      var inner = p.querySelector('.week-inner'), last = inner && inner.lastElementChild;
+      return !last || last.getBoundingClientRect().bottom - p.getBoundingClientRect().top <= room;
+    });
+    if (v !== 'expanded') body.dataset.view = v;
+  }
+  function fits(i) { if (!fitsCache) measureFits(); return !!fitsCache[i]; }
+  function showView(v) {
+    document.body.dataset.view = v;
+    toggle.setAttribute('aria-label', v === 'condensed' ? 'Switch to expanded view' : 'Switch to condensed view');
+    toggle.setAttribute('aria-pressed', v === 'condensed' ? 'true' : 'false');
+    if (v === 'condensed') window.scrollTo(0, 0);
+    sizeTrack();
+    track.scrollLeft = idx * track.clientWidth;
+  }
+  function applyView() {
+    if (!toggle) return;
+    var short = fits(idx), v = short ? 'expanded' : wanted;
+    toggle.hidden = short;
+    if (document.body.dataset.view !== v) showView(v);
+    stickDays();
+  }
+
+  // NFL only (the track carries data-sticky-days, 2026-10-09): each day's date sticks under the top of
+  // the screen while its games scroll by, and the next day's date pushes it off as it comes up --
+  // position:sticky's behavior, done by hand because the sideways-scrolling track rules out the real
+  // thing. All the measuring happens before any moving, so it's one layout per scroll.
+  var sticky = track.hasAttribute('data-sticky-days');
+  function stickDays() {
+    if (!sticky) return;
+    var condensed = document.body.dataset.view === 'condensed', moves = [];
+    for (var i = idx - 1; i <= idx + 1; i++) {
+      var p = panels[i], inner = p && p.querySelector('.week-inner');
+      if (!inner) continue;
+      var top = parseFloat(getComputedStyle(inner).paddingTop) + 6;   // just under the safe area
+      Array.prototype.forEach.call(inner.querySelectorAll(':scope > section'), function (sec) {
+        var h = sec.querySelector('.day'), pill = h && h.querySelector('.day-pill');
+        if (!pill) return;
+        var shift = 0;
+        if (!condensed) {
+          var r = sec.getBoundingClientRect();
+          // up to the top of the screen, but never past the bottom of its own day
+          shift = Math.max(0, Math.min(top - pill.offsetTop - r.top, r.height - pill.offsetTop - pill.offsetHeight));
+        }
+        moves.push([h, shift]);
+      });
+    }
+    moves.forEach(function (m) {
+      m[0].style.transform = m[1] ? 'translateY(' + m[1] + 'px)' : '';
+      m[0].classList.toggle('stuck', m[1] > 0);
+    });
+  }
+  window.addEventListener('scroll', stickDays, { passive: true });
+
   function setActive(i, opts) {
     opts = opts || {};
     if (!panels[i]) return;
@@ -762,6 +862,7 @@ PAGE0_JS = """
     document.title = p.dataset.label + ' · At A Glance';
     if (opts.scroll) track.scrollTo({ left: i * track.clientWidth, behavior: opts.smooth ? 'smooth' : 'auto' });
     sizeTrack();
+    applyView();
     if (opts.updateHash !== false && !document.documentElement.classList.contains('p1-open')) history.replaceState(null, '', '#week-' + encodeURIComponent(p.dataset.key));
   }
 
@@ -793,7 +894,11 @@ PAGE0_JS = """
   window.addEventListener('resize', function () {
     track.scrollLeft = idx * track.clientWidth;
     sizeTrack();
+    fitsCache = null;
+    applyView();
   });
+  // web fonts change the cards' heights once they arrive
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { fitsCache = null; applyView(); });
   if ('ResizeObserver' in window) new ResizeObserver(sizeTrack).observe(track);
 
   var fromHash = hashIndex();
@@ -816,22 +921,16 @@ PAGE0_JS = """
     });
   }, 1200);
 
-  // +/- toggle: expanded (the scrolling week) <-> condensed (the whole week on one screen).
-  // Page 0 opens expanded every time, the same way Page 1 opens expanded every time.
-  var toggle = document.getElementById('view-toggle');
+  // the +/- toggle and pinch (applyView, above, decides what each week shows)
   if (toggle) {
     var setView = function (v) {
-      document.body.dataset.view = v;
-      toggle.setAttribute('aria-label', v === 'condensed' ? 'Switch to expanded view' : 'Switch to condensed view');
-      toggle.setAttribute('aria-pressed', v === 'condensed' ? 'true' : 'false');
-      if (v === 'condensed') window.scrollTo(0, 0);
-      sizeTrack();
-      track.scrollLeft = idx * track.clientWidth;
+      if (fits(idx)) return;   // nothing to condense
+      wanted = v;
+      applyView();
     };
     toggle.addEventListener('click', function () {
       setView(document.body.dataset.view === 'condensed' ? 'expanded' : 'condensed');
     });
-    setView(document.body.dataset.view || 'expanded');
     // Pinch to toggle expanded/condensed here too (2026-09-21), same as the +/- button. Guarded
     // against the Page 1 overlay being open, which handles pinch itself for whatever it's showing.
     var pinchD0 = 0, pinchScale = 1, pinching = false;
@@ -1020,6 +1119,7 @@ PAGE1_OVERLAY_JS = r"""
     var host = document.createElement('div'), root = host.attachShadow({ mode: 'open' });
     host.className = 'p1-host';
     root.innerHTML = '<style>' + (css ? css.textContent : '') + '</style>' + block.outerHTML.replace(/(src|href)="\.\.\//g, '$1="');
+    if (window.AAG_LT) window.AAG_LT(root);   // times in the viewer's time zone (local_time.py)
     if (opts.view) root.querySelector('.p1').setAttribute('data-view', opts.view);
     if (opts.hidden) host.style.visibility = 'hidden';
     if (opts.dx) host.style.transform = 'translateX(' + opts.dx + 'px)';
@@ -1566,7 +1666,7 @@ def render_page0(data):
         # own link so a bad request here can never take Inter down with it.
         "<link href='https://fonts.googleapis.com/css2?family=Saira:ital,wdth,wght@1,50..125,400..900&family=Teko:wght@400..700&display=swap' rel='stylesheet'>"
         f"<style>{PAGE0_CSS}</style></head><body data-view='expanded'>"
-        f"<main class='track' id='track'>{panels}</main>"
+        f"<main class='track' id='track' data-sticky-days>{panels}</main>"
         "<nav class='bottombar' aria-label='Week'>"
         "<div class='bar-in'>"
         f"{theme.menu_html('', 'games')}"
@@ -1580,6 +1680,7 @@ def render_page0(data):
         "</button>"
         "</div></nav>"
         f"<script>{theme.THEME_JS}</script>"
+        f"<script>{local_time.JS}</script>"
         f"<script>{PAGE0_JS}</script>"
         f"<script>{render_page1.P1_JS}</script>"
         f"<script>{PAGE1_OVERLAY_JS}</script>"
