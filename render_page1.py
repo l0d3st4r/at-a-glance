@@ -96,12 +96,28 @@ CROWN_SHAPES = ('<path d="M1.38 11.8 1 3.5l5.2 4.2L10 1l3.8 6.7L19 3.5l-.38 8.3z
                 '<rect x="1.4" y="13" width="17.2" height="2.3" rx="1.15"/>')
 
 
+# The medal colors (also --gold / --silver / --bronze in P1_CSS). Since 2026-10-09 each crown is a
+# vertical gradient of its color, the way the helmets and team pills are shaded: lighter at the top,
+# the medal color through the middle, deeper at the base.
+MEDAL_COLORS = {"gold": "#D4A20A", "silver": "#A2A7AD", "bronze": "#B5702F"}
+CROWN_LIGHTEN_TOP = 0.38
+CROWN_DARKEN_BOTTOM = 0.28
+_crown_ids = [0]   # each crown's gradient gets its own id (a page can show several of each medal)
+
+
 def crown(rank):
     if rank not in MEDALS:
         return ""
     key, word = MEDALS[rank]
+    color = MEDAL_COLORS[key]
+    _crown_ids[0] += 1
+    gid = f"crg{_crown_ids[0]}"
+    stops = ((0, helmets._mix(color, helmets.WHITE, CROWN_LIGHTEN_TOP)), (.55, color),
+             (1, helmets._mix(color, helmets.BLACK, CROWN_DARKEN_BOTTOM)))
+    grad = (f'<linearGradient id="{gid}" gradientUnits="userSpaceOnUse" x1="0" y1="1" x2="0" y2="15.3">'
+            + "".join(f'<stop offset="{o:g}" stop-color="{c}"/>' for o, c in stops) + "</linearGradient>")
     return (f'<svg class="crown" viewBox="0 0 20 16" width="17" height="14" role="img" aria-label="{word} in the league">'
-            f'<g fill="var(--{key})">{CROWN_SHAPES}</g></svg>')
+            f'<defs>{grad}</defs><g fill="url(#{gid})">{CROWN_SHAPES}</g></svg>')
 
 
 # Nav-dot icons for the expanded deck (Jason's icons, 2026-09-23), one per card. Each source
@@ -1822,8 +1838,8 @@ P1_CSS = "\n:host{display:block}\n" + theme.MENU_CSS + theme.HELMET_SHADOW_CSS +
     ".p1{--ink:var(--aag-text);--tile:var(--aag-tile);--tile-border:var(--aag-tile-border);--tile-border-soft:var(--aag-tile-border-soft);"
     "--tile-hover:var(--aag-tile-hover);--tile-border-hover:var(--aag-tile-border-hover);--text-2:var(--aag-text-2);--text-3:var(--aag-text-3);\n"
     "  --out:var(--aag-out);--doubt:var(--aag-doubt);--ques:var(--aag-ques);--win:var(--aag-win);--loss:var(--aag-loss);--tie:var(--aag-tie);"
-    "--gold:#D4A20A;--silver:#A2A7AD;"
-    f"--bronze:#B5702F;--bar:64px;--bbar:{theme.BBAR_HEIGHT};--peek:40px;--gap:12px;--col:600px;--ctitle:clamp(22px,3.2vh,30px)}}"
+    f"--gold:{MEDAL_COLORS['gold']};--silver:{MEDAL_COLORS['silver']};"
+    f"--bronze:{MEDAL_COLORS['bronze']};--bar:64px;--bbar:{theme.BBAR_HEIGHT};--peek:40px;--gap:12px;--col:600px;--ctitle:clamp(22px,3.2vh,30px)}}"
 ) + r"""
 *{box-sizing:border-box;margin:0;padding:0}
 .p1{min-height:100%;background:var(--aag-bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,sans-serif;font-weight:400;-webkit-font-smoothing:antialiased}
