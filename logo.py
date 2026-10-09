@@ -8,9 +8,10 @@ and home-screen icons made from it. Picked in the At A Glance Logo artifact:
                  or favicon-dark-32.png when they honor the link's dark-mode media query.
   home screen    and Safari favorites: glass, after iOS's Liquid Glass -- a see-through fill, a bright rim
                  where light catches the top-left edge, a soft sheen across the top and a shadow
-                 underneath -- on the field redrawn square so it fills the icon (square_field, 2026-10-09).
-                 Clear glass on ink (C) is the default, apple-touch-icon.png; smoked glass on paper (D)
-                 is the light-mode alternate, apple-touch-icon-light.png.
+                 underneath -- at the same 92% of the icon's width. Clear glass on ink (C) is the
+                 default, apple-touch-icon.png; smoked glass on paper (D) is the light-mode alternate,
+                 apple-touch-icon-light.png. (For a day, 2026-10-09, the home-screen icon redrew the
+                 field square to fill the icon; Jason went back to the drawing as-is.)
 
 Only the paths on the source file's 4096 canvas are kept (it also carried a spare eye and a dot off to
 the side). The drawing's own bounds: x -1870..1870, y -1423..1423.
@@ -53,8 +54,9 @@ GLASS = {
     "smoke": {"tint": (INK, INK), "alpha": (.82, .48), "shadow": (INK, .28)},
 }
 
-# Everywhere but the home screen the logo sits at 92% of its square's width (option 2 in the Logo Fill
-# Options artifact, 2026-10-09).
+# The logo sits at 92% of its square's width everywhere -- tabs and home screen alike (option 2 in the
+# Logo Fill Options artifact, 2026-10-09): as big as it goes while staying clear of the iPhone's rounded
+# corners.
 FAVICON_FILL = .92
 
 
@@ -77,56 +79,18 @@ def favicon_png_svg(dark=False):
             f'<g fill="{PAPER if dark else INK}">{_LOGO}</g></svg>')
 
 
-# ---------------------------------------------------------------- the home-screen icon
-
-# iOS's icon corner, as a share of the icon's width
-IOS_CORNER = .2237
-
-
-def _rrect(x0, y0, x1, y1, r, ccw=False):
-    """A rounded rectangle; ccw=True runs it the other way, so it cuts a hole under the nonzero fill rule."""
-    if not ccw:
-        return (f"M{x0 + r:g},{y0:g} L{x1 - r:g},{y0:g} A{r:g},{r:g} 0 0 1 {x1:g},{y0 + r:g} L{x1:g},{y1 - r:g} "
-                f"A{r:g},{r:g} 0 0 1 {x1 - r:g},{y1:g} L{x0 + r:g},{y1:g} A{r:g},{r:g} 0 0 1 {x0:g},{y1 - r:g} "
-                f"L{x0:g},{y0 + r:g} A{r:g},{r:g} 0 0 1 {x0 + r:g},{y0:g} Z")
-    return (f"M{x0 + r:g},{y0:g} A{r:g},{r:g} 0 0 0 {x0:g},{y0 + r:g} L{x0:g},{y1 - r:g} A{r:g},{r:g} 0 0 0 {x0 + r:g},{y1:g} "
-            f"L{x1 - r:g},{y1:g} A{r:g},{r:g} 0 0 0 {x1:g},{y1 - r:g} L{x1:g},{y0 + r:g} A{r:g},{r:g} 0 0 0 {x1 - r:g},{y0:g} Z")
-
-
-def square_field(half=_W / 2, band=230):
-    """The field redrawn square for the home-screen icon (option 4, 2026-10-09): its border runs to the
-    icon's edge and turns its corners with iOS's, half = half its width. The end boxes and the center
-    line keep the drawing's proportions (end boxes 481 deep and 69% of the inside's height, center line 173
-    wide); the eye is the drawing's own."""
-    inner = half - band
-    radius = 2 * half * IOS_CORNER
-    box_h, box_d, box_r = inner * .69, 481, 201
-    paths = [_rrect(-half, -half, half, half, radius) + " " + _rrect(-inner, -inner, inner, inner, radius - band, ccw=True)]
-    # the end boxes, joined to the border (a little overlap so no seam shows), rounded on the inner side
-    x = inner - box_d
-    paths.append(f"M{inner + 5:g},{-box_h:g} L{x + box_r:g},{-box_h:g} A{box_r},{box_r} 0 0 0 {x:g},{-box_h + box_r:g} "
-                 f"L{x:g},{box_h - box_r:g} A{box_r},{box_r} 0 0 0 {x + box_r:g},{box_h:g} L{inner + 5:g},{box_h:g} Z")
-    paths.append(f"M{-inner - 5:g},{-box_h:g} L{-x - box_r:g},{-box_h:g} A{box_r},{box_r} 0 0 1 {-x:g},{-box_h + box_r:g} "
-                 f"L{-x:g},{box_h - box_r:g} A{box_r},{box_r} 0 0 1 {-x - box_r:g},{box_h:g} L{-inner - 5:g},{box_h:g} Z")
-    # the center line, from the border to the eye
-    paths.append(f"M-86.5,{-inner - 5:g} L86.5,{-inner - 5:g} L86.5,-554.478 L-86.5,-554.478 Z")
-    paths.append(f"M-86.5,554.478 L86.5,554.478 L86.5,{inner + 5:g} L-86.5,{inner + 5:g} Z")
-    return paths + list(PATHS[3:])
-
-
-def glass_svg(kind, paths=PATHS, box=(-1990, -1543, 3980, 3086), uid="g"):
-    """Drawing paths in glass (no ground): "clear" (C, for dark) or "smoke" (D, for light). box is the
-    viewBox (x, y, width, height): by default the logo's bounds plus room for the rim and shadow."""
+def glass_svg(kind, box=(-1990, -1543, 3980, 3086), uid="g"):
+    """The logo in glass (no ground): "clear" (C, for dark) or "smoke" (D, for light). box is the viewBox
+    (x, y, width, height): by default the logo's bounds plus room for the rim and shadow."""
     g = GLASS[kind]
     t0, t1 = g["tint"]
     a0, a1 = (round(a * 255) for a in g["alpha"])
     sc, so = g["shadow"]
     x, y, w, h = box
-    shape = "".join(f'<path d="{d}"/>' for d in paths)
     diag = f'gradientUnits="userSpaceOnUse" x1="{x:g}" y1="{y:g}" x2="{x + w:g}" y2="{y + h:g}"'
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{x:g} {y:g} {w:g} {h:g}"><defs>'
-        f'<g id="{uid}-l">{shape}</g>'
+        f'<g id="{uid}-l">{_LOGO}</g>'
         f'<clipPath id="{uid}-c"><use href="#{uid}-l"/></clipPath>'
         f'<linearGradient id="{uid}-t" {diag}><stop offset="0" stop-color="{t0}"/><stop offset="1" stop-color="{t1}"/></linearGradient>'
         f'<linearGradient id="{uid}-a" {diag}><stop offset="0" stop-color="rgb({a0},{a0},{a0})"/>'
@@ -151,10 +115,11 @@ def glass_svg(kind, paths=PATHS, box=(-1990, -1543, 3980, 3086), uid="g"):
 
 
 def home_icon_svg(dark=True, size=180):
-    """The home-screen / favorites icon's source (option 4): a full square (iOS rounds the corners itself)
-    filled by the square field -- clear glass on the site's ink, or smoked glass on its paper (dark=False)."""
-    half = _W / 2
-    inner = glass_svg("clear" if dark else "smoke", square_field(half), (-half, -half, 2 * half, 2 * half), "h")
+    """The home-screen / favorites icon's source: a full square (iOS rounds the corners itself) with the
+    logo at FAVICON_FILL of its width -- clear glass on the site's ink, or smoked glass on its paper
+    (dark=False)."""
+    half = _W / 2 / FAVICON_FILL
+    inner = glass_svg("clear" if dark else "smoke", (-half, -half, 2 * half, 2 * half), "h")
     inner = inner.replace('<svg xmlns="http://www.w3.org/2000/svg" ', f'<svg width="{size}" height="{size}" ')
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" viewBox="0 0 {size} {size}">'
             f'<rect width="{size}" height="{size}" fill="{INK if dark else PAPER}"/>{inner}</svg>')
