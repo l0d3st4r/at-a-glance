@@ -147,7 +147,8 @@ def final_tile(m):
     side = lambda s, cls, score: (f'<div class="result {s}"><span class="abbr abbr-c" aria-hidden="true">{esc((m.get(s) or {}).get("team") or "TBD")}</span>'
                                   f'<span class="{cls}">{esc(render_html._score_text(score))}</span>'
                                   f'<span class="team-record">{esc(fmt_record((m.get(s) or {}).get("record")))}</span></div>')
-    return (f'<a class="game final{" live" if live else ""}" data-win="{win}" href="#game-{esc(m["game_id"])}" aria-label="{esc(label)}">'
+    return (f'<a class="game final{" live" if live else ""}" data-win="{win}" href="#game-{esc(m["game_id"])}" aria-label="{esc(label)}"'
+            f'{local_time.attrs(m.get("gameday"), m.get("gametime"), "k")}>'
             f'{team_html(away, True)}{side("away", a_cls, a_s)}'
             f'<div class="center"><span class="final-row"><span class="tri tri-a">{render_html.WIN_TRI}</span>'
             f'<span class="final-label">{esc(text)}</span><span class="tri tri-h">{render_html.WIN_TRI}</span></span></div>'
@@ -163,7 +164,7 @@ def day_panel(day, is_current):
             rows.append(f'<li style="{render_html.rise_delay(i)}"><div class="error">Failed to render one game\n{esc(traceback.format_exc())}</div></li>')
     return (f'<div class="week-panel" id="day-{esc(day["key"])}" data-key="{esc(day["key"])}" data-label="{esc(day["label"])}"'
             f' data-current="{"true" if is_current else "false"}" role="group" aria-label="{esc(day["long_label"])}">'
-            f'<div class="week-inner"><section><h2 class="day"><span class="day-pill">{esc(day["long_label"])}</span></h2>'
+            f'<div class="week-inner"><section data-day="{esc(day["key"])}"><h2 class="day"><span class="day-pill">{esc(day["long_label"])}</span></h2>'
             f'<ul class="games">{"".join(rows)}</ul></section></div></div>')
 
 
@@ -203,7 +204,7 @@ def render_page0(data):
     css_src = render_nba_game.p1_css().replace("</", "<\\/")
     return (head(f"{label} · NBA · At A Glance", "Pro Basketball Game Information")
             + f"<style>{render_html.PAGE0_CSS}{PAGE0_EXTRA_CSS}</style></head><body data-view='expanded'>"
-            f"<main class='track' id='track'>{panels}</main>"
+            f"<main class='track' id='track' data-days='day'>{panels}</main>"
             "<nav class='bottombar' aria-label='Day'><div class='bar-in'>"
             f"{theme.menu_html('../', 'nba-games')}"
             f"<label class='week-picker'><span id='week-label'>{esc(label)}</span>"

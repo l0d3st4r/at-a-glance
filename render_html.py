@@ -581,7 +581,8 @@ def render_final_game(m):
     final_text = "FINAL/OT" if m.get("overtime") else "FINAL"
     label = f"{'Final in overtime' if m.get('overtime') else 'Final'}: {away_name} {_score_text(a_score)}, {home_name} {_score_text(h_score)}"
     return (
-        f'<a class="game final" data-win="{win}" href="#game-{esc(m.get("game_id") or "")}" aria-label="{esc(label)}">'
+        f'<a class="game final" data-win="{win}" href="#game-{esc(m.get("game_id") or "")}" aria-label="{esc(label)}"'
+        f'{local_time.attrs(m.get("gameday"), m.get("gametime"), "k")}>'
         f"{team_block(away, mirrored=False)}"
         '<div class="result away">'
         f'<span class="abbr abbr-c" aria-hidden="true">{esc(away.get("team") or "TBD")}</span>'
@@ -734,7 +735,7 @@ def render_week_panel(key, label, games, is_current, byes=None):
                 rows.append(f'<li style="{rise_delay(n)}"><div class="error">Failed to render one matchup\n{esc(traceback.format_exc())}</div></li>')
             n += 1
         sections.append(
-            f'<section><h2 class="day"><span class="day-pill">{esc(format_day_header(d))}</span></h2>'
+            f'<section data-day="{d.isoformat() if d else ""}"><h2 class="day"><span class="day-pill">{esc(format_day_header(d))}</span></h2>'
             f'<ul class="games">{"".join(rows)}</ul></section>'
         )
     if not sections:
@@ -753,6 +754,85 @@ PAGE0_JS = """
   var select = document.getElementById('week-select');
   var label = document.getElementById('week-label');
   if (!track || !select) return;
+
+  // Each game on the viewer's own day (2026-10-09): the page is built on Eastern days, and where those
+  // aren't the viewer's -- a Monday-night game is Tuesday morning in London -- the games move to their
+  // day here, before anything is measured. The NFL keeps every game in its week and re-forms the
+  // week's days (data-days='week'); the NBA, a panel a day, re-forms the panels and the day picker
+  // (data-days='day'). Nothing moves for anyone on Eastern days, or a game with no time yet.
+  (function localDays() {
+    if (!window.AAG_LT || !AAG_LT.parts) return;
+    var DAYS_L = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    var MONS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    function label(key, short) {   // '2026-10-20' -> 'Tuesday, Oct 20' (or 'Tue, Oct 20')
+      if (!key) return 'Date TBD';
+      var k = key.split('-'), day = DAYS_L[new Date(Date.UTC(+k[0], +k[1] - 1, +k[2])).getUTCDay()];
+      return (short ? day.slice(0, 3) : day) + ', ' + MONS[+k[1] - 1] + ' ' + (+k[2]);
+    }
+    function dayOf(li, fallback) {
+      var t = li.querySelector('[data-ko]'), q = t && AAG_LT.parts(t.getAttribute('data-ko'));
+      return q ? q.key : fallback;
+    }
+    function group(items) {   // [[key, li]...] in kickoff order -> [[key, [li...]]...]
+      var out = [];
+      items.forEach(function (it) {
+        var g = out.filter(function (o) { return o[0] === it[0]; })[0];
+        if (g) g[1].push(it[1]); else out.push([it[0], [it[1]]]);
+      });
+      return out;
+    }
+    function section(key, lis) {
+      var s = document.createElement('section'), h = document.createElement('h2'), pill = document.createElement('span'), ul = document.createElement('ul');
+      s.setAttribute('data-day', key);
+      h.className = 'day'; pill.className = 'day-pill'; pill.textContent = label(key); ul.className = 'games';
+      h.appendChild(pill); s.appendChild(h); s.appendChild(ul);
+      lis.forEach(function (li) { ul.appendChild(li); });
+      return s;
+    }
+    function restagger(root) {   // the opening rise, in the new order (PAGE0_CSS)
+      [].forEach.call(root.querySelectorAll('.games > li, .bye-list'), function (el, i) { el.style.animationDelay = Math.min(i, 10) * 45 + 'ms'; });
+    }
+    var all = [].slice.call(track.querySelectorAll('.week-panel'));
+    if (track.getAttribute('data-days') === 'week') {
+      all.forEach(function (p) {
+        var inner = p.querySelector('.week-inner'), secs = [].slice.call(inner.querySelectorAll(':scope > section[data-day]'));
+        var items = [], moved = false;
+        secs.forEach(function (s) {
+          var d = s.getAttribute('data-day');
+          [].forEach.call(s.querySelectorAll('.games > li'), function (li) { var k = dayOf(li, d); if (k !== d) moved = true; items.push([k, li]); });
+        });
+        if (!moved) return;
+        var byes = inner.querySelector(':scope > .byes');
+        secs.forEach(function (s) { s.remove(); });
+        group(items).forEach(function (g) { inner.insertBefore(section(g[0], g[1]), byes); });
+        restagger(inner);
+      });
+    } else if (track.getAttribute('data-days') === 'day') {
+      var items = [], moved = false, cur = all.filter(function (p) { return p.dataset.current === 'true'; })[0];
+      all.forEach(function (p) {
+        [].forEach.call(p.querySelectorAll('.games > li'), function (li) { var k = dayOf(li, p.dataset.key); if (k !== p.dataset.key) moved = true; items.push([k, li]); });
+      });
+      if (!moved) return;
+      // it opens on the day that now holds the first game of the day it would have opened on
+      var first = cur && cur.querySelector('.games > li'), open = first ? dayOf(first, cur.dataset.key) : null;
+      all.forEach(function (p) { p.remove(); });
+      var opts = '';
+      group(items).forEach(function (g) {
+        var p = document.createElement('div'), inner = document.createElement('div');
+        p.className = 'week-panel'; p.id = 'day-' + g[0];
+        p.setAttribute('data-key', g[0]); p.setAttribute('data-label', label(g[0], true));
+        p.setAttribute('data-current', g[0] === open ? 'true' : 'false');
+        p.setAttribute('role', 'group'); p.setAttribute('aria-label', label(g[0]));
+        inner.className = 'week-inner';
+        inner.appendChild(section(g[0], g[1]));
+        p.appendChild(inner); track.appendChild(p);
+        restagger(inner);
+        opts += '<option value="' + g[0] + '"' + (g[0] === open ? ' selected' : '') + '>' + label(g[0], true) + '</option>';
+      });
+      select.innerHTML = opts;
+    }
+  })();
+
   var panels = Array.prototype.slice.call(track.querySelectorAll('.week-panel'));
   var idx = Math.max(0, panels.findIndex(function (p) { return p.dataset.current === 'true'; }));
 
@@ -1666,7 +1746,7 @@ def render_page0(data):
         # own link so a bad request here can never take Inter down with it.
         "<link href='https://fonts.googleapis.com/css2?family=Saira:ital,wdth,wght@1,50..125,400..900&family=Teko:wght@400..700&display=swap' rel='stylesheet'>"
         f"<style>{PAGE0_CSS}</style></head><body data-view='expanded'>"
-        f"<main class='track' id='track' data-sticky-days>{panels}</main>"
+        f"<main class='track' id='track' data-sticky-days data-days='week'>{panels}</main>"
         "<nav class='bottombar' aria-label='Week'>"
         "<div class='bar-in'>"
         f"{theme.menu_html('', 'games')}"

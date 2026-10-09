@@ -120,7 +120,7 @@ def _next_block(team_page, which, prefix):
         '<div class="ov-next">'
         f'{helmet_img(opp, 40, prefix=prefix)}<div class="ov-next-txt">'
         f'<span class="ov-next-lbl">NEXT</span><span class="ov-next-vs">{vs} <span class="abbr">{esc(opp or "TBD")}</span></span>'
-        f'<span class="ov-next-date">{esc(date_line)} {esc(weekday).upper()}</span></div></div>'
+        f'<span class="ov-next-date"{local_time.attrs(nxt.get("gameday"), nxt.get("gametime"), "mdw")}>{esc(date_line)} {esc(weekday).upper()}</span></div></div>'
     )
     return f'<div class="ov-top">{opp_html}<div class="ov-facts">{fact_html}</div></div>'
 
@@ -173,7 +173,7 @@ def _recent_games_block(schedule, team, prefix):
         cls = {"W": "win", "L": "loss", "T": "tie"}.get(res, "")
         rows.append(
             '<li class="rg-row">'
-            f'<span class="rg-date">{esc(date_line)}</span><span class="rg-vs">{vs}</span>'
+            f'<span class="rg-date"{local_time.attrs(e.get("gameday"), e.get("gametime"), "md")}>{esc(date_line)}</span><span class="rg-vs">{vs}</span>'
             f'<span class="rg-opp abbr">{esc(e.get("opponent") or "")}</span>'
             f'<span class="rg-res rg-{cls}">{esc(res)}</span>'
             f'<span class="rg-score">{esc(_fmt_int(e["score"]["team"]))}-{esc(_fmt_int(e["score"]["opp"]))}</span>'
@@ -504,7 +504,7 @@ def schedule_body(team_page, prefix):
             rows.append(f'<li class="sc-row sc-bye"><span class="sc-wk">{wk}</span><span class="sc-bye-lbl">BYE WEEK</span></li>')
             continue
         day, num_date = _fmt_date_short(e.get("gameday"))
-        date_html = f'<span class="sc-date">{esc(day)} {esc(num_date)}</span>' if day else '<span class="sc-date na">DATE TBD</span>'
+        date_html = f'<span class="sc-date"{local_time.attrs(e.get("gameday"), e.get("gametime"), "sc")}>{esc(day)} {esc(num_date)}</span>' if day else '<span class="sc-date na">DATE TBD</span>'
         opp = e.get("opponent")
         vs = "@" if not e.get("home") else "vs"
         if e.get("final"):

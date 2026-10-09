@@ -1,20 +1,23 @@
 """
-Game times in the viewer's own time zone (Jason, 2026-10-09).
+Game days and times in the viewer's own time zone (Jason, 2026-10-09).
 
 The schedules give every start time in US Eastern ("13:00" on "2026-10-11"). The pages are built
-ahead of time, so they can't know where the viewer is: each time is written into the page in Eastern
-(still marked "ET", in case the script never runs), tagged with the actual moment it starts, and JS
-below rewrites it in the viewer's local time without the "ET" -- 10:00 AM in California, 1:00 PM in
-New York.
+ahead of time, so they can't know where the viewer is: each day and time is written into the page in
+Eastern (the time still marked "ET", in case the script never runs), tagged with the actual moment the
+game starts, and JS below rewrites it for wherever the viewer is -- 10:00 AM in California, 1:00 PM in
+New York, and a Monday-night game is Tuesday morning in London. Page 0 moves games to the right day
+too (PAGE0_JS's localDays).
 
-  attrs(gameday, gametime, mode)  -> the tag for one element (or "" when the time isn't known)
-      mode "t": the element's text becomes "10:00 AM"            (Page 0 tiles, schedules, top bar)
-           "s": "10:00<small>AM</small>"                         (the game pages' big time)
-           "a": its aria-label, from aria with {t} for the time  (Page 0 tiles)
+  attrs(gameday, gametime, mode)  -> the tag for one element ("" when the time isn't known, which
+                                     leaves the Eastern day on it)
+      mode  "t"    the time as text: "10:00 AM"                 (Page 0 tiles, schedules, top bar)
+            "s"    "10:00<small>AM</small>"                     (the game pages' big time)
+            "a"    the aria-label, from aria with {t} for the time  (Page 0 tiles)
+            "k"    nothing rewritten -- just the moment, for Page 0 to sort games into days
+            "bar"  "SUN OCT 11"     "long" "OCT 11 Sunday"     "md" "OCT 11"
+            "wd"   "Sunday"         "mdw"  "OCT 11 SUNDAY"     "sc" "SUN 10/11"
   JS  -- defines window.AAG_LT(root) and runs it on the page once; Page 0's overlay runs it again
-         on each game page it mounts.
-
-Day headers and dates stay on the Eastern day: in the US no game crosses midnight either way.
+         on each game page it mounts. AAG_LT.parts(iso) gives the local day and time pieces.
 """
 
 import html
@@ -59,23 +62,44 @@ def attrs(gameday, gametime, mode="t", aria=None):
 
 
 JS = r"""
-window.AAG_LT = function (root) {
-  if (!window.Intl || !Intl.DateTimeFormat || !Intl.DateTimeFormat.prototype.formatToParts) return;
-  var fmt = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-  [].forEach.call((root || document).querySelectorAll('[data-ko]'), function (el) {
-    var d = new Date(el.getAttribute('data-ko'));
-    if (isNaN(d)) return;
-    var hm = '', ap = '';
-    fmt.formatToParts(d).forEach(function (p) {
-      if (p.type === 'dayPeriod') ap = p.value.toUpperCase();
-      else if (p.type === 'hour' || p.type === 'minute' || (p.type === 'literal' && p.value === ':')) hm += p.value;
+window.AAG_LT = (function () {
+  var ok = !!(window.Intl && Intl.DateTimeFormat && Intl.DateTimeFormat.prototype.formatToParts);
+  var fmt = ok && new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'long',
+                                                       hour: 'numeric', minute: '2-digit', hour12: true });
+  var MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  // iso -> the moment's day and time where the viewer is: {key: '2026-10-11', y, m (1-12), d, wd: 'Sunday', hm: '10:00', ap: 'AM'}
+  function parts(iso) {
+    var t = new Date(iso);
+    if (!fmt || isNaN(t)) return null;
+    var p = {};
+    fmt.formatToParts(t).forEach(function (x) { p[x.type] = x.value; });
+    var y = +p.year, m = +p.month, d = +p.day;
+    return { key: y + '-' + pad(m) + '-' + pad(d), y: y, m: m, d: d, wd: p.weekday,
+             hm: (+p.hour) + ':' + p.minute, ap: String(p.dayPeriod || '').toUpperCase() };
+  }
+  var MODES = {
+    t: function (el, q) { el.textContent = q.hm + ' ' + q.ap; },
+    s: function (el, q) { el.innerHTML = q.hm + '<small>' + q.ap + '</small>'; },
+    a: function (el, q) { el.setAttribute('aria-label', (el.getAttribute('data-aria') || '').replace('{t}', q.hm + ' ' + q.ap)); },
+    k: function () {},
+    bar: function (el, q) { el.textContent = q.wd.slice(0, 3).toUpperCase() + ' ' + MON[q.m - 1] + ' ' + q.d; },
+    long: function (el, q) { el.textContent = MON[q.m - 1] + ' ' + q.d + ' ' + q.wd; },
+    md: function (el, q) { el.textContent = MON[q.m - 1] + ' ' + q.d; },
+    wd: function (el, q) { el.textContent = q.wd; },
+    mdw: function (el, q) { el.textContent = MON[q.m - 1] + ' ' + q.d + ' ' + q.wd.toUpperCase(); },
+    sc: function (el, q) { el.textContent = q.wd.slice(0, 3).toUpperCase() + ' ' + q.m + '/' + q.d; }
+  };
+  function run(root) {
+    if (!ok) return;
+    // the tags stay on: rewriting again gives the same result, and Page 0 reads them to sort games into days
+    [].forEach.call((root || document).querySelectorAll('[data-ko]'), function (el) {
+      var q = parts(el.getAttribute('data-ko')), f = MODES[el.getAttribute('data-lt')];
+      if (q && f) f(el, q);
     });
-    var mode = el.getAttribute('data-lt');
-    if (mode === 's') el.innerHTML = hm + '<small>' + ap + '</small>';
-    else if (mode === 'a') el.setAttribute('aria-label', (el.getAttribute('data-aria') || '').replace('{t}', hm + ' ' + ap));
-    else el.textContent = hm + ' ' + ap;
-    el.removeAttribute('data-ko');
-  });
-};
+  }
+  run.parts = parts;
+  return run;
+})();
 AAG_LT(document);
 """

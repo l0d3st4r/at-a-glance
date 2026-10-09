@@ -37,6 +37,7 @@ Data: data/matchups.json -> game_details[<id>]["info"] (page1_data.game_info).
 import html
 from datetime import date, datetime, timezone
 
+import local_time
 import stadium_icons
 import temp_colors
 
@@ -221,7 +222,8 @@ def kickoff_body(d, info, time_html):
           f'{f"<span class=ko-crew>{crew}</span>" if crew else ""}</div>')
     return (
         '<div class="ko-top">'
-        f'<div class="ko-when">{time_html}<div class="ko-date">{esc(date_line)}</div><div class="ko-date">{esc(weekday)}</div></div>'
+        f'<div class="ko-when">{time_html}<div class="ko-date"{local_time.attrs(d.get("gameday"), d.get("gametime"), "md")}>{esc(date_line)}</div>'
+        f'<div class="ko-date"{local_time.attrs(d.get("gameday"), d.get("gametime"), "wd")}>{esc(weekday)}</div></div>'
         f'{_countdown(d, info, "cd")}</div>'
         # TV up top and the head referee at the bottom (Jason, 2026-10-03; they were the other way round)
         f'<div class="ko-lines">{tv}{meeting}</div><p class="ko-line ko-ref">Head Referee: {ref_html}</p>'
@@ -308,7 +310,7 @@ def kickoff_condensed(d, info, time_html):
     tv = esc(network.strip()) if isinstance(network, str) and network.strip() else "TBD"
     ref = info.get("referee")
     return (
-        f'<div class="cc-top"><div>{time_html}<div class="cc-date">{esc(date_line)} {esc(weekday)}</div></div>'
+        f'<div class="cc-top"><div>{time_html}<div class="cc-date"{local_time.attrs(d.get("gameday"), d.get("gametime"), "long")}>{esc(date_line)} {esc(weekday)}</div></div>'
         f'{_countdown(d, info, "cd-c")}</div>'
         f'<div class="strip">{_fact("TV", tv)}{_fact("Last Matchup", meet, meet_sub)}'
         f'{_fact("Head Referee", esc(ref) if ref else _na("TBA"))}</div>'

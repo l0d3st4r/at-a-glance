@@ -277,7 +277,7 @@ def game_body_compact(d):
     return (
         p1.linescore_html(d, mini=True) +
         '<div class="gc-row gc-1"><div class="gc-when">'
-        f'<div class="time"{p1.lt_split(d)}>{esc(t)}{small}</div><div class="date">{esc(day)}</div></div>'
+        f'<div class="time"{p1.lt_split(d)}>{esc(t)}{small}</div><div class="date"{local_time.attrs(d.get("gameday"), d.get("gametime"), "bar")}>{esc(day)}</div></div>'
         f'<div class="network">{esc(tv(d))}</div></div>'
         # the arena takes the second line, beside the city, rather than the weather's spot up top --
         # it's longer than a temperature, and there it crowded the date
@@ -292,7 +292,7 @@ def game_body(d, hero=""):
     final = bool(d.get("final") or d.get("live"))
     note = f'<div class="date nba-note">{esc(d["note"])}</div>' if d.get("note") else ""
     top = (f'<div class="game-top{" final-top" if final else ""}">'
-           f'<div><div class="time"{p1.lt_split(d)}>{esc(t)}{small}</div><div class="date">{esc(p1.fmt_date(d.get("gameday")))}</div>{note}</div>'
+           f'<div><div class="time"{p1.lt_split(d)}>{esc(t)}{small}</div><div class="date"{local_time.attrs(d.get("gameday"), d.get("gametime"), "long")}>{esc(p1.fmt_date(d.get("gameday")))}</div>{note}</div>'
            f'<div class="network">{esc(tv(d))}</div></div>')
     lead = hero + p1.linescore_html(d) + top if final else top + hero
     city = ((d.get("info") or {}).get("arena") or {}).get("city") or ""
@@ -492,7 +492,8 @@ def tipoff_body(d, info, time_html):
     ref = info.get("referee")
     ref_html = f'<span>{esc(ref)}</span>' if ref else '<span class="na">TBA</span>'
     return ('<div class="ko-top">'
-            f'<div class="ko-when">{time_html}<div class="ko-date">{esc(date_line)}</div><div class="ko-date">{esc(weekday)}</div></div>'
+            f'<div class="ko-when">{time_html}<div class="ko-date"{local_time.attrs(d.get("gameday"), d.get("gametime"), "md")}>{esc(date_line)}</div>'
+            f'<div class="ko-date"{local_time.attrs(d.get("gameday"), d.get("gametime"), "wd")}>{esc(weekday)}</div></div>'
             f'{_countdown(d, info, "cd")}</div>'
             f'<div class="ko-lines"><div class="ko-tv"><span class="ko-net">{esc(tv(d))}</span></div>{meetings}</div>'
             f'<p class="ko-line ko-ref">Crew Chief: {ref_html}</p>')
@@ -511,7 +512,7 @@ def tipoff_condensed(d, info, time_html):
     else:
         meet, sub = gi._na("First meeting"), ""
     ref = info.get("referee")
-    return (f'<div class="cc-top"><div>{time_html}<div class="cc-date">{esc(date_line)} {esc(weekday)}</div></div>'
+    return (f'<div class="cc-top"><div>{time_html}<div class="cc-date"{local_time.attrs(d.get("gameday"), d.get("gametime"), "long")}>{esc(date_line)} {esc(weekday)}</div></div>'
             f'{_countdown(d, info, "cd-c")}</div>'
             f'<div class="strip">{gi._fact("TV", esc(tv(d)))}{gi._fact("Last Meeting", meet, sub)}'
             f'{gi._fact("Crew Chief", esc(ref) if ref else gi._na("TBA"))}</div>')
@@ -596,7 +597,7 @@ def _next_block(tpage, which, prefix):
     return ('<div class="ov-top"><div class="ov-next">'
             f'{img(opp, 40, prefix=prefix)}<div class="ov-next-txt"><span class="ov-next-lbl">THIS GAME</span>'
             f'<span class="ov-next-vs">{vs} <span class="abbr">{esc(opp or "TBD")}</span></span>'
-            f'<span class="ov-next-date">{esc(date_line)} {esc(weekday).upper()}</span></div></div>'
+            f'<span class="ov-next-date"{local_time.attrs(nxt.get("gameday"), nxt.get("gametime"), "mdw")}>{esc(date_line)} {esc(weekday).upper()}</span></div></div>'
             f'<div class="ov-facts">{fact_html}</div></div>')
 
 
@@ -608,7 +609,7 @@ def _recent(recent):
         date_line, _wd = _fmt_day(e.get("gameday"))
         res = e.get("result") or ""
         sc = e.get("score") or {}
-        rows.append(f'<li class="rg-row"><span class="rg-date">{esc(date_line)}</span><span class="rg-vs">{"vs" if e.get("home") else "@"}</span>'
+        rows.append(f'<li class="rg-row"><span class="rg-date"{local_time.attrs(e.get("gameday"), e.get("gametime"), "md")}>{esc(date_line)}</span><span class="rg-vs">{"vs" if e.get("home") else "@"}</span>'
                     f'<span class="rg-opp abbr">{esc(e.get("opponent") or "")}</span>'
                     f'<span class="rg-res rg-{"win" if res == "W" else "loss"}">{esc(res)}</span>'
                     f'<span class="rg-score">{f0(sc.get("team"))}-{f0(sc.get("opp"))}</span></li>')
@@ -709,7 +710,7 @@ def schedule_body(tpage, prefix):
     for e in tpage.get("schedule") or []:
         try:
             d = date.fromisoformat(str(e.get("gameday"))[:10])
-            date_html = f'<span class="sc-date">{DAY_NAMES[d.weekday()][:3].upper()} {d.month}/{d.day}</span>'
+            date_html = f'<span class="sc-date"{local_time.attrs(e.get("gameday"), e.get("gametime"), "sc")}>{DAY_NAMES[d.weekday()][:3].upper()} {d.month}/{d.day}</span>'
         except (TypeError, ValueError):
             date_html = '<span class="sc-date na">DATE TBD</span>'
         opp = e.get("opponent")
@@ -920,7 +921,7 @@ def render_p1_block(d, stats, scope, tops, team_games, prefix="../", root="../..
     row_html = lambda big: (
         f'<div class="side away">{img(a, 44, True, large=big, prefix=prefix)}<span class="abbr">{esc(a)}</span>{a_score}</div>'
         f'<div class="mid"><span class="at{" at-final" if final else ""}">{final_label_html(d) if final else "@"}</span>'
-        f'<span class="when"><span>{esc(when_day)}</span><span{local_time.attrs(d.get("gameday"), d.get("gametime"))}>{esc(when_time)}</span></span>'
+        f'<span class="when"><span{local_time.attrs(d.get("gameday"), d.get("gametime"), "bar")}>{esc(when_day)}</span><span{local_time.attrs(d.get("gameday"), d.get("gametime"))}>{esc(when_time)}</span></span>'
         f'<span class="final-lbl">{final_label_html(d)}</span></div>'
         f'<div class="side home">{h_score}<span class="abbr">{esc(h)}</span>{img(h, 44, large=big, prefix=prefix)}</div>')
     hero = f'<div class="hero" aria-hidden="true"><div class="teams">{row_html(True)}</div></div>'

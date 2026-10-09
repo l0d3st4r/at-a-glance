@@ -395,7 +395,7 @@ def game_body_compact(d):
     return (
         linescore_html(d, mini=True) +
         '<div class="gc-row gc-1"><div class="gc-when">'
-        f'<div class="time"{lt_split(d)}>{esc(t)}{small}</div><div class="date">{esc(day)}</div></div>'
+        f'<div class="time"{lt_split(d)}>{esc(t)}{small}</div><div class="date"{local_time.attrs(d.get("gameday"), d.get("gametime"), "bar")}>{esc(day)}</div></div>'
         f'<div class="weather">{weather_html(d)}</div></div>'
         f'<div class="gc-row gc-2"><div class="city">{esc(venue.get("city") or "")}</div>'
         f'<div class="network">{esc(fmt_network(d.get("networks")))}</div></div>'
@@ -430,7 +430,7 @@ def game_body(d, hero=""):
     corner = f'<div class="network">{esc(fmt_network(d.get("networks")))}</div>'
     final = bool(d.get("final"))
     top = (f'<div class="game-top{" final-top" if final else ""}">'
-           f'<div>{headline}<div class="date">{esc(fmt_date(d.get("gameday")))}</div></div>'
+           f'<div>{headline}<div class="date"{local_time.attrs(d.get("gameday"), d.get("gametime"), "long")}>{esc(fmt_date(d.get("gameday")))}</div></div>'
            f'{corner}</div>')
     # (2026-09-27) a finished game leads with its teams/score header, then time + date, then
     # city + weather; an upcoming game keeps time + date first with the header in the middle
@@ -765,7 +765,7 @@ def render_p1_block(d, prefix="../"):
         # header animation that moves the "@" carries the label instead. The winner triangle
         # (2026-09-21) rides along inside both copies since they're just cloned for the animation.
         f'<div class="mid"><span class="at{" at-final" if final else ""}">{final_label_html(d) if final else "@"}</span>'
-        f'<span class="when"><span>{esc(when_day)}</span><span{local_time.attrs(d.get("gameday"), d.get("gametime"))}>{esc(when_time)}</span></span>'
+        f'<span class="when"><span{local_time.attrs(d.get("gameday"), d.get("gametime"), "bar")}>{esc(when_day)}</span><span{local_time.attrs(d.get("gameday"), d.get("gametime"))}>{esc(when_time)}</span></span>'
         f'<span class="final-lbl">{final_label_html(d)}</span></div>'
         f'<div class="side home">{h_score}<span class="abbr">{esc(h)}</span>{img(h, 44, True, large=big)}</div>'
     )
