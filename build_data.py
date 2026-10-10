@@ -24,6 +24,7 @@ import json
 import os
 from datetime import datetime, timezone
 
+import matchup
 import nflverse_client
 from divisions import get_division, normalize_abbr
 from stadiums import STADIUMS
@@ -34,6 +35,7 @@ import player_stats
 import reserve
 import rookies
 import snapshot
+import sportsdataverse_client
 import tv_networks
 
 OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "data", "matchups.json")
@@ -420,6 +422,17 @@ def main():
     except Exception as e:
         warnings.append(f"rookies: {e}")
 
+    # Page 1's Matchup card (2026-10-10, matchup.py): what each defense allows to each position, from
+    # sportsdataverse -- the offense side comes from player_weeks when the pages are drawn
+    defense_vs_position = {}
+    rows, err = sportsdataverse_client.get_defense_vs_position(season)
+    if err:
+        warnings.append(f"get_defense_vs_position: {err}")
+    try:
+        defense_vs_position = matchup.defense_table(rows)
+    except Exception as e:
+        warnings.append(f"defense_vs_position: {e}")
+
     output = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "season": season,
@@ -430,6 +443,7 @@ def main():
         "season_weeks": season_weeks,
         "game_details": game_details,
         "player_weeks": player_weeks,
+        "defense_vs_position": defense_vs_position,
     }
 
     os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)

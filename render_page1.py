@@ -12,7 +12,8 @@ Design = Jason's approved v8 preview (2026-09-16):
   - finished games: final score in the top bar next to each abbreviation (loser
     faded), and the Leaders card shows each team's leaders in THAT game, no crowns (season
     leaders until nflverse publishes the game's player stats -- see leaders_scope)
-  - cards: Game Info, away team, home team, Leaders
+  - cards: Game Info, away team, home team, Matchup (games not yet played, 2026-10-10 --
+    matchup.py; expanded view only), Leaders
   - team cards: last-game arrow (green up = W, red down = L, yellow line = T),
     record, top 3 injuries (starters first), offense/defense ranks
   - leaders: each team's leader in 5 stats, crown when top 3 in the league
@@ -39,6 +40,7 @@ from datetime import date
 import helmets
 import local_time
 import logo
+import matchup
 import player_stats
 import render_page2gameinfo
 import render_page2players
@@ -250,6 +252,7 @@ NAV_ICONS = {
     "leaders": (
         f'<svg viewBox="0 0 20 16" aria-hidden="true"><g fill="currentColor">{CROWN_SHAPES}</g></svg>'
     ),
+    "matchup": matchup.ICON,   # an O and an X (2026-10-10), until there's one of Jason's
 }
 
 
@@ -813,10 +816,18 @@ def render_p1_block(d, prefix="../"):
     # the team cards' titles name the location in full ("Baltimore", Jason, 2026-10-07), the same
     # names as the team pages' top bar; the condensed cards keep the abbreviation
     loc = lambda t: render_page2team.LOCATION_NAMES.get(t, t)
+    # the Matchup card (2026-10-10, matchup.py) after the team cards, on games not yet played; it has no
+    # deep dive and no condensed twin
+    try:
+        mu_body = matchup.card_body(d.get("matchup"))
+    except Exception:   # the card's trouble never costs the game its page
+        mu_body = ""
     cards = [("game-info", "Game Info", "game", game_body(d, hero)),
              ("away-team", loc(a), "team", l_team(away, final)),
-             ("home-team", loc(h), "team", l_team(home, final)),
-             ("leaders", leaders_name, "compare", cmp_head + rows)]
+             ("home-team", loc(h), "team", l_team(home, final))]
+    if mu_body:
+        cards.append(("matchup", "Matchup", "matchup", mu_body))
+    cards.append(("leaders", leaders_name, "compare", cmp_head + rows))
     slots = "".join(
         f'<section class="slot"><a class="card {kind}" tabindex="-1" data-detail="{cid}" aria-label="{esc(name)}">'
         f'<span class="peek peek-top">{DOWN}<span class="ttl">{title_icon(cid)}<span class="{"abbr" if kind == "team" else ""}">{esc(name)}</span></span></span>'
@@ -868,7 +879,7 @@ def render_standalone(d):
         "<link rel='preconnect' href='https://fonts.googleapis.com'><link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>"
         "<link href='https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;700;900&display=swap' rel='stylesheet'>"
         "<link href='https://fonts.googleapis.com/css2?family=Saira:ital,wdth,wght@1,50..125,400..900&family=Teko:wght@400..700&display=swap' rel='stylesheet'>"
-        f"<style id='p1-css'>{P1_CSS}{render_page2gameinfo.P2_CSS}{render_page2team.P3_CSS}{render_page2players.P4_CSS}{temp_colors.TC_CSS}</style>"
+        f"<style id='p1-css'>{P1_CSS}{render_page2gameinfo.P2_CSS}{render_page2team.P3_CSS}{render_page2players.P4_CSS}{temp_colors.TC_CSS}{matchup.MATCHUP_CSS}</style>"
         # the theme tokens sit on this page's own root (on Page 0 they come from Page 0's root)
         f"<style>{theme.THEME_CSS}html,body{{margin:0;background:var(--aag-bg)}}</style></head><body>"
         f"{render_p1_block(d)}"
@@ -882,6 +893,12 @@ def write_all(data, site_dir, warnings=None):
     details = data.get("game_details") or {}
     player_weeks = data.get("player_weeks") or {}
     medals_by_limit = {}
+    try:   # the Matchup card's league-wide numbers and ranks (matchup.py), once a build
+        mu_league = matchup.league(player_weeks, data.get("defense_vs_position"))
+    except Exception:
+        mu_league = None
+        if warnings is not None:
+            warnings.append(f"matchup: {traceback.format_exc(limit=1)}")
     out_dir = os.path.join(site_dir, "game")
     os.makedirs(out_dir, exist_ok=True)
     count = 0
@@ -913,6 +930,9 @@ def write_all(data, site_dir, warnings=None):
                     for r in ps[side]:
                         r["medals"] = medals.get((team, r["id"]), {})
                 d = dict(d, player_stats=ps)
+            # the Matchup card: games not yet played (its numbers are the season so far)
+            if mu_league and not d.get("final"):
+                d = dict(d, matchup=matchup.card_data(mu_league, (d.get("away") or {}).get("team"), (d.get("home") or {}).get("team")))
             safe = "".join(ch for ch in str(gid) if ch.isalnum() or ch in "_-")
             with open(os.path.join(out_dir, f"{safe}.html"), "w", encoding="utf-8") as f:
                 f.write(render_standalone(d))
@@ -1138,8 +1158,11 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
   });
   dots.forEach(function (d, k) { on(d, 'click', function () { go(k); }); });
 
-  // Condensed card for each expanded card: game info, away team, home team, leaders
-  function condensedCards() { return [root.querySelector('.c-game')].concat([].slice.call(root.querySelectorAll('.c-team')), [root.querySelector('.c-cmp')]); }
+  // Condensed card for each expanded card, matched by name (data-detail): game info, away team, home
+  // team, leaders. The Matchup card (2026-10-10) has none -- null -- so a switch from it is instant.
+  function condensedCards() {
+    return slots.map(function (s) { return root.querySelector('.view-c [data-detail="' + s.querySelector('a.card').getAttribute('data-detail') + '"]'); });
+  }
   function labelToggle(v) {
     toggle.setAttribute('aria-label', v === 'large' ? 'Switch to condensed view' : 'Switch to expanded view');
     toggle.setAttribute('aria-pressed', v === 'large' ? 'true' : 'false');
@@ -1167,12 +1190,12 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
   function switchView(v) {
     if (morphing || v === wrap.getAttribute('data-view')) return;
     var card = lastCard;
-    if (reduce || !Element.prototype.animate) { place(v, card); return; }
+    if (reduce || !Element.prototype.animate || !condensedCards()[card]) { place(v, card); return; }
     morphing = true;
     var toLarge = v === 'large', D = 300;
     var headFrom = headShot();
     var fromEl = toLarge ? condensedCards()[card] : slots[card].querySelector('a.card');
-    var others = toLarge ? condensedCards().filter(function (_, k) { return k !== card; }) : [];
+    var others = toLarge ? condensedCards().filter(function (el, k) { return el && k !== card; }) : [];
     var ghosts = others.map(function (el) { return morphFrom(el); });   // condensed neighbours zoom past and fade
     var m = morphFrom(fromEl);
     place(v, card);
@@ -1194,7 +1217,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     } else {
       // the other condensed cards settle into place from slightly larger, as if zooming out
       condensedCards().forEach(function (el, k) {
-        if (k === card) return;
+        if (!el || k === card) return;
         el.animate([{ transform: 'scale(1.08)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 240, delay: 50, easing: EASE, fill: 'backwards' });
       });
     }
@@ -1405,6 +1428,17 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     on(b, 'click', function (e) {
       e.preventDefault(); e.stopPropagation();   // a tab, not a tap on the card around it
       psTeam(b.closest('.pc-sw') ? b.closest('.p2') : b.closest('.card'), b.getAttribute('data-team'));
+    });
+  });
+  // The Matchup card's Chart | Numbers switch (matchup.py): it opens on the chart
+  [].slice.call(root.querySelectorAll('.mu-sw button')).forEach(function (b) {
+    on(b, 'click', function (e) {
+      e.preventDefault(); e.stopPropagation();   // the switch, not a tap on the card around it
+      var mu = b.closest('.mu');
+      mu.setAttribute('data-mu', b.getAttribute('data-mu-v'));
+      [].slice.call(mu.querySelectorAll('.mu-sw button')).forEach(function (x) {
+        x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
+      });
     });
   });
   // Tap a column header to sort its table by that stat: most first, then least, then back again,
