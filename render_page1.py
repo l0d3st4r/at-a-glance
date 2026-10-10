@@ -816,8 +816,8 @@ def render_p1_block(d, prefix="../"):
     # the team cards' titles name the location in full ("Baltimore", Jason, 2026-10-07), the same
     # names as the team pages' top bar; the condensed cards keep the abbreviation
     loc = lambda t: render_page2team.LOCATION_NAMES.get(t, t)
-    # the Matchup card (2026-10-10, matchup.py) after the team cards, on games not yet played; it has no
-    # deep dive and no condensed twin
+    # the Matchups card (2026-10-10, matchup.py) after the team cards, on games not yet played; its deep
+    # dive is matchup.render_block (below), and it has no condensed twin
     try:
         mu_body = matchup.card_body(d.get("matchup"))
     except Exception:   # the card's trouble never costs the game its page
@@ -855,14 +855,18 @@ def render_p1_block(d, prefix="../"):
         players_page = render_page2players.render_players_block(d)
     except Exception:
         players_page = ""
+    try:   # the Matchups card's Page 2 (2026-10-10, matchup.py)
+        matchup_page = matchup.render_block(d.get("matchup"), f"{loc(a)} Offense", f"{loc(h)} Offense") if mu_body else ""
+    except Exception:
+        matchup_page = ""
     has_detail = " ".join(k for k, block in
                            (("game-info", page2), ("away-team", away_page), ("home-team", home_page),
-                            ("leaders", players_page)) if block)
+                            ("matchup", matchup_page), ("leaders", players_page)) if block)
     has_detail_attr = f' data-has-detail="{esc(has_detail)}"' if has_detail else ""
     win = win_side(d)
     win_attr = f' data-win="{win}"' if win else ""
     return (f'<div class="p1" data-view="large" data-head="card"{" data-final" if final else ""}{win_attr}{has_detail_attr} '
-            f'data-game="{esc(d.get("game_id"))}">{bar}{condensed}{large}{page2}{away_page}{home_page}{players_page}</div>')
+            f'data-game="{esc(d.get("game_id"))}">{bar}{condensed}{large}{page2}{away_page}{home_page}{matchup_page}{players_page}</div>')
 
 
 def render_standalone(d):
@@ -1248,14 +1252,14 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
   //         first card: Page 2 fades while a card outline shrinks back onto the Game Info card.
   // URL: "/game-info" is added to the hash (#game-<id>/game-info, or #/game-info on the standalone
   // page) and pushed to history, so back closes it and a shared link opens straight into it.
-  // Detail registry: up to four nested deep-dives can live inside this .p1 (Game Info,
-  // away team, home team, player stats -- render_page2gameinfo.py / render_page2team.py /
-  // render_page2players.py, in Page 1's card order), each its own
+  // Detail registry: up to five nested deep-dives can live inside this .p1 (Game Info,
+  // away team, home team, Matchups, player stats -- render_page2gameinfo.py / render_page2team.py /
+  // matchup.py / render_page2players.py, in Page 1's card order), each its own
   // .p2[data-page=<key>] with its own deck/slots/dots (and, Game Info only, a condensed
   // layer). Only one is ever open at a time (wrap's data-detail names which), so the
   // functions below all look it up fresh via curDetail() rather than closing over a single
   // fixed set of elements the way this used to when Game Info was the only one (2026-09-20).
-  var DETAIL_KEYS = ['game-info', 'away-team', 'home-team', 'leaders'];
+  var DETAIL_KEYS = ['game-info', 'away-team', 'home-team', 'matchup', 'leaders'];   // Page 1's card order
   var p2Back = root.querySelector('.p2-back');
   var details = {};
   DETAIL_KEYS.forEach(function (key) {
@@ -1428,17 +1432,6 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     on(b, 'click', function (e) {
       e.preventDefault(); e.stopPropagation();   // a tab, not a tap on the card around it
       psTeam(b.closest('.pc-sw') ? b.closest('.p2') : b.closest('.card'), b.getAttribute('data-team'));
-    });
-  });
-  // The Matchup card's Chart | Numbers switch (matchup.py): it opens on the chart
-  [].slice.call(root.querySelectorAll('.mu-sw button')).forEach(function (b) {
-    on(b, 'click', function (e) {
-      e.preventDefault(); e.stopPropagation();   // the switch, not a tap on the card around it
-      var mu = b.closest('.mu');
-      mu.setAttribute('data-mu', b.getAttribute('data-mu-v'));
-      [].slice.call(mu.querySelectorAll('.mu-sw button')).forEach(function (x) {
-        x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
-      });
     });
   });
   // Tap a column header to sort its table by that stat: most first, then least, then back again,
@@ -1632,7 +1625,7 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
       boxShadow: '0 0 0 ' + (1 / sc) + 'px ' + tileLine(), overflow: 'hidden' });
   }
   // Swipe sideways between the Page 2 details (2026-09-24): Game Info <-> away team <-> home team
-  // <-> Player Stats, in DETAIL_KEYS order, once a detail is open -- in the condensed view too
+  // <-> Matchups <-> Player Stats, in DETAIL_KEYS order, once a detail is open -- in the condensed view too
   // (Jason, 2026-10-07). The team pages have no condensed layer, so swiping onto one from a
   // condensed page brings it in expanded (.p2-force-l) and lets go into the expanded view, the
   // way tapping a team card in the condensed view opens it. The gesture only claims itself once a drag is clearly
@@ -1649,10 +1642,13 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
   function memoKey(d) { return d.key === 'away-team' || d.key === 'home-team' ? 'team' : d.key; }
   function rememberCard(d) { if (d && d.active > -1) detailMemo[memoKey(d)] = d.active; }
   function recalledCard(d) { return detailMemo[memoKey(d)] || 0; }
+  // the next detail this game has that way -- skipping any it doesn't (a finished game, or an NBA
+  // game, has no Matchups page between the home team and Player Stats)
   function detailNeighbor(dir) {
     var d = curDetail(), i = d ? DETAIL_KEYS.indexOf(d.key) : -1;
-    var key = i > -1 ? DETAIL_KEYS[i + dir] : null;
-    return key && details[key] ? details[key] : null;
+    if (i < 0) return null;
+    for (var j = i + dir; j >= 0 && j < DETAIL_KEYS.length; j += dir) if (details[DETAIL_KEYS[j]]) return details[DETAIL_KEYS[j]];
+    return null;
   }
   // The top bar follows the swipe (Jason, 2026-10-09). Game Info and Player Stats show the matchup;
   // a team page shows that team's helmet (in the same spot as in the matchup), name, record and the
@@ -1984,14 +1980,15 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     card: function () { return lastCard; },
     head: visibleHead,
     detail: detailOpen,
-    // e (optional): the touch -- a pull that starts inside a Player Stats list (or a schedule too
-    // long for a short screen) scrolled down scrolls the list back up instead of closing the page
+    // e (optional): the touch -- a pull that starts inside a Player Stats list (or a schedule, or
+    // Matchups to Watch, too long for a short screen) scrolled down scrolls the list back up instead
+    // of closing the page
     detailAtTop: function (e) {
       var d = curDetail();
       var path = e && e.composedPath ? e.composedPath() : [];
       for (var i = 0; i < path.length; i++) {
         var cl = path[i].classList;
-        if (cl && (cl.contains('ps-scroll') || cl.contains('sc-list')) && path[i].scrollTop > 1) return false;
+        if (cl && (cl.contains('ps-scroll') || cl.contains('sc-list') || cl.contains('mu-scroll')) && path[i].scrollTop > 1) return false;
       }
       if (!large()) { var c = d && d.el.querySelector('.p2-c'); return !c || c.scrollTop <= 1; }   // a condensed view can scroll on short phones
       return !d || !d.deck || d.deck.scrollTop <= 1;

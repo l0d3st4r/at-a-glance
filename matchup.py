@@ -16,16 +16,20 @@ the site's own player stats (player_weeks), so the two measure the same thing. E
 among the league's teams, 1 = best on that side. The edge goes to the side ranked EDGE_GAP or more
 places better; closer than that is even.
 
-Two views behind a Chart | Numbers switch under the title; it opens on the chart, the quicker read
-(Jason, 2026-10-10):
-  Chart     a slim row a position: 32, its name, 1 -- over a 32-to-1 track with the offense's O and
-            the defense's X on it, as on a play diagram, and the stretch between them in the favored
-            team's color (gray when even), each mark's rank under it. No numbers. Both at the same rank: one mark, the offense's
-            O with a small x in the defense's color inside it.
-  Numbers   both numbers, both ranks and the edge: the favored team's pill, a short line when even.
+The card (Page 1) is the chart: a slim row a position -- 32, its name, 1 -- over a 32-to-1 track with
+the offense's O and the defense's X on it, as on a play diagram, the stretch between them in the
+favored team's color (gray when even), each mark's rank under it. No numbers. Both at the same rank:
+one mark, the offense's O with a small x in the defense's color inside it.
+
+Tapping it opens its Page 2 (Jason, 2026-10-10; it was a Numbers view behind a switch on the card), a
+deck of three cards (render_block), swiped between sideways with the game's other Page 2s:
+  Matchups to Watch  the edges in plain sentences, biggest first, then the ones too close to call
+  <away> Offense     the away offense against the home defense: both numbers, both ranks and the edge
+                     (the favored team's pill, a short line when even)
+  <home> Offense     the home offense against the away defense, the same way
 In each half (one team's offense against the other's defense) the biggest edge gets a bolt beside its
-name in the favored team's color, a tint and a bolder stretch, on both views -- no words. Nothing is
-marked in a half where every row is even.
+name in the favored team's color and a tint -- no words; on the chart its stretch is bolder too.
+Nothing is marked in a half where every row is even.
 """
 
 import html
@@ -228,20 +232,124 @@ def _numbers(o, d, rows, oc, dc):
 
 
 def card_body(data):
-    """The card's body (render_page1 puts it in the deck), or "" without data."""
+    """The card's body (render_page1 puts it in the deck): the chart, or "" without data."""
     if not data:
         return ""
-    chart, numbers = [], []
+    chart = "".join(_chart(o, d, rows, *_colors(o, d)) for o, d, rows in data["halves"])
+    return f'<div class="mu"><div class="mu-sub">League rank · 1st on the right</div>{chart}</div>'
+
+
+# ---------------------------------------------------------------- Page 2
+
+# "Matchups to Watch": an edge a sentence, in plain words. Each sentence is about the side that makes
+# the edge -- whichever is further from the middle of the league: a strong offense or a weak defense
+# when the offense has the edge, a strong defense or a weak offense when the defense has it (so a
+# defense ranked 17th is never said to "stop the run"). {o} / {d} the teams, {ov} / {dv} their
+# numbers, {orr} / {drr} their ranks.
+SENTENCES = {
+    "rb": {"off_strong": "{o}'s running backs average {ov} yards a carry ({orr}), and {d} gives up {dv} to running backs ({drr}).",
+           "def_weak": "{d} has struggled against the run, giving up {dv} yards a carry ({drr}), and {o}'s running backs average {ov} ({orr}).",
+           "def_strong": "{d} stops the run, allowing {dv} yards a carry ({drr}), while {o}'s running backs average {ov} ({orr}).",
+           "off_weak": "{o}'s running backs have had a hard time, averaging {ov} yards a carry ({orr}), and {d} allows {dv} ({drr})."},
+    "wr": {"off_strong": "{o}'s receivers average {ov} yards a target ({orr}), and {d} allows {dv} to receivers ({drr}).",
+           "def_weak": "{d} has struggled to cover receivers, allowing {dv} yards a target ({drr}), and {o}'s receivers average {ov} ({orr}).",
+           "def_strong": "{d} covers receivers well, allowing {dv} yards a target ({drr}), while {o}'s receivers average {ov} ({orr}).",
+           "off_weak": "{o}'s receivers have had a hard time, averaging {ov} yards a target ({orr}), and {d} allows {dv} ({drr})."},
+    "te": {"off_strong": "{o}'s tight ends average {ov} yards a target ({orr}), and {d} allows {dv} to tight ends ({drr}).",
+           "def_weak": "{d} has struggled to cover tight ends, allowing {dv} yards a target ({drr}), and {o}'s tight ends average {ov} ({orr}).",
+           "def_strong": "{d} handles tight ends well, allowing {dv} yards a target ({drr}), while {o}'s tight ends average {ov} ({orr}).",
+           "off_weak": "{o}'s tight ends have had a hard time, averaging {ov} yards a target ({orr}), and {d} allows {dv} ({drr})."},
+    "qb": {"off_strong": "{o} keeps its quarterback upright, sacked on just {ov} of dropbacks ({orr}), and {d}'s pass rush gets home on {dv} ({drr}).",
+           "def_weak": "{d}'s pass rush has rarely gotten home, with sacks on {dv} of dropbacks ({drr}), and {o} gives up sacks on {ov} ({orr}).",
+           "def_strong": "{d}'s pass rush gets to the quarterback on {dv} of dropbacks ({drr}), and {o} has given up sacks on {ov} ({orr}).",
+           "off_weak": "{o} has had trouble protecting its quarterback, sacked on {ov} of dropbacks ({orr}), and {d} gets sacks on {dv} ({drr})."},
+}
+# a too-close row, named from the offense's side
+CLOSE_WORDS = {"rb": "run game", "wr": "receivers", "te": "tight ends", "qb": "pass protection"}
+WATCH_MAX = 4   # the biggest edges only: what to watch, not everything
+
+
+def _rank_words(n, total):
+    return "best in the NFL" if n == 1 else "worst in the NFL" if n == total else ordinal(n)
+
+
+def _sentence(r, o, d):
+    mid = (r["n"] + 1) / 2
+    if r["edge"] == o:   # a strong offense, or a weak defense?
+        kind = "off_strong" if mid - r["orr"] >= r["drr"] - mid else "def_weak"
+    else:                # a strong defense, or a weak offense?
+        kind = "def_strong" if mid - r["drr"] >= r["orr"] - mid else "off_weak"
+    return SENTENCES[r["key"]][kind].format(o=o, d=d, ov=r["ov"], dv=r["dv"],
+                                            orr=_rank_words(r["orr"], r["n"]), drr=_rank_words(r["drr"], r["n"]))
+
+
+def watch(data):
+    """The summary card's lines -- [(favored team, sentence, the biggest?)], the WATCH_MAX biggest gaps,
+    biggest first -- and the rows too close to call, ["CIN's run game vs MIA", ...]."""
+    edges, close = [], []
     for o, d, rows in data["halves"]:
-        oc, dc = _colors(o, d)
-        chart.append(_chart(o, d, rows, oc, dc))
-        numbers.append(_numbers(o, d, rows, oc, dc))
-    sw = "".join(f'<button type="button" data-mu-v="{v}"{" class=on" if v == "chart" else ""} aria-pressed="{"true" if v == "chart" else "false"}">{t}</button>'
-                 for v, t in (("chart", "Chart"), ("numbers", "Numbers")))
-    return (f'<div class="mu" data-mu="chart"><div class="mu-sw" role="group" aria-label="Show">{sw}</div>'
-            f'<div class="mu-sub mu-v-chart">League rank · 1st on the right</div>'
-            f'<div class="mu-sub mu-v-numbers">Season to date · rank among 32 teams</div>'
-            f'<div class="mu-v-chart">{"".join(chart)}</div><div class="mu-v-numbers">{"".join(numbers)}</div></div>')
+        for r in rows:
+            if r["edge"]:
+                edges.append((abs(r["orr"] - r["drr"]), r["edge"], _sentence(r, o, d)))
+            else:
+                close.append(f"{o}'s {CLOSE_WORDS[r['key']]} vs {d}")
+    edges.sort(key=lambda e: -e[0])
+    most = edges[0][0] if edges else None
+    return [(team, text, gap == most) for gap, team, text in edges[:WATCH_MAX]], close
+
+
+BOLT_TAG = f'<span class="mu-bolt" title="Biggest edge">{BOLT}</span>'
+
+
+def _watch_body(data):
+    lines, close = watch(data)
+    if lines:
+        items = "".join(
+            f'<li class="mu-w-i"><span class="mu-w-p">{helmets.pill_html(team)}</span>'
+            f'<p>{esc(text)}{BOLT_TAG if top else ""}</p></li>'
+            for team, text, top in lines)
+        body = f'<ul class="mu-w">{items}</ul>'
+    else:
+        body = f'<p class="mu-w-none">No big edges in this one: every matchup is within {EDGE_GAP} spots in the league rankings.</p>'
+    if close and lines:
+        body += f'<p class="mu-w-close"><b>Too close to call:</b> {esc(", ".join(close))}.</p>'
+    # a list too long for a short phone scrolls inside the card (P1_JS's detailAtTop knows .mu-scroll)
+    return (f'<div class="mu mu-p2"><div class="mu-sub">Edges: {EDGE_GAP}+ spots apart in the rankings</div>'
+            f'<div class="mu-scroll">{body}</div></div>')
+
+
+# the Page 2 cards' icons (titles and nav dots): an O and an X for each offense against a defense, the
+# bolt for the summary
+OX_ICON = ('<svg viewBox="0 0 30 14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true">'
+           '<circle cx="7" cy="7" r="5.4"/><path d="M18.4 1.6l10.8 10.8M29.2 1.6 18.4 12.4"/></svg>')
+PAGE_ICONS = {"away": OX_ICON, "home": OX_ICON, "watch": BOLT}
+
+
+def render_block(data, away_title, home_title):
+    """The hidden .p2 layer for the Matchups card's Page 2, spliced into Page 1's .p1 block ("" without
+    data). away_title / home_title: the two offense cards' titles ("Cincinnati Offense")."""
+    if not data:
+        return ""
+    from render_page1 import DOWN, UP
+    (ao, ad, arows), (ho, hd, hrows) = data["halves"]
+
+    def numbers_card(o, d, rows):
+        return (f'<div class="mu mu-p2"><div class="mu-sub">Season to date · rank among 32 teams</div>'
+                f'{_numbers(o, d, rows, *_colors(o, d))}</div>')
+    # the summary first (Jason, 2026-10-10), then each offense against the other's defense
+    cards = [("watch", "Matchups to Watch", _watch_body(data)),
+             ("away", away_title, numbers_card(ao, ad, arows)), ("home", home_title, numbers_card(ho, hd, hrows))]
+
+    def title(cid, name):
+        return f'<span class="ttl"><span class="t-ic">{PAGE_ICONS[cid]}</span>{esc(name)}</span>'
+    slots = "".join(
+        f'<section class="slot"><a class="card p2k p2k-mu p2k-mu-{cid}" tabindex="-1" aria-label="{esc(name)}">'
+        f'<span class="peek peek-top">{DOWN}{title(cid, name)}</span><div class="body">{body}</div>'
+        f'<span class="peek peek-bot">{UP}{title(cid, name)}</span></a></section>'
+        for cid, name, body in cards)
+    dots = "".join(f'<button class="dot" type="button" aria-label="{esc(name)}">{PAGE_ICONS[cid]}</button>' for cid, name, _b in cards)
+    return ('<div class="p2 p2-mu" data-page="matchup" aria-label="Matchups" role="region">'
+            f'<div class="p2-view p2-l deck">{slots}</div><nav class="dots p2-dots ic-dots" aria-label="Cards">{dots}</nav></div>')
 
 
 # Appended to Page 1's stylesheet. Team colors are --lc / --dc (light / dark) mixed by the
@@ -251,13 +359,37 @@ MATCHUP_CSS = """
 .matchup .body{padding:48px 18px 16px;justify-content:flex-start}   /* right under the title, like the Player Stats cards */
 .mu{width:100%;max-width:440px;margin:0 auto}
 .mu-c{--c:color-mix(in srgb,var(--lc) var(--aag-tc-light),var(--dc))}
-.mu-sw{width:max-content;margin:0 auto;display:flex;gap:1px;padding:1px;border:1px solid var(--tile-border);border-radius:999px}
-.mu-sw button{font:inherit;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 10px;border:0;
-  border-radius:999px;background:none;color:var(--text-2);cursor:pointer;-webkit-tap-highlight-color:transparent}
-.mu-sw button.on{background:var(--ink);color:var(--tile)}
-.mu-sw button:focus-visible{outline:2px solid var(--aag-focus);outline-offset:1px}
-.mu[data-mu=chart] .mu-v-numbers,.mu[data-mu=numbers] .mu-v-chart{display:none}
-.mu-sub{text-align:center;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-2);margin:7px 0 0}
+.mu-sub{text-align:center;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-2);margin:0}
+/* Page 2 (render_block): a deck only, like the team pages -- no condensed layer, so no +/- toggle */
+.p1[data-detail="matchup"] .p2[data-page="matchup"]{display:block}
+.p1[data-detail="matchup"] .toggle{display:none}
+.p2 .slot .p2k-mu .body{padding:48px 18px 18px;justify-content:flex-start}
+/* the offense cards' four rows share the card's height (up to a point), like the Player Stats rows */
+.p2k-mu .body>.mu-p2{flex:1;min-height:0;display:flex;flex-direction:column}
+.p2k-mu .mu-p2>.mu-blk{flex:1;display:flex;flex-direction:column}
+.p2k-mu .mu-blk>.mu-er:not(.mu-er-hd){flex:1 1 auto;max-height:104px}
+.mu-p2 .mu-blk{margin-top:14px}
+.mu-p2 .tpill{height:20px;min-width:50px;font-size:11px}
+.mu-p2 .mu-blk-h{font-size:13px;margin-bottom:8px}
+.mu-p2 .mu-er{padding:11px 0;grid-template-columns:1fr 56px 18px 56px 58px}
+.mu-p2 .mu-er-l{font-size:15px}
+.mu-p2 .mu-er-l small{font-size:10.5px;margin-top:2px}
+.mu-p2 .mu-er-v b{font-size:19px}
+.mu-p2 .mu-er-v small{font-size:10.5px}
+.mu-p2 .mu-er-hd{font-size:10px;padding-bottom:4px}
+.mu-p2 .mu-er.top{margin:0 -10px;padding-left:10px;padding-right:10px}
+/* Matchups to Watch: the favored team's pill, then the sentence */
+.mu-scroll{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;scrollbar-width:none}
+.mu-scroll::-webkit-scrollbar{display:none}
+.mu-w{list-style:none;margin-top:12px}
+.mu-w-i{display:grid;grid-template-columns:52px 1fr;column-gap:10px;align-items:start;padding:10px 0;border-top:1px solid var(--tile-border-soft)}
+.mu-w-i:first-child{border-top:0}
+.mu-w-p{padding-top:1px}
+.mu-w-i p{font-size:14px;line-height:1.4}
+.mu-w-i .mu-bolt{color:var(--text-2)}
+.mu-w-close,.mu-w-none{margin-top:10px;padding-top:10px;border-top:1px solid var(--tile-border-soft);font-size:13px;line-height:1.4;color:var(--text-2)}
+.mu-w-none{border-top:0;font-size:14px;color:inherit}
+.mu-w-close b{color:var(--ink)}
 .mu .tpill{height:18px;min-width:44px;padding:0 5px;border-width:2px;font-size:10px}
 .mu-blk{margin-top:10px}
 .mu-blk+.mu-blk{margin-top:12px;padding-top:10px;border-top:1px solid var(--tile-border-soft)}
@@ -305,6 +437,9 @@ MATCHUP_CSS = """
    gen) the subtitle and Numbers' small "RB yards a carry" lines go; below 600px (an SE 1st gen) a
    size down again */
 @media (max-height:740px){
+  .mu-w-i{padding:8px 0}
+  .mu-w-i p,.mu-w-none{font-size:13px;line-height:1.35}
+  .mu-w-close{font-size:12px}
   .mu-sub,.mu-er-l small{display:none}
   .mu-blk{margin-top:8px}
   .mu-blk+.mu-blk{margin-top:8px;padding-top:6px}

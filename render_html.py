@@ -1144,9 +1144,9 @@ PAGE1_OVERLAY_JS = r"""
 
   // ------------------------------------------------------------ helpers
   // "#game-<id>" is Page 1; "#game-<id>/game-info" is that game's Page 2, "#game-<id>/away-team"
-  // and "#game-<id>/home-team" its team pages (2026-09-19, extended 2026-09-20)
+  // and "#game-<id>/home-team" its team pages (2026-09-19, extended 2026-09-20), "/matchup" its Matchups page
   function idFromHash(h) { var m = (h || '').match(/^#game-([^\/]+)(?:\/.*)?$/); return m ? decodeURIComponent(m[1]) : null; }
-  function detailFromHash(h) { return /\/(game-info|away-team|home-team)$/.test(h || ''); }
+  function detailFromHash(h) { return /\/(game-info|away-team|home-team|matchup)$/.test(h || ''); }
   function detailOn(s) { return !!(s && s.inst && s.inst.detail && s.inst.detail()); }
   // One-time swipe nudge (2026-10-01): the first time someone reaches each level -- the weeks, a game,
   // a game's detail pages -- the screen slides a little toward its neighbor and springs back, showing a
