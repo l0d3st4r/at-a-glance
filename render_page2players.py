@@ -136,7 +136,8 @@ def name_html(r):
 def short_name_html(r):
     """The condensed view's name (Jason, 2026-10-07): one line, first initial and last name, then
     jersey number and position -- "L. Jackson #8 QB" -- so the view fits a phone with no scrolling
-    (the stacked full name above takes two lines a row)."""
+    (the stacked full name above takes two lines a row). Used by the tables' name cell too
+    (2026-10-10), the number and position kept to the right of it."""
     return (f'<span class="ps-nm ps-nm1"><span class="ps-ln">{_short_name(r)}</span>'
             f'{_meta_html(r)}</span>')
 
@@ -149,16 +150,11 @@ def _short_name(r):
 
 
 def _meta_html(r):
-    """The jersey number, then the position with its R / IR tags."""
+    """The jersey number, then the position with its R / IR tags -- one piece (.ps-mt) that never
+    breaks across lines (Jason, 2026-10-10: "#8 RB · R · IR" all on one line)."""
     num = f'#{r["jersey"]}' if r.get("jersey") is not None else ""
-    return (f'{f"<span class=ps-no>{num}</span> " if num else ""}'
-            f'<span class="ps-pos">{esc(r["pos"])}{marks(r)}</span>')
-
-
-def short_name_only_html(r):
-    """The condensed tables' name cell (2026-10-07): just the name -- the number and position have
-    their own column there (_table's meta)."""
-    return f'<span class="ps-nm ps-nm1"><span class="ps-ln">{_short_name(r)}</span></span>'
+    return (f'<span class="ps-mt">{f"<span class=ps-no>{num}</span> " if num else ""}'
+            f'<span class="ps-pos">{esc(r["pos"])}{marks(r)}</span></span>')
 
 
 # ---------------------------------------------------------------- the cards
@@ -501,24 +497,21 @@ def _cell(label, f, r, medal_stat):
     return f'<td data-v="{v:g}">{inner}</td>' if v is not None else f"<td>{inner}</td>"
 
 
-def _table(rows, cols, empty, medals, sortable=True, corner=None, name=name_html, meta=None):
+def _table(rows, cols, empty, medals, sortable=True, corner=None, name=name_html):
     """corner: a section heading to sit in the header row's empty top-left cell, over the names.
-    name: how a player's name is written (short_name_only_html in the condensed view).
-    meta: if given, the number and position in a column of their own after the name (condensed)."""
+    name: how a player's name is written (short_name_html in the condensed view)."""
     if not rows:
         return f'<p class="ps-empty">{esc(empty)}</p>'
     head = "".join(
         f'<th scope="col" aria-sort="none"><button type="button" class="ps-sort">{esc(label)}</button></th>' if sortable
         else f'<th scope="col"><span class="ps-lbl">{esc(label)}</span></th>'
         for label, _f in cols)
-    meta_head = '<th scope="col" class="ps-mh"><span class="vh">Number and position</span></th>' if meta else ""
     body = "".join(
         f'<tr data-i="{i}"><th scope="row">{name(r)}</th>'
-        + (f'<td class="ps-meta">{meta(r)}</td>' if meta else "")
         + "".join(_cell(label, f, r, medals.get(label)) for label, f in cols) + "</tr>"
         for i, r in enumerate(rows))
     first = f'<span class="ps-corner">{esc(corner)}</span>' if corner else '<span class="vh">Player</span>'
-    return (f'<div class="ps-tw"><table class="ps-t"><thead><tr><th scope="col">{first}</th>{meta_head}{head}</tr></thead>'
+    return (f'<div class="ps-tw"><table class="ps-t"><thead><tr><th scope="col">{first}</th>{head}</tr></thead>'
             f"<tbody>{body}</tbody></table></div>")
 
 
@@ -632,26 +625,40 @@ def _pairs(rows, cols, empty):
     return f'<div class="pc-who">{short_name_html(r)}</div><div class="pc-sts">{stats}</div>'
 
 
+# A full-width card's share of the view's height: its player rows plus this much for its title and
+# column headers, in rows (2026-10-10) -- so every player row comes out about the same height,
+# whichever card it's on. Kicking + Punt Returns take only the height they need.
+PC_OVERHEAD = 1.3
+
+
+def _rows_track(n):
+    return f"minmax(min-content,{n + PC_OVERHEAD:g}fr)"
+
+
 def condensed_view(teams, stats, scope="season"):
     empty = _empty_text(stats, scope)
     tabs = "".join(
         f'<button type="button" class="ps-tab{" on" if i == 0 else ""}" data-team="{esc(t)}" aria-pressed="{"true" if i == 0 else "false"}">'
         f'{_pill(t)}</button>' for i, t in enumerate(teams))
-    cards = []
+    cards, tracks = [], []
     for cid, title, section, who, width, left_out in CONDENSED:
         _h, _keep, _order, cols, medals = section
         cols = [c for c in cols if c[0] not in left_out]
+        rows = {t: who(stats.get(t) or []) for t in teams}
         panes = "".join(
             f'<div class="pc-p{" on" if i == 0 else ""}" data-team="{esc(t)}">'
-            + (_table(who(stats.get(t) or []), cols, empty, medals, sortable=False, name=short_name_only_html, meta=_meta_html)
+            + (_table(rows[t], cols, empty, medals, sortable=False, name=short_name_html)
                if width == "row"
-               else _pairs(who(stats.get(t) or []), cols, empty))
+               else _pairs(rows[t], cols, empty))
             + "</div>"
             for i, t in enumerate(teams))
         cards.append(f'<a class="card cc pc-{cid} pc-{width}" tabindex="0" aria-label="{esc(title)}">'
                      f'<span class="card-title">{_title(cid, title)}</span>{panes}</a>')
-    return (f'<div class="p2-view p2-c pc"><div class="ps-sw pc-sw">{tabs}</div>{_scope_label(scope, " pc-scope")}'
-            f'{"".join(cards)}</div>')
+        if width == "row":   # sized for the team with more rows, so the cards hold still on a switch
+            tracks.append(_rows_track(max(1, *(len(v) for v in rows.values()))))
+    grid = " ".join(["auto auto", *tracks, "auto"])
+    return (f'<div class="p2-view p2-c pc pc-nfl" style="grid-template-rows:{grid}"><div class="ps-sw pc-sw">{tabs}</div>'
+            f'{_scope_label(scope, " pc-scope")}{"".join(cards)}</div>')
 
 
 def render_players_block(d):
@@ -803,6 +810,30 @@ P4_CSS = r"""
   .pc-sts{gap:3px}.pc-st b{font-size:12px}}
 .pc-st small{font-size:9px;font-weight:700;letter-spacing:.05em;color:var(--text-2)}
 .pc .ps-empty{padding:0;font-size:12px}
+/* The NFL's condensed view (Jason, 2026-10-10; .pc-nfl -- the NBA's, which shares these styles,
+   keeps the number column above):
+   - The name and the number + position share one cell: the number, position and R / IR tags are
+     one piece on one line (_meta_html's .ps-mt), kept to the right of the cell where the number
+     column was, so a plain "#9 QB" lines up just as before. Tags too wide for that spot take
+     room from the name instead; a name too long for both takes the whole piece to a second line,
+     never running into it ("P. Umanmielen", "J. Price #8 RB · R · IR").
+   - Each table starts right under its card's title, and the room left over makes the player rows
+     taller (the table fills the card; browsers give a table's extra height to its body rows).
+     condensed_view sizes the cards by their rows, so the rows come out about the same height.
+   - Each stat centered under its column's label, and on Kicking / Punt Returns each label
+     centered under its number. */
+.pc-nfl .ps-t thead th:nth-child(2){width:var(--pc1)}
+.pc-nfl .ps-t thead th:nth-child(n+3){width:var(--pcs)}
+.pc-nfl .ps-t tbody th{padding-right:1px;line-height:1.15}
+.pc-nfl .ps-t .ps-nm.ps-nm1{display:flex;align-items:baseline;column-gap:4px}
+.pc-nfl .ps-t .ps-mt{margin-left:auto;min-width:calc(var(--pcm) - 4px);white-space:nowrap}
+.pc-nfl .ps-t :is(td,thead th){text-align:center}
+.pc-nfl .pc-p{justify-content:flex-start}
+.pc-nfl .pc-row .ps-tw{flex:1 0 auto}
+.pc-nfl .pc-row .ps-t{height:100%}
+.pc-nfl .ps-t thead th{vertical-align:bottom}
+.pc-nfl .pc-st{align-items:center}
+@media (max-width:340px){.pc-nfl .ps-t .ps-mt{display:none}}
 /* The table: player column pinned on the left; a table wider than the card scrolls sideways,
    and fades out at the right edge while there's more to see (.more, set by P1_JS) */
 .ps-tw{overflow-x:auto;margin:0 -14px;padding:0 14px}
