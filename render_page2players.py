@@ -631,8 +631,12 @@ def _pairs(rows, cols, empty):
 PC_OVERHEAD = 1.3
 
 
-def _rows_track(n):
-    return f"minmax(min-content,{n + PC_OVERHEAD:g}fr)"
+def condensed_rows(counts, tail="auto"):
+    """The condensed view's grid-template-rows: the team switch and the scope label, then one track
+    per full-width card sized by its player rows (counts; sized for the team with more, so the cards
+    hold still on a switch), then tail -- Kicking + Punt Returns' row, or "" (the NBA has none)."""
+    tracks = [f"minmax(min-content,{max(1, n) + PC_OVERHEAD:g}fr)" for n in counts]
+    return " ".join(["auto auto", *tracks, tail]).strip()
 
 
 def condensed_view(teams, stats, scope="season"):
@@ -640,7 +644,7 @@ def condensed_view(teams, stats, scope="season"):
     tabs = "".join(
         f'<button type="button" class="ps-tab{" on" if i == 0 else ""}" data-team="{esc(t)}" aria-pressed="{"true" if i == 0 else "false"}">'
         f'{_pill(t)}</button>' for i, t in enumerate(teams))
-    cards, tracks = [], []
+    cards, counts = [], []
     for cid, title, section, who, width, left_out in CONDENSED:
         _h, _keep, _order, cols, medals = section
         cols = [c for c in cols if c[0] not in left_out]
@@ -654,10 +658,9 @@ def condensed_view(teams, stats, scope="season"):
             for i, t in enumerate(teams))
         cards.append(f'<a class="card cc pc-{cid} pc-{width}" tabindex="0" aria-label="{esc(title)}">'
                      f'<span class="card-title">{_title(cid, title)}</span>{panes}</a>')
-        if width == "row":   # sized for the team with more rows, so the cards hold still on a switch
-            tracks.append(_rows_track(max(1, *(len(v) for v in rows.values()))))
-    grid = " ".join(["auto auto", *tracks, "auto"])
-    return (f'<div class="p2-view p2-c pc pc-nfl" style="grid-template-rows:{grid}"><div class="ps-sw pc-sw">{tabs}</div>'
+        if width == "row":
+            counts.append(max(len(v) for v in rows.values()))
+    return (f'<div class="p2-view p2-c pc" style="grid-template-rows:{condensed_rows(counts)}"><div class="ps-sw pc-sw">{tabs}</div>'
             f'{_scope_label(scope, " pc-scope")}{"".join(cards)}</div>')
 
 
@@ -680,7 +683,7 @@ def render_players_block(d):
         for cid, title, sections, layout in CARDS)
     dots = "".join(f'<button class="dot" type="button" aria-label="{esc(title)}">{PS_ICONS.get(cid, "")}</button>'
                    for cid, title, _s, _l in CARDS)
-    return ('<div class="p2 p2-ps ps-nfl" data-page="leaders" aria-label="Player stats" role="region">'
+    return ('<div class="p2 p2-ps" data-page="leaders" aria-label="Player stats" role="region">'
             f'<div class="p2-view p2-l deck">{slots}</div><nav class="dots p2-dots ic-dots" aria-label="Cards">{dots}</nav>'
             f'{condensed_view((away, home), stats, scope)}</div>')
 
@@ -754,8 +757,8 @@ P4_CSS = r"""
 .pc-scope{grid-column:1/-1;justify-self:center;margin:-4px 0 -2px}
 .p2-c.pc a.card.cc{justify-content:flex-start;padding:var(--ctitle) 12px 4px;gap:0}
 .p2-c.pc a.card.pc-row{grid-column:1/-1}
-/* "safe": if a pane ever overflows, it's the bottom that's cut, never the player's name */
-.pc-p{display:none;flex-direction:column;justify-content:safe center;flex:1;min-height:0}
+/* each pane's contents start at the top, right under the card's title (2026-10-10) */
+.pc-p{display:none;flex-direction:column;justify-content:flex-start;flex:1;min-height:0}
 .pc-p.on{display:flex}
 .pc .ps-tw{margin:0 -12px;padding:0 12px}
 /* a little tighter than the expanded tables, so Defense's ten columns need less sideways scrolling */
@@ -775,7 +778,7 @@ P4_CSS = r"""
 /* Kicking / Punt Returns: the stats always on one line (Jason, 2026-09-28), spread across the card */
 .pc-sts{display:flex;flex-wrap:nowrap;justify-content:space-between;gap:6px}
 .pc-st{display:flex;flex-direction:column;line-height:1.1;white-space:nowrap}
-.pc-st b{font-size:14px;font-variant-numeric:tabular-nums}
+.pc-st b{font-size:14px}
 @media (max-width:370px){.pc-st b{font-size:13px}.pc .ps-t tbody th{padding-right:3px}}
 /* iPhone SE (1st gen)-small: 4px between cards, rows and stats a step smaller, and the narrowest
    type for the widest table (Passing's seven columns) */
@@ -785,55 +788,49 @@ P4_CSS = r"""
   .pc-scope{margin:-4px 0 -4px}
   .pc-st b{font-size:12px}
 }
-/* Passing, Rushing, Receiving and Defense line up (Jason, 2026-10-07): name, then the number and
-   position in a column of their own, then six stats, every column but the name a fixed width --
-   so each stat sits in the same column on all four cards. The first stat is wider (Passing's
-   C/ATT runs to "350/520" late in the season; ATT / REC / TKL take the same width so the rest
-   still line up). The name takes what's left, and a long one breaks after its hyphen
-   ("J. Smith-" / "Njigba"); R / IR tags too wide for their column go to a second line. */
+/* Passing, Rushing, Receiving and Defense line up (Jason, 2026-10-07): the name, then six stats,
+   every column but the name a fixed width -- so each stat sits in the same column on all four
+   cards. The first stat is wider (Passing's C/ATT runs to "350/520" late in the season; ATT / REC /
+   TKL take the same width so the rest still line up). The NBA's cards (render_nba_game) line up the
+   same way with their four or five stats.
+   The name and the number + position share the name's cell (2026-10-10): the number, position and
+   R / IR tags are one piece on one line (_meta_html's .ps-mt), kept to the right of the cell in a
+   48px spot (--pcm, where they had a column of their own), so a plain "#9 QB" lines up row to row.
+   Tags too wide for that spot take room from the name; a name too long for both takes the whole
+   piece to a second line, never running into it ("P. Umanmielen", "J. Price #8 RB · R · IR"). A
+   long name alone breaks after its hyphen ("J. Smith-" / "Njigba"). */
 .pc .ps-t{table-layout:fixed;font-size:10.5px;--pcm:48px;--pc1:42px;--pcs:30px}
 .pc .ps-t td{padding-left:1px;padding-right:1px}
-.pc .ps-t thead th:nth-child(2){width:var(--pcm)}
-.pc .ps-t thead th:nth-child(3){width:var(--pc1)}
-.pc .ps-t thead th:nth-child(n+4){width:var(--pcs)}
-.pc .ps-t td.ps-meta{text-align:left;white-space:normal;padding-left:3px;line-height:1}
+.pc .ps-t thead th:nth-child(2){width:var(--pc1)}
+.pc .ps-t thead th:nth-child(n+3){width:var(--pcs)}
+.pc .ps-t tbody th{padding-right:1px;line-height:1.15}
 .pc .ps-t .ps-nm{font-size:11.5px}
-.pc .ps-t .ps-nm1>.ps-ln{white-space:normal;overflow-wrap:break-word;line-height:1.05}   /* a wrapped name or tag adds ~4px, not ~9 */
+.pc .ps-t .ps-nm.ps-nm1{display:flex;align-items:baseline;column-gap:4px}
+.pc .ps-t .ps-nm1>.ps-ln{white-space:normal;overflow-wrap:break-word;line-height:1.05}   /* a wrapped name adds ~4px, not ~9 */
+.pc .ps-t .ps-mt{margin-left:auto;min-width:calc(var(--pcm) - 4px);white-space:nowrap}
 @media (max-width:370px){.pc .ps-t{font-size:10px;--pcm:46px;--pc1:40px;--pcs:29px}}
-/* iPhone SE (1st gen)-narrow: no room for the number column beside six stats -- it goes, and the
-   name and stats get its width */
+/* iPhone SE (1st gen)-narrow: no room for the number and position beside six stats -- they go, and
+   the name gets their width */
 @media (max-width:340px){.pc .ps-t{--pc1:38px;--pcs:28px}.pc .ps-t .ps-nm{font-size:10.5px}
-  .pc .ps-t td.ps-meta,.pc .ps-t thead th.ps-mh{display:none}
-  .pc .ps-t thead th:nth-child(3){width:var(--pc1)}
+  .pc .ps-t .ps-mt{display:none}
   .p2-c.pc a.card.cc{padding-bottom:2px}}
 @media (max-width:340px){.pc .ps-t{font-size:9.5px}.pc .ps-t thead th{font-size:8px}
   .pc-sts{gap:3px}.pc-st b{font-size:12px}}
 .pc-st small{font-size:9px;font-weight:700;letter-spacing:.05em;color:var(--text-2)}
 .pc .ps-empty{padding:0;font-size:12px}
-/* The NFL's condensed view (Jason, 2026-10-10; .pc-nfl -- the NBA's, which shares these styles,
-   keeps the number column above):
-   - The name and the number + position share one cell: the number, position and R / IR tags are
-     one piece on one line (_meta_html's .ps-mt), kept to the right of the cell where the number
-     column was, so a plain "#9 QB" lines up just as before. Tags too wide for that spot take
-     room from the name instead; a name too long for both takes the whole piece to a second line,
-     never running into it ("P. Umanmielen", "J. Price #8 RB · R · IR").
-   - Each table starts right under its card's title, and the room left over makes the player rows
-     taller (the table fills the card; browsers give a table's extra height to its body rows).
-     condensed_view sizes the cards by their rows, so the rows come out about the same height.
-   - Each stat centered under its column's label, and on Kicking / Punt Returns each label
-     centered under its number. */
-.pc-nfl .ps-t thead th:nth-child(2){width:var(--pc1)}
-.pc-nfl .ps-t thead th:nth-child(n+3){width:var(--pcs)}
-.pc-nfl .ps-t tbody th{padding-right:1px;line-height:1.15}
-.pc-nfl .ps-t .ps-nm.ps-nm1{display:flex;align-items:baseline;column-gap:4px}
-.pc-nfl .ps-t .ps-mt{margin-left:auto;min-width:calc(var(--pcm) - 4px);white-space:nowrap}
-.pc-nfl .ps-t :is(td,thead th){text-align:center}
-.pc-nfl .pc-p{justify-content:flex-start}
-.pc-nfl .pc-row .ps-tw{flex:1 0 auto}
-.pc-nfl .pc-row .ps-t{height:100%}
-.pc-nfl .ps-t thead th{vertical-align:bottom}
-.pc-nfl .pc-st{align-items:center}
-@media (max-width:340px){.pc-nfl .ps-t .ps-mt{display:none}}
+/* Each table starts right under its card's title, and the room left over makes the player rows
+   taller (Jason, 2026-10-10): the table fills the card, and browsers give a table's extra height to
+   its body rows. condensed_view (and render_nba_game's) sizes the cards by their rows, so the rows
+   come out about the same height on every card. */
+.pc .pc-row .ps-tw{flex:1 0 auto}
+.pc .pc-row .ps-t{height:100%}
+.pc .ps-t thead th{vertical-align:bottom}
+/* Each stat centered under its column's label, and on Kicking / Punt Returns each label centered
+   under its number (2026-10-10). Centered, the digits no longer need to stack, so they're
+   proportional and a hair tighter, as in the expanded tables. */
+.pc .ps-t :is(td,thead th){text-align:center}
+.pc .ps-t td,.pc-st b{font-variant-numeric:proportional-nums;letter-spacing:-.02em}
+.pc-st{align-items:center}
 /* The table: player column pinned on the left; a table wider than the card scrolls sideways,
    and fades out at the right edge while there's more to see (.more, set by P1_JS) */
 .ps-tw{overflow-x:auto;margin:0 -14px;padding:0 14px}
@@ -887,8 +884,7 @@ P4_CSS = r"""
 .p2-l .ps-t tbody th{padding-right:3px}
 @media (max-width:380px){.p2-l .ps-t{font-size:10.5px;--fnw:73px;--mtw:34px;--nmg:6px}.p2-l .ps-t thead th{font-size:9px}}
 @media (max-width:370px){.p2-l .ps-t{--fnw:72px;--nmg:5px}.p2-l .ps-sort{padding-left:0;padding-right:0}}
-/* The NFL's expanded tables (Jason, 2026-10-10; .ps-nfl -- the NBA's keep the right-aligned
-   numbers and the arrow beside the label above):
+/* The expanded tables, the NFL's and the NBA's (Jason, 2026-10-10):
    - Each stat centered under its column's label, as in the condensed view.
    - Centered, the digits no longer need to stack, so they're proportional (a "1" takes less room
      than an "8") and a hair tighter: late in a season Passing's widest line ("430/650 4,812 ...
@@ -897,13 +893,13 @@ P4_CSS = r"""
    - The sort arrow is a small caret centered under the label, in the header's bottom padding: beside
      the label it pushed the label 5px off center and widened its column enough to push Passing off
      the card again. */
-.ps-nfl .p2-l .ps-t td,.ps-nfl .p2-l .ps-t thead th:not(:first-child){text-align:center}
-.ps-nfl .p2-l .ps-t td{font-variant-numeric:proportional-nums;letter-spacing:-.02em}
-.ps-nfl .p2-l .ps-sort{position:relative}
-.ps-nfl .p2-l .ps-t th[aria-sort] .ps-sort::after{content:"";position:absolute;left:50%;bottom:0;margin:0 0 0 -3px;
+.p2-l .ps-t td,.p2-l .ps-t thead th:not(:first-child){text-align:center}
+.p2-l .ps-t td{font-variant-numeric:proportional-nums;letter-spacing:-.02em}
+.p2-l .ps-sort{position:relative}
+.p2-l .ps-t th[aria-sort] .ps-sort::after{content:"";position:absolute;left:50%;bottom:0;margin:0 0 0 -3px;
   border:3px solid transparent;border-bottom:0;border-top-color:currentColor}
-.ps-nfl .p2-l .ps-t th[aria-sort=ascending] .ps-sort::after{border-top:0;border-bottom:3px solid currentColor}
-.ps-nfl .p2-l .ps-t th[aria-sort=none] .ps-sort::after{content:none}
+.p2-l .ps-t th[aria-sort=ascending] .ps-sort::after{border-top:0;border-bottom:3px solid currentColor}
+.p2-l .ps-t th[aria-sort=none] .ps-sort::after{content:none}
 .p2-l .ps-nm{grid-template-columns:var(--fnw) var(--mtw);column-gap:var(--nmg)}
 .p2-l .ps-fn,.p2-l .ps-nm .ps-pos{white-space:normal}
 .p2-l .ps-t tbody th,.p2-l .ps-t thead th:first-child{width:calc(var(--fnw) + var(--nmg) + var(--mtw) + 3px);

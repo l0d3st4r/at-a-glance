@@ -821,14 +821,17 @@ def _name(r):
 
 
 def _short_name(r):
+    """The condensed tables' name cell, as the NFL's (render_page2players.short_name_html): the name,
+    then the number and position as one piece (.ps-mt) at the right of the cell (2026-10-10)."""
     first, last = ps.split_name(r["name"])
     who = f"{esc(first[0])}.&nbsp;{ps.esc_name(last)}" if first else ps.esc_name(last)
-    return f'<span class="ps-nm ps-nm1"><span class="ps-ln">{who}</span></span>'
+    return f'<span class="ps-nm ps-nm1"><span class="ps-ln">{who}</span>{_meta(r)}</span>'
 
 
 def _meta(r):
     num = f'#{r["jersey"]}' if r.get("jersey") not in (None, "") else ""
-    return f'{f"<span class=ps-no>{esc(num)}</span> " if num else ""}<span class="ps-pos">{esc(r["pos"])}</span>'
+    return (f'<span class="ps-mt">{f"<span class=ps-no>{esc(num)}</span> " if num else ""}'
+            f'<span class="ps-pos">{esc(r["pos"])}</span></span>')
 
 
 def _cell(text, value, place):
@@ -841,14 +844,12 @@ def _table(rows, cols, empty, medals, sortable=True, short=False):
         return f'<p class="ps-empty">{esc(empty)}</p>'
     head = "".join(f'<th scope="col" aria-sort="none"><button type="button" class="ps-sort">{esc(c[0])}</button></th>' if sortable
                    else f'<th scope="col"><span class="ps-lbl">{esc(c[0])}</span></th>' for c in cols)
-    meta_head = '<th scope="col" class="ps-mh"><span class="vh">Number and position</span></th>' if short else ""
     body = "".join(
         f'<tr data-i="{i}"><th scope="row">{_short_name(r) if short else _name(r)}</th>'
-        + (f'<td class="ps-meta">{_meta(r)}</td>' if short else "")
         + "".join(_cell(fmt(r), val(r), (r.get("medals") or {}).get(medals.get(label)) if medals.get(label) else None)
                   for label, fmt, val in cols) + "</tr>"
         for i, r in enumerate(rows))
-    return (f'<div class="ps-tw"><table class="ps-t"><thead><tr><th scope="col"><span class="vh">Player</span></th>{meta_head}{head}</tr></thead>'
+    return (f'<div class="ps-tw"><table class="ps-t"><thead><tr><th scope="col"><span class="vh">Player</span></th>{head}</tr></thead>'
             f"<tbody>{body}</tbody></table></div>")
 
 
@@ -860,7 +861,7 @@ def render_players_block(d, stats, scope):
     scope_lbl = lambda extra="": f'<span class="ps-scope{extra}">{"Game Stats" if scope == "game" else "Season Stats · Per Game"}</span>'
     tabs = "".join(f'<button type="button" class="ps-tab{" on" if i == 0 else ""}" data-team="{esc(t)}" '
                    f'aria-pressed="{"true" if i == 0 else "false"}">{nba_helmets.pill_html(t)}</button>' for i, t in enumerate(teams))
-    slots, cards = [], []
+    slots, cards, counts = [], [], []
     for cid, title, colf, key, medals, n_cond in PS_CARDS:
         cols = colf(scope)
         panes = "".join(f'<div class="ps-pane{" on" if i == 0 else ""}" data-team="{esc(t)}">'
@@ -875,10 +876,12 @@ def render_players_block(d, stats, scope):
                          for i, t in enumerate(teams))
         cards.append(f'<a class="card cc pc-{cid} pc-row" tabindex="0" aria-label="{esc(title)}">'
                      f'<span class="card-title">{ps._title(cid, title)}</span>{cpanes}</a>')
+        counts.append(max(min(n_cond, len(stats.get(t) or [])) for t in teams))
     dots = "".join(f'<button class="dot" type="button" aria-label="{esc(t)}">{ps.PS_ICONS.get(c, "")}</button>' for c, t, *_ in PS_CARDS)
     return ('<div class="p2 p2-ps" data-page="leaders" aria-label="Player stats" role="region">'
             f'<div class="p2-view p2-l deck">{"".join(slots)}</div><nav class="dots p2-dots ic-dots" aria-label="Cards">{dots}</nav>'
-            f'<div class="p2-view p2-c pc"><div class="ps-sw pc-sw">{tabs}</div>{scope_lbl(" pc-scope")}{"".join(cards)}</div></div>')
+            f'<div class="p2-view p2-c pc" style="grid-template-rows:{ps.condensed_rows(counts, tail="")}">'
+            f'<div class="ps-sw pc-sw">{tabs}</div>{scope_lbl(" pc-scope")}{"".join(cards)}</div></div>')
 
 
 # ---------------------------------------------------------------- the page
