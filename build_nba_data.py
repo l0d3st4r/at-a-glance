@@ -530,6 +530,11 @@ def build(season, today, warnings, as_of=None):
     if err:
         warnings.append(f"get_injuries: {err}")
     inj_idx, inj_dates = injury_index(injury_rows)
+    # each team's projected starting five (ESPN's depth chart, 2026-10-10) for the games still to come --
+    # today's chart, so a preview of another day (as_of) goes without
+    lineups, err = ({}, None) if as_of else nba_client.get_starters(season)
+    if err:
+        warnings.append(f"get_starters: {err}")
 
     history = []
     for s in range(season - HISTORY_SEASONS, season):
@@ -592,7 +597,7 @@ def build(season, today, warnings, as_of=None):
             continue
         try:
             details[g["game_id"]] = game_detail(g, records, snap_for(g), team_games, box, pg, officials,
-                                                inj_idx, inj_dates, history, by_id)
+                                                inj_idx, inj_dates, history, by_id, lineups)
         except Exception as e:   # one bad game never costs the others their pages
             warnings.append(f"game {g['game_id']}: {type(e).__name__}: {e}")
 
@@ -614,7 +619,7 @@ def build(season, today, warnings, as_of=None):
     }
 
 
-def game_detail(g, records, snap, team_games, box, pg, officials, inj_idx, inj_dates, history, by_id):
+def game_detail(g, records, snap, team_games, box, pg, officials, inj_idx, inj_dates, history, by_id, lineups=None):
     stats_snap, standings = snap
     r = records.get(g["game_id"]) or {}
     gid = g["game_id"]
@@ -656,12 +661,21 @@ def game_detail(g, records, snap, team_games, box, pg, officials, inj_idx, inj_d
             "ranks": {"off_pts": (st.get("points") or {}).get("off_rank"), "off_fg": (st.get("fg_pct") or {}).get("off_rank"),
                       "def_pts": (st.get("points") or {}).get("def_rank"), "def_fg": (st.get("fg_pct") or {}).get("def_rank")},
         }
+        if not g["final"] and (lineups or {}).get(team):
+            s["starters"] = starting_five(lineups[team], injuries)
         if g["final"]:
             s["game_stats"] = _game_stats((box.get(gid) or {}).get(team))
             s["game_absences"] = absences_for(pg, team, gid, starters)
         s["team_page"] = team_page(g, team, other, side, injuries, st, standings, team_games, by_id)
         d[side] = s
     return d
+
+
+def starting_five(five, injuries):
+    """The projected starters, each with his status if he's on the team's injury report ("Out",
+    "Day-To-Day", ...) -- the depth chart can still list a hurt starter."""
+    status = {(r.get("name") or "").lower(): r.get("status") for r in injuries or []}
+    return [dict(p, status=status.get(p["name"].lower())) for p in five]
 
 
 def meetings(g, history):

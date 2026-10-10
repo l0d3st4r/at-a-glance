@@ -38,6 +38,7 @@ from datetime import date
 
 import local_time
 import logo
+import names
 import nba_balls
 import nba_helmets
 import nba_stats
@@ -366,6 +367,20 @@ def c_team(side, label, final=False):
     )
 
 
+def starters_html(side):
+    """The projected starting five before tip-off (2026-10-10; build_nba_data's starting_five, from
+    ESPN's depth chart): last names under a small Starters heading, each after his position, wrapping
+    a whole player at a time. A starter on the injury report gets its colored dot."""
+    five = side.get("starters")
+    if not five:
+        return ""
+    items = "".join(
+        f'<span class="st-p"><small>{esc(r["pos"])}</small>{ps.esc_name(names.split_name(r["name"])[1])}'
+        + (f'<i class="inj-dot inj-{INJ_CLASS.get(r["status"], "ques")}" title="{esc(r["status"])}"></i>' if r.get("status") else "")
+        + "</span>" for r in five)
+    return f'<div class="nba-st"><h3>Starters</h3><div class="st-line">{items}</div></div>'
+
+
 def l_team(side, final=False):
     team = side.get("team")
     gs = side.get("game_stats") if final else None
@@ -373,6 +388,7 @@ def l_team(side, final=False):
     return (
         f'<div class="l-top"><div class="l-id">{img(team, 84, large=True)}</div>'
         f'<div class="l-rec">{p1.record_block(side, final)}</div></div>'
+        f'{"" if final else starters_html(side)}'
         f'<ul class="l-inj">{injuries_html(side, full=True)}</ul>{bottom}'
     )
 
@@ -1001,6 +1017,18 @@ EXTRA_CSS = """
 .p1 .game-bottom .city{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nba-div .st-row,.nba-div .st-headrow{grid-template-columns:22px 1fr 24px 24px 40px 32px}
 .fact b.nba-fact{font-size:22px}
+/* the expanded team card's projected starters (2026-10-10, starters_html) */
+.nba-st{text-align:center}
+.nba-st h3{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-2);margin-bottom:5px}
+.st-line{display:flex;flex-wrap:wrap;justify-content:center;gap:3px 12px;font-size:14px;font-weight:700;line-height:1.25}
+.st-p{display:inline-flex;align-items:baseline;gap:4px;white-space:nowrap}
+.st-p small{font-size:10px;font-weight:700;letter-spacing:.04em;color:var(--text-3)}
+.st-p .inj-dot{align-self:center;width:7px;height:7px}
+@media (max-height:600px){   /* an iPhone SE (1st gen): the line a size down, so the card still fits */
+  .nba-st h3{font-size:9.5px;margin-bottom:2px}
+  .st-line{font-size:12px;line-height:1.2;gap:1px 8px}
+  .st-p small{font-size:9px}
+}
 /* Player Stats' expanded tables: a wider name column than the NFL's (2026-10-10) -- "Antetokounmpo"
    (94px; 87 on a phone 380px wide or less) and "Wembanyama" ran into the number and position beside
    them in its 80px (73px). The NBA's tables have room: four to six short stats against Passing's

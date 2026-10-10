@@ -416,6 +416,30 @@ def get_injuries(season, every_day=False):
         return [], str(e)
 
 
+STARTER_SLOTS = ("pg", "sg", "sf", "pf", "c")
+
+
+def get_starters(season):
+    """ESPN's depth charts as of their latest daily snapshot (2026-10-10): each team's five starters --
+    depth rank 1 at PG, SG, SF, PF and C, in that order -- as {abbr: [{"pos", "name", "short", "id"}]}.
+    It's who ESPN projects to start, so a hurt player can still be on it (the game page marks him from
+    the injury report). A team without all five is left out. Only published as Parquet."""
+    try:
+        import polars as pl
+        df = _parquet("espn_nba_depthcharts", f"depthcharts_{season}.parquet")
+        df = df.filter((pl.col("as_of_date") == pl.col("as_of_date").max()) & (pl.col("depth_rank") == 1))
+        slots = {}
+        for r in df.iter_rows(named=True):
+            code, slot = nba_teams.abbr(r.get("team_id")), (r.get("position_slot") or "").lower()
+            if code and slot in STARTER_SLOTS:
+                slots.setdefault(code, {}).setdefault(slot, {
+                    "pos": slot.upper(), "name": r.get("athlete_display_name") or "",
+                    "short": r.get("athlete_short_name") or "", "id": str(r.get("athlete_id"))})
+        return {t: [s[k] for k in STARTER_SLOTS] for t, s in slots.items() if all(k in s for k in STARTER_SLOTS)}, None
+    except Exception as e:
+        return {}, str(e)
+
+
 # ---------------------------------------------------------------- quick look
 
 def _summary(season=None):
