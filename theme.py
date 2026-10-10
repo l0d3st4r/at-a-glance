@@ -208,6 +208,12 @@ MENU_CSS = SWITCH_CSS + """
   display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .2s cubic-bezier(.22,1,.36,1)}
 .mnu-x:hover{transform:scale(1.09)}
 .mnu-x:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px;border-radius:50%}
+/* No focus ring after a tap (Jason, 2026-10-10): opening the menu moves focus to its first page, and
+   closing it moves focus back to the three lines -- on an iPhone, where a tap doesn't focus the
+   button first, the browser took that for keyboard use and ringed them in white. .mnu-tap marks a menu
+   opened (or closed) by a tap or click; the keyboard -- Enter on the button, Tab, Escape -- keeps
+   its rings. */
+.mnu.mnu-tap :focus-visible,.menu-btn.mnu-tap:focus-visible{outline:none}
 """
 
 MENU_PAGES = (("games", "Games", "index.html"), ("standings", "Standings", "standings.html"),
@@ -224,7 +230,7 @@ MENU_SECTIONS = (
 # (the files also carried a few off-canvas shapes) -- and for Stat Leaders the Leaders crown
 # (render_page1.CROWN_SHAPES) drawn as an outline, between two smaller filled crowns peeking out from
 # behind it. A thin gap (the mask) keeps the small crowns off the big one's outline. The NBA's Standings and
-# Stat Leaders use the same two (2026-10-08); its Games has none yet.
+# Stat Leaders use the same two (2026-10-08); its Games has its own (below).
 _CROWN = "M1.38 11.8 1 3.5l5.2 4.2L10 1l3.8 6.7L19 3.5l-.38 8.3z"
 _CROWN_PILL = '<rect x="1.4" y="13" width="17.2" height="2.3" rx="1.15"/>'
 
@@ -380,6 +386,50 @@ MENU_ICONS = {
     ),
     "leaders": _crowns("mnu-crowns"),
 }
+# The NBA's Games (Jason, 2026-10-10): his basketball between two hands -- only the paths on the
+# drawing's canvas (the file carried twelve more off it; one more was a copy under the left hand),
+# cropped to their bounds (getBBox()), coordinates rounded (a unit is a hundredth of a pixel here).
+MENU_ICONS["nba-games"] = (
+    '<svg viewBox="-1461 -1577 2741 3258" fill="currentColor" aria-hidden="true"><path d="M-233,1441 C-251,1395 '
+    '-268,1346 -289,1300 C-367,1120 -401,699 -383,550 C-371,450 -363,466 -342,397 C-340,390 -338,383 -335,374 '
+    'C-413,348 -487,312 -556,269 C-567,300 -583,316 -604,306 C-610,301 -619,268 -630,217 C-743,132 -837,24 -907,-100 '
+    'C-880,118 -851,356 -844,384 C-834,426 -983,97 -1042,-86 C-1101,-269 -1145,-382 -1226,-369 C-1293,-358 '
+    '-1236,-194 -1125,256 C-1099,364 -995,613 -1065,619 C-1087,633 -1188,402 -1246,266 C-1303,129 -1303,129 -1346,27 '
+    'C-1399,-98 -1486,-29 -1454,113 C-1337,534 -1244,732 -1140,954 C-912,1441 -823,1620 -734,1585 C-469,1482 '
+    '-433,1429 -233,1441 Z"/><path d="M-313,300 C-289,225 -253,139 -201,125 C-141,108 -73,150 -29,230 L-29,-1120 '
+    'C-85,-1119 -141,-1114 -197,-1103 C-193,-1081 -191,-1057 -192,-1034 C-194,-971 -208,-921 -233,-877 C-235,-872 '
+    '-238,-867 -241,-863 L-241,-863 C-293,-779 -376,-720 -458,-645 L-458,-645 C-559,-551 -668,-356 -674,-132 '
+    'C-675,-34 -659,53 -646,104 C-550,190 -438,258 -313,300 L-313,300 Z M613,-500 C575,-575 529,-636 484,-678 '
+    'L484,-678 C402,-752 319,-812 267,-895 L267,-895 C264,-900 261,-905 259,-909 C235,-953 221,-1004 218,-1066 '
+    'C218,-1075 218,-1085 218,-1094 C156,-1109 93,-1117 30,-1120 L30,233 C32,226 35,217 38,204 C48,158 102,-156 '
+    '137,-287 C202,-528 336,-576 422,-549 C575,-501 516,-407 514,-355 C514,-324 506,-307 535,-399 C549,-445 578,-479 '
+    '613,-500 L613,-500 Z M934,-363 C953,-440 964,-520 964,-604 C747,-851 520,-1006 285,-1076 C286,-1073 286,-1069 '
+    '286,-1066 L286,-1066 C286,-1063 286,-1060 287,-1057 C291,-1014 304,-970 327,-930 L327,-930 C374,-849 453,-784 '
+    '526,-714 L526,-714 C578,-661 627,-596 666,-521 C761,-544 867,-489 854,-355 C841,-216 842,-232 831,-186 '
+    'C828,-184 864,-300 934,-363 L934,-363 Z M-29,-1576 C-244,-1570 -442,-1493 -599,-1368 C-546,-1362 -446,-1345 '
+    '-359,-1308 L-359,-1308 C-291,-1285 -243,-1234 -216,-1171 C-154,-1183 -91,-1189 -29,-1191 L-29,-1576 L-29,-1576 '
+    'Z M568,-1392 C416,-1503 231,-1570 30,-1576 L30,-1190 C97,-1188 163,-1180 229,-1166 C251,-1246 304,-1313 '
+    '385,-1340 L385,-1340 C447,-1367 515,-1383 568,-1392 Z M-657,-1318 C-809,-1177 -915,-987 -951,-773 C-736,-972 '
+    '-509,-1100 -281,-1157 C-302,-1202 -337,-1239 -387,-1258 L-387,-1258 C-516,-1305 -627,-1320 -657,-1318 Z '
+    'M-963,-649 C-964,-637 -964,-624 -964,-612 C-964,-366 -872,-142 -721,28 C-726,-11 -730,-57 -729,-104 C-738,-339 '
+    '-631,-549 -500,-682 L-500,-682 C-427,-752 -348,-816 -301,-897 L-301,-897 C-278,-938 -264,-982 -260,-1025 '
+    'C-260,-1028 -260,-1031 -260,-1034 L-260,-1034 C-259,-1052 -259,-1071 -262,-1089 C-501,-1029 -739,-882 -963,-649 '
+    'L-963,-649 Z M957,-737 C926,-980 804,-1195 627,-1346 C575,-1339 498,-1322 413,-1290 L413,-1291 C349,-1266 '
+    '309,-1213 293,-1150 C524,-1087 748,-949 957,-737 Z"/><path d="M54,487 C61,463 76,374 122,204 C167,34 192,-147 '
+    '227,-278 C292,-519 369,-463 404,-450 C463,-430 383,-42 372,204 C366,329 357,399 404,377 C429,353 522,-179 '
+    '624,-401 C668,-497 797,-445 786,-353 C768,-214 673,428 662,475 C652,517 778,180 838,-3 C897,-186 962,-314 '
+    '1043,-300 C1111,-290 1054,-104 943,346 C917,455 813,703 883,710 C905,724 1006,493 1064,356 C1121,220 1122,219 '
+    '1164,118 C1217,-7 1304,61 1272,204 C1155,625 1062,823 958,1045 C730,1532 641,1710 552,1676 C276,1568 249,1515 '
+    '24,1534 C-131,1547 -137,1369 -215,1189 C-294,1009 -303,686 -285,537 C-272,437 -255,445 -234,377 C-214,308 '
+    '-218,242 -177,220 C-147,203 -36,306 -42,455 C-48,605 -42,727 -42,727 C-42,727 -17,667 54,487 Z M137,550 C66,730 '
+    '-73,905 -73,905 C-73,905 -145,668 -130,537 C-114,407 -139,360 -152,369 C-162,376 -171,435 -177,455 C-184,476 '
+    '-185,471 -196,550 C-226,778 -146,1097 -105,1203 C-65,1310 -8,1428 47,1421 C223,1398 230,1469 516,1551 C565,1565 '
+    '624,1520 853,1033 C905,922 997,798 1043,693 C1090,587 1103,537 1172,318 C1233,132 1207,139 1142,309 C1103,412 '
+    '1101,401 1043,537 C986,674 898,886 825,836 C740,769 835,438 866,331 C955,21 1004,-115 983,-122 C948,-133 '
+    '819,302 803,343 C787,383 703,575 676,609 C663,625 594,680 583,589 C569,480 587,502 600,331 C613,159 685,-193 '
+    '692,-243 C704,-335 683,-345 654,-243 C585,7 452,489 422,515 C321,598 272,345 286,221 C314,-21 361,-314 333,-323 '
+    'C312,-330 302,-223 286,-146 C258,-13 257,51 216,221 C175,391 144,526 137,550 Z"/></svg>'
+)
 MENU_ICONS["nba-standings"] = MENU_ICONS["standings"]
 MENU_ICONS["nba-leaders"] = _crowns("mnu-crowns-nba")
 
@@ -443,25 +493,29 @@ THEME_JS = r"""
       // touches on the pane stay on the pane (no swiping the weeks or pulling to refresh underneath)
       ['touchstart', 'touchmove'].forEach(function (k) { pane.addEventListener(k, function (e) { e.stopPropagation(); }, { passive: true }); });
       btn._mnu = pane;
+      btn.addEventListener('blur', function () { btn.classList.remove('mnu-tap'); });
     }
     return btn._mnu;
   }
-  function openMenu(btn) {
+  // ptr: opened / closed by a tap or click (a click's detail counts its presses; Enter or Space on a
+  // button clicks with 0) -- no focus rings then (MENU_CSS's .mnu-tap; Page 0's .ptr is its pull-to-refresh)
+  function openMenu(btn, ptr) {
     var pane = paneFor(btn);
     void pane.offsetWidth;   // a fresh frame, so the roll-up plays the first time too
+    pane.classList.toggle('mnu-tap', !!ptr);
     pane.classList.add('open'); btn.setAttribute('aria-expanded', 'true');
     open = { pane: pane, btn: btn };
     var first = pane.querySelector('a[aria-current]') || pane.querySelector('a');
     if (first) first.focus({ preventScroll: true });
   }
-  function closeMenu(refocus) {
+  function closeMenu(refocus, ptr) {
     if (!open) return;
     open.pane.classList.remove('open'); open.btn.setAttribute('aria-expanded', 'false');
-    if (refocus) open.btn.focus({ preventScroll: true });
+    if (refocus) { open.btn.classList.toggle('mnu-tap', !!ptr); open.btn.focus({ preventScroll: true }); }
     open = null;
   }
   document.addEventListener('click', function (e) {
-    var path = e.composedPath ? e.composedPath() : [e.target];
+    var path = e.composedPath ? e.composedPath() : [e.target], ptr = e.detail > 0;
     for (var i = 0; i < path.length && path[i] !== document; i++) {
       var cl = path[i].classList;
       if (!cl) continue;
@@ -470,22 +524,24 @@ THEME_JS = r"""
         e.preventDefault(); e.stopPropagation();
         var t = path[i].getAttribute('data-pick');
         if (t !== current()) choose(t);
-        closeMenu(true);
+        closeMenu(true, ptr);
         return;
       }
       if (cl.contains('menu-btn')) {
         e.preventDefault(); e.stopPropagation();
-        if (open && open.btn === path[i]) closeMenu(true); else { closeMenu(); openMenu(path[i]); }
+        if (open && open.btn === path[i]) closeMenu(true, ptr); else { closeMenu(); openMenu(path[i], ptr); }
         return;
       }
-      if (cl.contains('mnu-x')) { e.preventDefault(); e.stopPropagation(); closeMenu(true); return; }
+      if (cl.contains('mnu-x')) { e.preventDefault(); e.stopPropagation(); closeMenu(true, ptr); return; }
       if (path[i].tagName === 'A' && open && open.pane.contains(path[i])) return;   // a page: follow it
-      if (cl.contains('mnu')) { e.preventDefault(); e.stopPropagation(); closeMenu(true); return; }   // the pane's empty space
+      if (cl.contains('mnu')) { e.preventDefault(); e.stopPropagation(); closeMenu(true, ptr); return; }   // the pane's empty space
     }
   }, true);
-  // Escape closes the menu -- and only the menu, if it's open (Page 1 uses Escape too)
+  // Escape closes the menu -- and only the menu, if it's open (Page 1 uses Escape too); Tab in a
+  // tapped-open menu brings its focus rings back
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && open) { e.stopPropagation(); closeMenu(true); }
+    else if (e.key === 'Tab' && open) open.pane.classList.remove('mnu-tap');
   }, true);
   if (mq.addEventListener) mq.addEventListener('change', sync); else if (mq.addListener) mq.addListener(sync);
   window.AAG_THEME = { sync: sync };
