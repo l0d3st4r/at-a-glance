@@ -1620,6 +1620,147 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     var key = i > -1 ? DETAIL_KEYS[i + dir] : null;
     return key && details[key] ? details[key] : null;
   }
+  // The top bar follows the swipe (Jason, 2026-10-09). Game Info and Player Stats show the matchup;
+  // a team page shows that team's helmet (in the same spot as in the matchup), name, record and the
+  // opponent faded at the far side. Swiping onto a team page, its name and record slide out from
+  // behind its helmet while the rest of the matchup -- its abbreviation, the "@" and date, the other
+  // team -- slides away toward the far side and fades; from one team page to the other, the first
+  // team's name tucks back into its helmet and the helmet slides away as the other team's comes in
+  // and its name slides out. Every piece is placed from how far the pages have moved (p, 0 to 1), so
+  // it tracks the finger both ways, then finishes or springs back on the pages' own timing.
+  function barSide(key) { return key === 'away-team' ? 'away' : key === 'home-team' ? 'home' : null; }
+  function cl01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
+  function part(p, a, b) { return cl01((p - a) / (b - a)); }
+  function eased(t) { return 1 - (1 - t) * (1 - t); }
+  function bezier(x1, y1, x2, y2) {   // a CSS cubic-bezier(), so the bar keeps time with the pages' EASE
+    function at(a, b, t) { return ((1 - 3 * b + 3 * a) * t + (3 * b - 6 * a)) * t * t + 3 * a * t; }
+    return function (x) {
+      var lo = 0, hi = 1, t = x;
+      for (var i = 0; i < 24; i++) { t = (lo + hi) / 2; if (at(x1, x2, t) < x) lo = t; else hi = t; }
+      return at(y1, y2, t);
+    };
+  }
+  var EASE_FN = bezier(.22, 1, .36, 1);
+  function barMorph(fromKey, toKey) {
+    var a = barSide(fromKey), b = barSide(toKey);
+    if (a === b) return null;   // Game Info <-> Player Stats never meet; nothing to do
+    var bar = root.querySelector('.bar .bar-in'), row = bar && bar.querySelector('.teams');
+    if (!bar || !row) return null;
+    wrap.setAttribute('data-barmorph', '');   // every layer shows; this sets each piece's look
+    var W = bar.clientWidth || innerWidth, touched = [];
+    function head(w) {
+      var h = bar.querySelector('.tp-' + w);
+      return h && { el: h, img: h.querySelector('img'), name: h.querySelector('.tp-name'), rec: h.querySelector('.tp-rec'), opp: h.querySelector('.tp-opp') };
+    }
+    function side(w) { return row.querySelector('.side.' + w); }
+    // every piece measured once, where it sits at rest, before anything moves
+    var rects = new Map();
+    function rect(el) { if (!rects.has(el)) rects.set(el, el.getBoundingClientRect()); return rects.get(el); }
+    ['away', 'home'].forEach(function (w) {
+      var hd = head(w), sd = side(w);
+      if (hd) [hd.img, hd.name, hd.rec].forEach(function (el) { if (el) rect(el); });
+      if (sd && sd.querySelector('img')) rect(sd.querySelector('img'));
+    });
+    function look(el, x, o, clip) {
+      if (!el) return;
+      if (touched.indexOf(el) < 0) touched.push(el);
+      el.style.transform = x ? 'translateX(' + x + 'px)' : '';
+      el.style.opacity = o >= 1 ? '' : String(cl01(o));
+      el.style.clipPath = clip || '';
+      el.style.webkitClipPath = clip || '';
+    }
+    // a team's name and record, e of the way out of its helmet (0 tucked in, 1 in place): a front runs
+    // outward from the helmet's edge uncovering them, name first and then record, while they slide the
+    // last bit of the way into place. hx: how far the helmet itself has moved; they ride along with it
+    function extend(hd, w, e, hx) {
+      if (!hd || !hd.img) return;
+      var hr = rect(hd.img), els = [hd.name, hd.rec].filter(Boolean);
+      if (!els.length) return;
+      var away = w === 'away', edge = away ? hr.right : hr.left;
+      var far = away ? Math.max.apply(null, els.map(function (el) { return rect(el).right; }))
+                     : Math.min.apply(null, els.map(function (el) { return rect(el).left; }));
+      var tx = (1 - e) * (edge - far) * .22, front = edge + (far - edge) * e;   // the front, in the bar
+      if (hx) { tx += hx; edge += hx; front += hx; }
+      if (e < .01) { els.forEach(function (el) { look(el, tx, 0); }); return; }
+      els.forEach(function (el) {
+        var r = rect(el), l = r.left + tx, rr = r.right + tx, cut;
+        if (away) { cut = [Math.max(0, edge - l), Math.max(0, rr - front)]; }
+        else { cut = [Math.max(0, front - l), Math.max(0, rr - edge)]; }
+        if (cut[0] + cut[1] >= r.width - .5) { look(el, tx, 0); return; }
+        look(el, tx, 1, cut[0] > .5 || cut[1] > .5 ? 'inset(-4px ' + cut[1] + 'px -4px ' + cut[0] + 'px)' : '');
+      });
+    }
+    // the same helmet in the matchup and in its team's header: one stands in for the other
+    function sameSpot(x, y) { var r = rect(x), s = rect(y); return Math.abs(r.left - s.left) < 1.5 && Math.abs(r.top - s.top) < 1.5 && Math.abs(r.width - s.width) < 1.5; }
+    // the matchup, giving way to team w's page: q is how far (0 the matchup, 1 the team page)
+    function matchToTeam(w, q) {
+      var hd = head(w), s = w === 'away' ? 1 : -1, mine = side(w), theirs = side(w === 'away' ? 'home' : 'away');
+      var other = w === 'away' ? 'home' : 'away', hO = head(other);
+      if (hO) look(hO.el, 0, 0);
+      var rowImg = mine && mine.querySelector('img');
+      if (rowImg && hd && hd.img && sameSpot(rowImg, hd.img)) { look(rowImg, 0, q > 0 ? 0 : 1); look(hd.img, 0, q > 0 ? 1 : 0); }
+      else { look(rowImg, 0, 1 - q); if (hd) look(hd.img, 0, q); }
+      if (mine) [].slice.call(mine.children).forEach(function (el) { if (el !== rowImg) look(el, s * q * 14, 1 - part(q, 0, .22)); });
+      var slide = s * W * .35 * eased(q), fade = 1 - part(q, 0, .7);
+      look(row.querySelector('.mid'), slide, fade);
+      look(theirs, slide, fade);
+      if (hd) { look(hd.el, 0, 1); extend(hd, w, eased(part(q, .15, 1))); look(hd.opp, s * (1 - part(q, .35, 1)) * 24, part(q, .35, 1)); }
+    }
+    // from team w's page to the other team's: q is how far
+    function teamToTeam(w, q) {
+      var v = w === 'away' ? 'home' : 'away', from = head(w), to = head(v), sw = w === 'away' ? -1 : 1;
+      look(row, 0, 0);
+      // the first team's name tucks into its helmet, then the helmet slides away; the other helmet
+      // slides in meanwhile, and once it's nearly in place its name comes out
+      if (from) {
+        var fx = sw * W * .3 * eased(part(q, .3, 1));
+        look(from.el, 0, 1);
+        look(from.img, fx, 1 - part(q, .35, .9));
+        extend(from, w, 1 - eased(part(q, 0, .45)), fx);
+        look(from.opp, 0, 1 - part(q, 0, .35));
+      }
+      if (to) {
+        var tx2 = -sw * W * .3 * (1 - eased(part(q, 0, .7)));
+        look(to.el, 0, 1);
+        look(to.img, tx2, part(q, .1, .65));
+        extend(to, v, eased(part(q, .5, 1)), tx2);
+        look(to.opp, 0, part(q, .65, 1));
+      }
+    }
+    function set(p) {
+      p = cl01(p);
+      if (!a) matchToTeam(b, p);
+      else if (!b) matchToTeam(a, 1 - p);
+      else teamToTeam(a, p);
+    }
+    var raf = 0;
+    function clear() {
+      cancelAnimationFrame(raf);
+      touched.forEach(function (el) { el.style.transform = el.style.opacity = el.style.clipPath = el.style.webkitClipPath = ''; });
+      wrap.removeAttribute('data-barmorph');
+    }
+    var now = 0;
+    return {
+      set: function (p) { now = cl01(p); set(now); },
+      // carry on to `to` (1 the new page, 0 back) over `ms`, on the pages' easing; then() once there
+      run: function (to, ms) {
+        var p0 = now, t0 = performance.now(), over = false;
+        return new Promise(function (res) {
+          function done() { if (over) return; over = true; cancelAnimationFrame(raf); now = to; set(to); res(); }
+          (function step(t) {
+            if (over) return;
+            var k = cl01((t - t0) / ms);
+            now = p0 + (to - p0) * EASE_FN(k); set(now);
+            if (k < 1) raf = requestAnimationFrame(step); else done();
+          })(t0);
+          setTimeout(done, ms + 80);   // frames can stop (the phone locks, the app's put away): it still lands
+        });
+      },
+      end: clear
+    };
+  }
+  var barMo = null;   // the bar's part in the swipe under way
+
   on(wrap, 'touchstart', function (e) {
     // a sideways swipe on a Player Stats table that's wider than its card scrolls the table instead
     var tw = e.target && e.target.closest && e.target.closest('.ps-tw');
@@ -1645,14 +1786,17 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
     cur.el.style.transform = 'translateX(' + s.dx + 'px)';
     if (nb !== s.neighbor) {
       if (s.neighbor) { s.neighbor.el.style.display = ''; s.neighbor.el.style.transform = ''; s.neighbor.el.classList.remove('p2-force-l'); }
+      if (barMo) { barMo.end(); barMo = null; }
       if (nb) {
         rememberCard(cur);
         if (!large() && !nb.cond.length) nb.el.classList.add('p2-force-l');   // a team page, from a condensed one
         nb.el.style.display = 'block'; detailPlace(nb, recalledCard(nb));
+        barMo = barMorph(cur.key, nb.key);
       }
       s.neighbor = nb;
     }
     if (nb) nb.el.style.transform = 'translateX(' + (dir * w + s.dx) + 'px)';
+    if (barMo) barMo.set(Math.abs(s.dx) / w);
   }, { passive: false });
   function endDetailSwipe(e) {
     var s = detailSwipe;
@@ -1667,7 +1811,8 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
                                     { duration: 220, easing: EASE, fill: 'forwards' });
       var inAnim = nb.el.animate([{ transform: 'translateX(' + (dir * w + s.dx) + 'px)' }, { transform: 'translateX(0)' }],
                                   { duration: 220, easing: EASE, fill: 'forwards' });
-      Promise.all([fin(outAnim), fin(inAnim)]).then(function () {
+      var mo = barMo; barMo = null;
+      Promise.all([fin(outAnim), fin(inAnim), mo ? mo.run(1, 220) : null]).then(function () {
         cur.el.style.transform = ''; cur.el.style.display = '';
         nb.el.style.transform = ''; nb.el.style.display = '';
         if (nb.el.classList.contains('p2-force-l')) {   // landed on a team page: the expanded view from here, as openDetail does
@@ -1676,11 +1821,13 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
           setHead('bar');
         }
         wrap.setAttribute('data-detail', nb.key);
+        if (mo) mo.end();   // the bar's own look for the new page takes over exactly where the morph left it
         history.replaceState(Object.assign({}, history.state, { p2: nb.key }), '', (hashBase() || '#') + nb.hash);
         detailBusy = false;
       });
       return;
     }
+    if (barMo) { var mb = barMo; barMo = null; mb.run(0, 180).then(function () { mb.end(); }); }
     var back1 = cur.el.animate([{ transform: 'translateX(' + s.dx + 'px)' }, { transform: 'translateX(0)' }], { duration: 180, easing: EASE });
     cur.el.style.transform = '';
     fin(back1);

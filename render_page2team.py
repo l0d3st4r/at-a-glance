@@ -691,6 +691,10 @@ P3_CSS = r"""
 .p1[data-detail="away-team"] .bar .teams,.p1[data-detail="home-team"] .bar .teams{visibility:hidden}
 .p1[data-detail="away-team"] .bar .tp-away,.p1[data-detail="home-team"] .bar .tp-home{display:flex}
 .bar-in{position:relative}
+/* while a swipe between the Page 2 details moves the bar (P1_JS barMorph), every layer of it shows and
+   the script sets each piece's place and opacity */
+.p1[data-barmorph][data-head][data-view] .bar .teams{visibility:visible}
+.p1[data-barmorph] .bar .tp-head{display:flex}
 /* the helmet matches Game Info's bar in size and place (Jason, 2026-10-07): P1_JS's syncTeamHeads
    measures that bar and sets these; the fallbacks are an upcoming game's (2.4 x 17px, 16px in) */
 .tp-head{position:absolute;inset:0;align-items:center;gap:10px;padding:0 16px 0 var(--tp-inset,16px)}
