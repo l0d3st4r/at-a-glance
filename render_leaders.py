@@ -26,8 +26,8 @@ Each stat:
     a second team color
   * the ranked list -- place (the chart's five underlined in their line's color), the team pill, the
     full name and position (Jason, 2026-10-07), the number, a faint bar behind the row as long as the number (from zero) so the gaps show,
-    and the rest of the player's stat line in small type under the name (wrapping whole stats at a
-    time, balanced, when it's long). It scrolls inside the card and grows with "Show 10 more" (to each
+    and the rest of the player's stat line in small type under the name and the number, always on one
+    line, one size down the whole list (Jason, 2026-10-10). It scrolls inside the card and grows with "Show 10 more" (to each
     stat's top 100), then "Show fewer"
 
 CONDENSED -- every stat on one screen, a row of tiles a category under its icon and name (picked as
@@ -369,25 +369,36 @@ button{font:inherit;color:inherit}
 .tpill{display:inline-flex;align-items:center;justify-content:center;height:18px;min-width:44px;padding:0 5px;border-radius:999px;
   border:2px solid transparent;color:var(--pl);font-size:10px;white-space:nowrap;
   background:linear-gradient(var(--pf1),var(--pf2)) padding-box,linear-gradient(var(--pr1),var(--pr2)) border-box}
-.list li{position:relative;display:grid;grid-template-columns:20px 44px minmax(0,1fr) 54px;gap:6px;align-items:center;
-  padding:5px 4px;border-bottom:1px solid var(--line-soft)}
+/* Two lines a row (Jason, 2026-10-10): the name and the number on the first, the rest of the stat line
+   on the second, running from under the name to the row's end -- under the number too -- so it always
+   fits on one line. The place and the pill sit centered beside both. */
+.list li{position:relative;display:grid;grid-template-columns:20px 44px minmax(0,1fr) 54px;grid-template-rows:auto auto;
+  column-gap:6px;row-gap:1px;align-items:center;padding:5px 4px;border-bottom:1px solid var(--line-soft)}
+.list li>.pl,.list li>.tpill{grid-row:1/3}
+.list .who{display:contents}
 .list li:last-child{border-bottom:0}
 .list .fill{position:absolute;left:var(--lead);top:3px;bottom:3px;background:var(--aag-tile-hover);border-radius:0 4px 4px 0;z-index:0}
 .list li>*:not(.fill){position:relative;z-index:1}
 .pl{font-size:11px;font-weight:700;color:var(--text-3);text-align:right;font-variant-numeric:tabular-nums}
 .pk{display:inline-block;padding-bottom:1px;border-bottom:3px solid transparent}
 .pk.tl{border-color:var(--c)}
-.who{min-width:0}
 .nm{display:block;font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.list .nm{grid-column:3;grid-row:1;align-self:end;min-width:0}
+.list :is(.nm,.ln2){position:relative;z-index:1}   /* over the bar, like the row's other parts */
 /* the player's position after his name (Jason, 2026-10-07) */
 .nm .pos{font-size:10px;font-weight:700;letter-spacing:.04em;color:var(--text-3);margin-left:5px}
-/* the rest of the stat line wraps to a second line rather than losing its end -- whole stats at a
-   time, the two lines balanced */
-.ln2{display:block;font-size:10px;line-height:1.3;color:var(--text-3);font-variant-numeric:tabular-nums;text-wrap:balance}
-.ln2 .it{white-space:nowrap}
-.ln2 b{font-weight:700;color:var(--text-2)}
-/* the stat being ranked, a size up from the rest of the row (Jason, 2026-10-07; was 14px) */
-.v{font-variant-numeric:tabular-nums;font-weight:700;text-align:right;font-size:17px}
+/* the rest of the stat line: always one line, the same size on every row of a list (Jason, 2026-10-10;
+   it used to wrap a stat at a time, so one row's fit and the next one's didn't). 10px, unless the
+   stat's longest line -- over all its rows, not just those showing -- needs less: then the page's
+   script (fitLines) sets a smaller --ln2 on the list, for every row alike -- down to 7.5px, which only
+   the iPhone SE (1st gen) ever needs: 7.9px for a late-season Passing TDs list. Its digits
+   proportional, which takes less room than tabular ones in running text. */
+.list .ln2{display:block;grid-column:3/5;grid-row:2;align-self:start;min-width:0;font-size:var(--ln2,10px);line-height:1.3;
+  color:var(--text-3);font-variant-numeric:proportional-nums;white-space:nowrap;overflow:hidden}
+.list .ln2 b{font-weight:700;color:var(--text-2)}
+/* the stat being ranked, a size up from the rest of the row (Jason, 2026-10-07; was 14px), on the
+   name's line */
+.list .v{grid-column:4;grid-row:1;align-self:end;line-height:1;font-variant-numeric:tabular-nums;font-weight:700;text-align:right;font-size:17px}
 .more-row{display:flex;justify-content:center;align-items:center;gap:10px;padding:8px 0 4px}
 .more{background:none;border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer}
 .more:focus-visible{outline:2px solid var(--aag-focus);outline-offset:2px}
@@ -555,6 +566,23 @@ JS = r"""
     // averages have no race chart -- their list gets the whole card
     el.innerHTML = '<div class="qual">' + (s.qual || '') + '</div>' + (race ? chart(s) : '') + '<div class="list">' + list(s) + '</div>';
     if (race) hook(el.querySelector('.race'));
+    fitLines(el);
+  }
+  // each row's stat line on one line, the same size down the whole list (Jason, 2026-10-10): 10px, or
+  // smaller (to 7.5px) if the stat's longest line -- over all its rows, so "Show 10 more" never changes
+  // it -- needs more room than a row has. Measured at 10px in one hidden block, one line a row.
+  function fitLines(el) {
+    var s = S[el.getAttribute('data-stat')], l = el.querySelector('.list'), ln = l && l.querySelector('.ln2');
+    if (!ln) return;
+    l.style.removeProperty('--ln2');
+    var room = ln.clientWidth, probe = document.createElement('div');
+    if (!room) return;
+    probe.style.cssText = 'position:absolute;visibility:hidden;width:max-content';
+    probe.innerHTML = s.rows.map(function (r) { return '<span class="ln2" style="display:block">' + line2(s, r) + '</span>'; }).join('');
+    ln.parentNode.appendChild(probe);
+    var need = probe.offsetWidth;
+    probe.remove();
+    if (need > room) l.style.setProperty('--ln2', Math.max(7.5, Math.floor(100 * room / need) / 10) + 'px');
   }
   // flip every chart between Total and Behind (only the charts redraw -- the lists keep their place)
   function setMode(m) {
@@ -672,6 +700,6 @@ JS = r"""
   setActive(start); go(start, false);
   if (h[1]) { var tr0 = slots[start].querySelector('.strack'); tr0.scrollLeft = +h[1] * tr0.clientWidth; tabsFollow(slots[start].querySelector('.card')); }
   if (h[0] === 'condensed') setView('condensed');
-  window.addEventListener('resize', function () { go(active, false); });
+  window.addEventListener('resize', function () { go(active, false); document.querySelectorAll('.stat').forEach(fitLines); });
 })();
 """
