@@ -826,7 +826,7 @@ def render_p1_block(d, prefix="../"):
              ("away-team", loc(a), "team", l_team(away, final)),
              ("home-team", loc(h), "team", l_team(home, final))]
     if mu_body:
-        cards.append(("matchup", "Matchup", "matchup", mu_body))
+        cards.append(("matchup", "Matchups", "matchup", mu_body))   # "Matchups" (Jason, 2026-10-10)
     cards.append(("leaders", leaders_name, "compare", cmp_head + rows))
     slots = "".join(
         f'<section class="slot"><a class="card {kind}" tabindex="-1" data-detail="{cid}" aria-label="{esc(name)}">'

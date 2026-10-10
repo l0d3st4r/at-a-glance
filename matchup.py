@@ -1,5 +1,5 @@
 """
-Page 1's Matchup card (Jason, 2026-10-10; worked out in mockups/build_matchup_edges_mockup.py): each
+Page 1's Matchup card, titled "Matchups" (Jason, 2026-10-10; worked out in mockups/build_matchup_edges_mockup.py): each
 team's offense against the other's defense, position by position, from the season to date -- a card
 of its own in the deck, after the two team cards and before Leaders. Games not yet played only: the
 defense numbers are the season so far, so on a finished game they'd count that game too.
@@ -20,7 +20,8 @@ Two views behind a Chart | Numbers switch under the title; it opens on the chart
 (Jason, 2026-10-10):
   Chart     a slim row a position: 32, its name, 1 -- over a 32-to-1 track with the offense's O and
             the defense's X on it, as on a play diagram, and the stretch between them in the favored
-            team's color (gray when even). No numbers.
+            team's color (gray when even), each mark's rank under it. No numbers. Both at the same rank: one mark, the offense's
+            O with a small x in the defense's color inside it.
   Numbers   both numbers, both ranks and the edge: the favored team's pill, a short line when even.
 In each half (one team's offense against the other's defense) the biggest edge gets a bolt beside its
 name in the favored team's color, a tint and a bolder stretch, on both views -- no words. Nothing is
@@ -144,8 +145,22 @@ def card_data(lg, away, home):
 # the chart's marks, as on a play diagram: O the offense, X the defense (each in its team's color)
 O_MARK = ('<svg class="mu-xo" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="4.6" fill="var(--aag-tile)" '
           'stroke="currentColor" stroke-width="2.4"/></svg>')
-X_MARK = ('<svg class="mu-xo" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="6.5" fill="var(--aag-tile)"/>'
-          '<path d="M3.4 3.4l7.2 7.2M10.6 3.4l-7.2 7.2" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>')
+# The X's backing is an outline of the X itself, in the card's color, cutting it out of the track
+# (Jason, 2026-10-10: it was a disc, which read as a circle around the X)
+_X = "M3.4 3.4l7.2 7.2M10.6 3.4l-7.2 7.2"
+X_MARK = ('<svg class="mu-xo" viewBox="0 0 14 14" fill="none" stroke-linecap="round" aria-hidden="true">'
+          f'<path d="{_X}" stroke="var(--aag-tile)" stroke-width="5"/><path d="{_X}" stroke="currentColor" stroke-width="2.4"/></svg>')
+
+
+def tie_mark(oc, dc):
+    """Both teams at the same rank (Jason, 2026-10-10, option A of mockups/tie-marks.html): one mark,
+    the offense's O with a small x in the defense's color inside it -- a mark that only ever means a
+    tie (an O and an X a rank apart already sit half on top of each other)."""
+    return ('<svg class="mu-xo" viewBox="0 0 14 14" fill="none" stroke-linecap="round" aria-hidden="true">'
+            f'<g class="mu-c mu-half" style="{oc}"><circle cx="7" cy="7" r="5.2" fill="var(--aag-tile)" stroke="currentColor" stroke-width="2.4"/></g>'
+            f'<g class="mu-c mu-half" style="{dc}"><path d="M5.1 5.1l3.8 3.8M8.9 5.1l-3.8 3.8" stroke="currentColor" stroke-width="2"/></g></svg>')
+
+
 # each half's biggest edge
 BOLT = '<svg viewBox="0 0 12 16" aria-hidden="true"><path d="M7.4 0 0 9.2h4.6L3.6 16 12 6.4H7.3z" fill="currentColor"/></svg>'
 # the card's icon (its title and nav dot): Jason's clipboard drawing, Kickoff's before (Jason, 2026-10-10)
@@ -162,6 +177,21 @@ def _bolt(r, style):
     return f'<span class="mu-bolt mu-c" style="{style}" title="Biggest edge">{BOLT}</span>' if r["top"] else ""
 
 
+# Under each mark, its rank in its team's color (Jason, 2026-10-10: the ranks back on the chart, not the
+# numbers). Marks closer than this (percent of the track) push their ranks apart -- the left one's to
+# its left, the right one's to its right -- so the two never overlap; a tie has one, centered.
+RANK_CLOSE = 16
+
+
+def _rank_labels(po, pd, r, oc, dc):
+    if r["orr"] == r["drr"]:
+        return f'<span class="mu-rk" style="left:{po:.1f}%">{ordinal(r["orr"])}</span>'
+    close = abs(po - pd) < RANK_CLOSE
+    (lx, lr, lc), (rx, rr, rc) = sorted([(po, r["orr"], oc), (pd, r["drr"], dc)])
+    return (f'<span class="mu-rk mu-c{" mu-rk-l" if close else ""}" style="left:{lx:.1f}%;{lc}">{ordinal(lr)}</span>'
+            f'<span class="mu-rk mu-c{" mu-rk-r" if close else ""}" style="left:{rx:.1f}%;{rc}">{ordinal(rr)}</span>')
+
+
 def _chart(o, d, rows, oc, dc):
     px = lambda rank, n: (n - rank) / max(1, n - 1) * 100   # 1st at the right, the "better" end
     out = []
@@ -175,8 +205,10 @@ def _chart(o, d, rows, oc, dc):
             f'<div class="mu-tr-top"><span class="mu-tk">{r["n"]}</span><span class="mu-tr-l"><span class="mu-nm">{esc(r["name"])}'
             f'{_bolt(r, gap)}</span></span><span class="mu-tk">1</span></div>'
             f'<div class="mu-track"><i class="mu-gap mu-c" style="left:{min(po, pd):.1f}%;width:{abs(po - pd):.1f}%;{gap}"></i>'
-            f'<i class="mu-mk mu-c" style="left:{pd:.1f}%;{dc}">{X_MARK}</i>'
-            f'<i class="mu-mk mu-c" style="left:{po:.1f}%;{oc}">{O_MARK}</i></div></div>')
+            + (f'<i class="mu-mk" style="left:{po:.1f}%">{tie_mark(oc, dc)}</i>' if r["orr"] == r["drr"] else
+               f'<i class="mu-mk mu-c" style="left:{pd:.1f}%;{dc}">{X_MARK}</i>'
+               f'<i class="mu-mk mu-c" style="left:{po:.1f}%;{oc}">{O_MARK}</i>')
+            + _rank_labels(po, pd, r, oc, dc) + '</div></div>')
     return (f'<div class="mu-blk"><div class="mu-blk-h"><span>{helmets.pill_html(o)} offense <i class="mu-lg mu-c" style="{oc}">{O_MARK}</i></span>'
             f'<span class="mu-vs">vs</span><span>{helmets.pill_html(d)} defense <i class="mu-lg mu-c" style="{dc}">{X_MARK}</i></span></div>'
             f'{"".join(out)}</div>')
@@ -233,7 +265,8 @@ MATCHUP_CSS = """
 .mu-blk-h>span{display:inline-flex;align-items:center;gap:5px}
 .mu-vs{color:var(--aag-text-3);font-weight:400}
 .mu-lg{display:inline-block;width:12px;height:12px;color:var(--c)}
-.mu-xo{display:block;width:100%;height:100%}
+.mu-xo{display:block;width:100%;height:100%;overflow:visible}
+.mu-half{color:var(--c)}
 /* Chart: a slim row -- 32, the name, 1 -- over the track */
 .mu-tr{padding:5px 0 7px;border-top:1px solid var(--tile-border-soft)}
 .mu-tr-top{display:grid;grid-template-columns:20px 1fr 20px;align-items:baseline;margin:0 0 6px}
@@ -241,7 +274,12 @@ MATCHUP_CSS = """
 .mu-nm{position:relative;display:inline-block}
 .mu-tk{font-size:8.5px;font-weight:700;color:var(--aag-text-3)}
 .mu-tk:first-child{text-align:left}.mu-tk:last-child{text-align:right}
-.mu-track{position:relative;height:3px;margin:0 2px 4px;border-radius:2px;background:var(--tile-border)}
+.mu-track{position:relative;height:3px;margin:0 2px 15px;border-radius:2px;background:var(--tile-border)}
+/* each mark's rank under it, in its team's color; close marks push theirs apart */
+.mu-rk{position:absolute;top:9px;transform:translateX(-50%);font-size:9px;font-weight:700;line-height:1;white-space:nowrap;
+  color:var(--c,var(--text-2))}
+.mu-rk-l{transform:translateX(calc(-100% + 3px))}
+.mu-rk-r{transform:translateX(-3px)}
 .mu-gap{position:absolute;top:0;bottom:0;border-radius:2px;opacity:.6;background:var(--c)}
 .mu-mk{position:absolute;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;color:var(--c)}
 /* Numbers: name, offense, vs, defense, edge */
@@ -270,8 +308,10 @@ MATCHUP_CSS = """
   .mu-sub,.mu-er-l small{display:none}
   .mu-blk{margin-top:8px}
   .mu-blk+.mu-blk{margin-top:8px;padding-top:6px}
-  .mu-tr{padding:3px 0 4px}
+  .mu-tr{padding:3px 0 2px}
   .mu-tr-top{margin-bottom:4px}
+  .mu-track{margin-bottom:13px}
+  .mu-rk{top:8px}
   .mu-er{padding:4px 0;grid-template-columns:1fr 66px 10px 66px 50px}
   .mu-er-v{display:flex;justify-content:center;align-items:baseline;gap:4px}   /* "3.5 27th": the rank beside the number */
   .mu-er-v b{display:inline}
@@ -283,8 +323,10 @@ MATCHUP_CSS = """
   .mu-blk+.mu-blk{margin-top:5px;padding-top:4px}
   .mu-blk-h{margin-bottom:1px}
   .mu .tpill{height:16px;min-width:40px;font-size:9px}
-  .mu-tr{padding:1px 0 3px}
-  .mu-tr-top{margin-bottom:3px}
+  .mu-tr{padding:1px 0 0}
+  .mu-tr-top{margin-bottom:1px;line-height:1.1}
+  .mu-track{margin-bottom:9px}
+  .mu-rk{top:5px;font-size:8px}
   .mu-tr-l{font-size:11px}
   .mu-er-hd{display:none}
   .mu-er{padding:1px 0}
