@@ -42,6 +42,7 @@ Missing data never breaks the page: a team with nobody in a card reads "None thi
 import html
 
 import helmets
+from names import SUFFIXES, split_name   # the site's one way to split a name
 
 DASH = "—"
 
@@ -84,24 +85,6 @@ def _rating(r):
     parts = (clamp((r["cmp"] / att - 0.3) * 5), clamp((r["pyds"] / att - 3) * 0.25),
              clamp(r["ptd"] / att * 20), clamp(2.375 - r["int"] / att * 25))
     return f"{sum(parts) / 6 * 100:.1f}"
-
-
-SUFFIXES = {"jr", "jr.", "sr", "sr.", "ii", "iii", "iv", "v"}
-PARTICLES = {"st.", "st", "van", "von", "de", "del", "della", "da", "di", "du", "la", "le", "dos", "das"}
-
-
-def split_name(name):
-    """('J. Michael', 'Sturdivant'), ('Amon-Ra', 'St. Brown'), ('Ennis', 'Rakestraw Jr.'): the last name is the
-    final word, plus a suffix after it or a particle before it; everything ahead of that is the first name."""
-    words = (name or "").split()   # any whitespace, non-breaking included
-    if len(words) < 2:
-        return "", " ".join(words)
-    i = len(words) - 1
-    if words[i].lower() in SUFFIXES and i > 1:
-        i -= 1
-    if words[i - 1].lower() in PARTICLES and i > 1:
-        i -= 1
-    return " ".join(words[:i]), " ".join(words[i:])
 
 
 # the dot and its tag never part across a line break (only before the dot), 2026-10-07

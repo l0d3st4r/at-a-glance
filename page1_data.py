@@ -50,6 +50,7 @@ except Exception:  # pragma: no cover
     EASTERN = None
 
 import local_time
+import names
 from coaches import coaches_for
 from divisions import DIVISIONS, get_division, normalize_abbr
 from stadiums import STADIUMS, STATE_NAMES, NEUTRAL_VENUES
@@ -137,14 +138,9 @@ def _int_week(v):
 
 
 def short_name(full):
-    """'Jer'Zhan Newton' -> 'J. Newton', 'Marvin Harrison Jr.' -> 'M. Harrison Jr.'"""
-    parts = str(full or "").split()
-    if len(parts) < 2:
-        return str(full or "")
-    last = parts[-1]
-    if last.lower() in NAME_SUFFIXES and len(parts) >= 3:
-        last = f"{parts[-2]} {parts[-1]}"
-    return f"{parts[0][0]}. {last}"
+    """'Jer'Zhan Newton' -> 'J. Newton', 'Marvin Harrison Jr.' -> 'M. Harrison Jr.', 'Kyle Van Noy' ->
+    'K. Van Noy' (names.py: the last name keeps its "Van" / "St." -- 2026-10-10, it was 'K. Noy')."""
+    return names.short_name(str(full or ""))
 
 
 def _name_key(name):

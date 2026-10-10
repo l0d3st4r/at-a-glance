@@ -878,7 +878,7 @@ def render_players_block(d, stats, scope):
                      f'<span class="card-title">{ps._title(cid, title)}</span>{cpanes}</a>')
         counts.append(max(min(n_cond, len(stats.get(t) or [])) for t in teams))
     dots = "".join(f'<button class="dot" type="button" aria-label="{esc(t)}">{ps.PS_ICONS.get(c, "")}</button>' for c, t, *_ in PS_CARDS)
-    return ('<div class="p2 p2-ps" data-page="leaders" aria-label="Player stats" role="region">'
+    return ('<div class="p2 p2-ps ps-nba" data-page="leaders" aria-label="Player stats" role="region">'
             f'<div class="p2-view p2-l deck">{"".join(slots)}</div><nav class="dots p2-dots ic-dots" aria-label="Cards">{dots}</nav>'
             f'<div class="p2-view p2-c pc" style="grid-template-rows:{ps.condensed_rows(counts, tail="")}">'
             f'<div class="ps-sw pc-sw">{tabs}</div>{scope_lbl(" pc-scope")}{"".join(cards)}</div></div>')
@@ -1001,6 +1001,12 @@ EXTRA_CSS = """
 .p1 .game-bottom .city{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nba-div .st-row,.nba-div .st-headrow{grid-template-columns:22px 1fr 24px 24px 40px 32px}
 .fact b.nba-fact{font-size:22px}
+/* Player Stats' expanded tables: a wider name column than the NFL's (2026-10-10) -- "Antetokounmpo"
+   (94px; 87 on a phone 380px wide or less) and "Wembanyama" ran into the number and position beside
+   them in its 80px (73px). The NBA's tables have room: four to six short stats against Passing's
+   seven. Every NBA card still lines up with the others. */
+.ps-nba .p2-l .ps-t{--fnw:95px}
+@media (max-width:380px){.ps-nba .p2-l .ps-t{--fnw:88px}}
 """
 
 

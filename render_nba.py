@@ -38,6 +38,7 @@ from datetime import date
 
 import local_time
 import logo
+import names
 import nba_balls
 import nba_helmets
 import nba_stats
@@ -416,8 +417,7 @@ def leaders_data(data):
     def pid(r):
         if r["id"] not in index:
             index[r["id"]] = len(players)
-            first, last = render_page2players.split_name(r["name"])
-            players.append([f"{first[0]}. {last}" if first else last, r["name"], r["pos"], r["team"]])
+            players.append([names.short_name(r["name"]), r["name"], r["pos"], r["team"], names.bare_last(r["name"])])
         return index[r["id"]]
 
     stats = []

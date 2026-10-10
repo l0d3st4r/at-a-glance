@@ -61,6 +61,7 @@ from collections import defaultdict
 
 import helmets
 import logo
+import names
 import player_stats
 import team_line_colors
 import render_standings
@@ -140,9 +141,8 @@ CATS = [("passing", "Passing"), ("rushing", "Rushing"), ("receiving", "Receiving
 
 
 def short(name):
-    """"Bryce Young" -> "B. Young"."""
-    parts = (name or "").split()
-    return f"{parts[0][0]}. {' '.join(parts[1:])}" if len(parts) > 1 else (name or "")
+    """"Bryce Young" -> "B. Young", "Amon-Ra St. Brown" -> "A. St. Brown" (names.py)."""
+    return names.short_name(name)
 
 
 def _qual_text(qual):
@@ -176,7 +176,7 @@ def build(player_weeks):
         k = (r["team"], r["id"])
         if k not in index:
             index[k] = len(players)
-            players.append([short(r["name"]), r["name"], r["pos"], r["team"]])
+            players.append([short(r["name"]), r["name"], r["pos"], r["team"], names.bare_last(r["name"])])
         return index[k]
 
     stats = []
@@ -481,13 +481,13 @@ JS = r"""
   function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function num(t) { return parseFloat(String(t).replace(/,/g, '')) || 0; }
   function fmt(s, v) { return s.dec ? v.toFixed(1) : Math.round(v).toLocaleString(); }
-  // a line's end label: the last name, no Jr. / Sr. / II, short enough to stay inside the chart
-  function endName(nm) { return nm.split('. ').pop().replace(/\s+(Jr\.?|Sr\.?|II|III|IV|V)$/, '').slice(0, 10); }
 
   // a race line's team colors, light and dark (team_line_colors.py), as the custom properties .tl reads
   function tl(r) { var c = r[5]; return '--lc:' + c.lc + ';--lr:' + c.lr + ';--ld:' + c.ld + ';--dc:' + c.dc + ';--dr:' + c.dr + ';--dd:' + c.dd; }
   // ---- the race: the top 5's running totals, week by week
-  var W = 330, H = 150, PL = 30, PR = 62, PT = 8, PB = 18;
+  // PR: the strip for the end labels (Jason, 2026-10-10: 68 wide, was 54 -- "Schoonmaker" fits);
+  // PL: the left axis labels' room, or more for a stat whose labels need it (s.pl, fitChart)
+  var W = 330, H = 150, PL = 30, PR = 76, PT = 8, PB = 18, LH = 11;
   // Total | Behind (Jason, 2026-10-07): "behind" draws each line as his total minus that week's best total
   // among the five, so the leader rides the top line and the gaps keep their real size all season (on
   // an axis from zero they shrink to a sliver as the totals climb -- mockups/build_race_scale_mockup.py).
@@ -504,21 +504,21 @@ JS = r"""
     var top = s.rows.slice(0, 5), n = D.through, pts = plotted(s), lo = 0, hi = 0;
     pts.forEach(function (p) { p.forEach(function (v) { hi = Math.max(hi, v); lo = Math.min(lo, v); }); });
     if (mode === 'behind') { hi = 0; lo = lo || -1; } else { lo = 0; hi = hi || 1; }
-    var x = function (i) { return PL + (W - PL - PR) * i / Math.max(1, n - 1); },
+    var pl = s.pl || PL, x = function (i) { return pl + (W - pl - PR) * i / Math.max(1, n - 1); },
         y = function (v) { return PT + (H - PT - PB) * (1 - (v - lo) / (hi - lo)); };
     var g = [lo, (lo + hi) / 2, hi].map(function (t) {
-      var label = mode === 'behind' ? (t === 0 ? 'Leader' : signed(s, t)) : fmt(s, t);
-      return '<line class="gl" x1="' + PL + '" x2="' + (W - PR) + '" y1="' + y(t) + '" y2="' + y(t) + '"/><text class="ax" x="' + (PL - 6) + '" y="' + (y(t) + 3) + '" text-anchor="end">' + label + '</text>';
+      var label = mode === 'behind' ? (t === 0 ? 'Lead' : signed(s, t)) : fmt(s, t);   // "Lead": "Leader" was cut to "eader"
+      return '<line class="gl" x1="' + pl + '" x2="' + (W - PR) + '" y1="' + y(t) + '" y2="' + y(t) + '"/><text class="ax" x="' + (pl - 6) + '" y="' + (y(t) + 3) + '" text-anchor="end">' + label + '</text>';
     }).join('');
     for (var i = 0; i < n; i++) g += '<text class="ax" x="' + x(i) + '" y="' + (H - 4) + '" text-anchor="middle">Wk ' + (i + 1) + '</text>';
     // end labels nudged apart so they don't collide
     var ends = pts.map(function (p, i) { return [y(p[n - 1]), i]; }).sort(function (a, b) { return a[0] - b[0]; }), placed = {}, prev = -99;
-    ends.forEach(function (e) { var ly = Math.max(e[0], prev + 11); placed[e[1]] = ly; prev = ly; });
+    ends.forEach(function (e) { var ly = Math.max(e[0], prev + LH); placed[e[1]] = ly; prev = ly; });
     var lines = top.map(function (r, i) {
       var p = pts[i];
       return '<polyline class="ln tl" style="' + tl(r) + '" points="' + p.map(function (v, j) { return x(j) + ',' + y(v); }).join(' ') + '"/>'
         + '<circle class="dt tl" style="' + tl(r) + '" cx="' + x(n - 1) + '" cy="' + y(p[n - 1]) + '" r="4.5"/>'
-        + '<text class="lb" x="' + (x(n - 1) + 8) + '" y="' + (placed[i] + 3) + '">' + esc(endName(P[r[1]][0])) + '</text>';
+        + '<text class="lb" x="' + (x(n - 1) + 8) + '" y="' + (placed[i] + 3) + '" data-y="' + y(p[n - 1]) + '">' + esc(P[r[1]][4]) + '</text>';
     }).join('');
     var sw = '<div class="mode-sw" role="group" aria-label="Chart shows">'
       + ['total', 'behind'].map(function (m) { return '<button type="button" data-mode="' + m + '"' + (m === mode ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>' + (m === 'total' ? 'Total' : 'Behind') + '</button>'; }).join('') + '</div>';
@@ -530,7 +530,7 @@ JS = r"""
     var s = S[svg.getAttribute('data-stat')], top = s.rows.slice(0, 5), n = D.through, tip = svg.parentNode.querySelector('.tip'), xh = svg.querySelector('.xh');
     function show(ev) {
       var b = svg.getBoundingClientRect(), px = (ev.clientX - b.left) / b.width * W,
-          i = Math.max(0, Math.min(n - 1, Math.round((px - PL) / ((W - PL - PR) / Math.max(1, n - 1))))), x = PL + (W - PL - PR) * i / Math.max(1, n - 1);
+          pl = s.pl || PL, i = Math.max(0, Math.min(n - 1, Math.round((px - pl) / ((W - pl - PR) / Math.max(1, n - 1))))), x = pl + (W - pl - PR) * i / Math.max(1, n - 1);
       xh.setAttribute('x1', x); xh.setAttribute('x2', x); svg.classList.add('hover');
       var pts = plotted(s);
       tip.innerHTML = '<b>Through week ' + (i + 1) + '</b>' + top.map(function (r, k) {
@@ -565,8 +565,59 @@ JS = r"""
     var s = S[el.getAttribute('data-stat')], race = s.race && s.rows.length;
     // averages have no race chart -- their list gets the whole card
     el.innerHTML = '<div class="qual">' + (s.qual || '') + '</div>' + (race ? chart(s) : '') + '<div class="list">' + list(s) + '</div>';
-    if (race) hook(el.querySelector('.race'));
+    if (race) { hook(el.querySelector('.race')); fitChart(el.querySelector('.race')); }
     fitLines(el);
+  }
+  // a race chart's labels, once it's on the page (Jason, 2026-10-10): the left axis gets the room its
+  // widest label needs ("2,406", "−1,234" late in a season; the chart is drawn again with that margin);
+  // an end label too long for the strip breaks after its hyphen onto a second line ("Westbrook-" /
+  // "Ikhine"), and one still too long steps down in size until it fits -- they used to be cut to 10
+  // letters ("Smith-Njig"). Then the labels are spread apart again, a two-line one taking two lines'
+  // room, the lowest kept clear of the bottom of the chart. A hidden chart (the condensed view) waits
+  // for the next refit.
+  function fitChart(svg) {
+    var s = S[svg.getAttribute('data-stat')], axes = [].slice.call(svg.querySelectorAll('.ax[text-anchor=end]'));
+    if (!axes.length || !axes[0].getComputedTextLength()) return;
+    var need = Math.ceil(Math.max.apply(null, axes.map(function (t) { return t.getComputedTextLength(); }))) + 8;
+    if (need > (s.pl || PL)) {
+      s.pl = need;
+      var wrap = document.createElement('div'), c = svg.closest('.e-chart');
+      wrap.innerHTML = chart(s); c.replaceWith(wrap.firstChild);
+      svg = document.querySelector('.stat[data-stat="' + s.key + '"] .race');
+      hook(svg);
+    }
+    var room = PR - 10, NS = 'http://www.w3.org/2000/svg';
+    var items = [].slice.call(svg.querySelectorAll('.lb')).map(function (t) {
+      t.style.fontSize = '';
+      var nm = t.textContent, cut = nm.indexOf('-') + 1, x = t.getAttribute('x'), lines = [t];   // (a split one reads back whole)
+      t.textContent = nm;
+      if (t.getComputedTextLength() > room && cut > 0 && cut < nm.length) {
+        t.textContent = '';
+        lines = [nm.slice(0, cut), nm.slice(cut)].map(function (part, k) {
+          var ts = document.createElementNS(NS, 'tspan');
+          ts.setAttribute('x', x); if (k) ts.setAttribute('dy', LH);
+          ts.textContent = part; t.appendChild(ts); return ts;
+        });
+      }
+      var wide = Math.max.apply(null, lines.map(function (e) { return e.getComputedTextLength(); }));
+      if (wide > room) t.style.fontSize = Math.floor(100 * room / wide) / 10 + 'px';
+      return { t: t, y: +t.getAttribute('data-y'), n: lines.length };
+    }).sort(function (a, b) { return a.y - b.y; });
+    var prev = -99, floor = H - PB;
+    items.forEach(function (it) { it.ly = Math.max(it.y, prev + LH); prev = it.ly + (it.n - 1) * LH; });
+    for (var k = items.length - 1; k >= 0; k--) {
+      var it = items[k];
+      it.ly = Math.min(it.ly, floor - (it.n - 1) * LH); floor = it.ly - LH;
+      it.t.setAttribute('y', it.ly + 3);
+    }
+  }
+  // after a resize, or back from the condensed view: every list and chart measured again
+  function refit() {
+    document.querySelectorAll('.stat').forEach(function (el) {
+      var c = el.querySelector('.race');
+      if (c) fitChart(c);
+      fitLines(el);
+    });
   }
   // each row's stat line on one line, the same size down the whole list (Jason, 2026-10-10): 10px, or
   // smaller (to 7.5px) if the stat's longest line -- over all its rows, so "Show 10 more" never changes
@@ -574,9 +625,9 @@ JS = r"""
   function fitLines(el) {
     var s = S[el.getAttribute('data-stat')], l = el.querySelector('.list'), ln = l && l.querySelector('.ln2');
     if (!ln) return;
-    l.style.removeProperty('--ln2');
     var room = ln.clientWidth, probe = document.createElement('div');
-    if (!room) return;
+    if (!room) return;   // hidden (the condensed view): the next refit
+    l.style.removeProperty('--ln2');
     probe.style.cssText = 'position:absolute;visibility:hidden;width:max-content';
     probe.innerHTML = s.rows.map(function (r) { return '<span class="ln2" style="display:block">' + line2(s, r) + '</span>'; }).join('');
     ln.parentNode.appendChild(probe);
@@ -592,6 +643,7 @@ JS = r"""
       var k = c.querySelector('.race').getAttribute('data-stat'), wrap = document.createElement('div');
       wrap.innerHTML = chart(S[k]); c.replaceWith(wrap.firstChild);
       hook(document.querySelector('.stat[data-stat="' + k + '"] .race'));
+      fitChart(document.querySelector('.stat[data-stat="' + k + '"] .race'));
     });
   }
   function redraw(k) {
@@ -644,17 +696,13 @@ JS = r"""
   // ---- condensed: a row of tiles a category, first place only (up to three tied, last names)
   var cv = document.querySelector('.cview'), byCat = {};
   D.stats.forEach(function (s) { (byCat[s.cat] = byCat[s.cat] || []).push(s); });
-  function lastName(full) {
-    var t = full.replace(/\s+(Jr\.?|Sr\.?|II|III|IV|V)$/, ''), i = t.indexOf(' ');
-    return i < 0 ? t : t.slice(i + 1);
-  }
   function tile(s, span) {
     // first place: two tied at most, "+N more tied" past that (Jason, 2026-10-07; was three)
     var first = s.rows.filter(function (r) { return r[0] === 1; }), extra = first.length - 2;
     return '<button class="ct' + (span === 6 ? ' one' : '') + '" type="button" style="grid-column:span ' + span + '" data-open="' + s.key + '">'
       + '<span class="ct-top"><span class="ct-l">' + esc(s.short) + '</span><span class="ct-v">' + (first.length ? first[0][2] : '—') + '</span></span><span class="ct-ls">'
       // names: the last name, or first initial + last name in the half-width tiles (kicking, returns)
-      + first.slice(0, 2).map(function (r) { var p = P[r[1]]; return '<span class="ld">' + D.pills[p[3]] + '<span class="nm">' + esc(span === 6 ? p[0] : lastName(p[1])) + '</span></span>'; }).join('')
+      + first.slice(0, 2).map(function (r) { var p = P[r[1]]; return '<span class="ld">' + D.pills[p[3]] + '<span class="nm">' + esc(span === 6 ? p[0] : p[4]) + '</span></span>'; }).join('')
       + (extra > 0 ? '<span class="ct-more">+' + extra + ' more tied</span>' : '') + '</span></button>';
   }
   function row(cats) {
@@ -683,7 +731,7 @@ JS = r"""
   function setView(v) {
     document.body.setAttribute('data-view', v);
     document.querySelector('.toggle').setAttribute('aria-label', v === 'condensed' ? 'Switch to expanded view' : 'Switch to condensed view');
-    if (v === 'expanded') go(active, false);
+    if (v === 'expanded') { go(active, false); refit(); }
   }
   // open the expanded view at a stat: its category's card, turned to it
   function openStat(key) {
@@ -700,6 +748,6 @@ JS = r"""
   setActive(start); go(start, false);
   if (h[1]) { var tr0 = slots[start].querySelector('.strack'); tr0.scrollLeft = +h[1] * tr0.clientWidth; tabsFollow(slots[start].querySelector('.card')); }
   if (h[0] === 'condensed') setView('condensed');
-  window.addEventListener('resize', function () { go(active, false); document.querySelectorAll('.stat').forEach(fitLines); });
+  window.addEventListener('resize', function () { go(active, false); refit(); });
 })();
 """
