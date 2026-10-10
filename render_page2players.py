@@ -680,7 +680,7 @@ def render_players_block(d):
         for cid, title, sections, layout in CARDS)
     dots = "".join(f'<button class="dot" type="button" aria-label="{esc(title)}">{PS_ICONS.get(cid, "")}</button>'
                    for cid, title, _s, _l in CARDS)
-    return ('<div class="p2 p2-ps" data-page="leaders" aria-label="Player stats" role="region">'
+    return ('<div class="p2 p2-ps ps-nfl" data-page="leaders" aria-label="Player stats" role="region">'
             f'<div class="p2-view p2-l deck">{slots}</div><nav class="dots p2-dots ic-dots" aria-label="Cards">{dots}</nav>'
             f'{condensed_view((away, home), stats, scope)}</div>')
 
@@ -887,6 +887,23 @@ P4_CSS = r"""
 .p2-l .ps-t tbody th{padding-right:3px}
 @media (max-width:380px){.p2-l .ps-t{font-size:10.5px;--fnw:73px;--mtw:34px;--nmg:6px}.p2-l .ps-t thead th{font-size:9px}}
 @media (max-width:370px){.p2-l .ps-t{--fnw:72px;--nmg:5px}.p2-l .ps-sort{padding-left:0;padding-right:0}}
+/* The NFL's expanded tables (Jason, 2026-10-10; .ps-nfl -- the NBA's keep the right-aligned
+   numbers and the arrow beside the label above):
+   - Each stat centered under its column's label, as in the condensed view.
+   - Centered, the digits no longer need to stack, so they're proportional (a "1" takes less room
+     than an "8") and a hair tighter: late in a season Passing's widest line ("430/650 4,812 ...
+     105.3") ran 9-10px wider than the card on 360-390px phones -- the last column slid under the
+     right-edge fade -- with 2px between numbers; now it fits on all of them, 3px or more apart.
+   - The sort arrow is a small caret centered under the label, in the header's bottom padding: beside
+     the label it pushed the label 5px off center and widened its column enough to push Passing off
+     the card again. */
+.ps-nfl .p2-l .ps-t td,.ps-nfl .p2-l .ps-t thead th:not(:first-child){text-align:center}
+.ps-nfl .p2-l .ps-t td{font-variant-numeric:proportional-nums;letter-spacing:-.02em}
+.ps-nfl .p2-l .ps-sort{position:relative}
+.ps-nfl .p2-l .ps-t th[aria-sort] .ps-sort::after{content:"";position:absolute;left:50%;bottom:0;margin:0 0 0 -3px;
+  border:3px solid transparent;border-bottom:0;border-top-color:currentColor}
+.ps-nfl .p2-l .ps-t th[aria-sort=ascending] .ps-sort::after{border-top:0;border-bottom:3px solid currentColor}
+.ps-nfl .p2-l .ps-t th[aria-sort=none] .ps-sort::after{content:none}
 .p2-l .ps-nm{grid-template-columns:var(--fnw) var(--mtw);column-gap:var(--nmg)}
 .p2-l .ps-fn,.p2-l .ps-nm .ps-pos{white-space:normal}
 .p2-l .ps-t tbody th,.p2-l .ps-t thead th:first-child{width:calc(var(--fnw) + var(--nmg) + var(--mtw) + 3px);
