@@ -31,6 +31,7 @@ import html
 from collections import defaultdict
 
 import helmets
+import render_page2gameinfo
 import team_line_colors
 
 EDGE_GAP = 8
@@ -147,9 +148,8 @@ X_MARK = ('<svg class="mu-xo" viewBox="0 0 14 14" aria-hidden="true"><circle cx=
           '<path d="M3.4 3.4l7.2 7.2M10.6 3.4l-7.2 7.2" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>')
 # each half's biggest edge
 BOLT = '<svg viewBox="0 0 12 16" aria-hidden="true"><path d="M7.4 0 0 9.2h4.6L3.6 16 12 6.4H7.3z" fill="currentColor"/></svg>'
-# the card's icon (its title and nav dot): an O and an X. A placeholder until there's one of Jason's.
-ICON = ('<svg viewBox="0 0 30 14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true">'
-        '<circle cx="7" cy="7" r="5.4"/><path d="M18.4 1.6l10.8 10.8M29.2 1.6 18.4 12.4"/></svg>')
+# the card's icon (its title and nav dot): Jason's clipboard drawing, Kickoff's before (Jason, 2026-10-10)
+ICON = render_page2gameinfo.CLIPBOARD_ICON
 
 
 def _colors(o, d):

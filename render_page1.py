@@ -252,7 +252,7 @@ NAV_ICONS = {
     "leaders": (
         f'<svg viewBox="0 0 20 16" aria-hidden="true"><g fill="currentColor">{CROWN_SHAPES}</g></svg>'
     ),
-    "matchup": matchup.ICON,   # an O and an X (2026-10-10), until there's one of Jason's
+    "matchup": matchup.ICON,   # Jason's clipboard, Kickoff's before (2026-10-10)
 }
 
 
