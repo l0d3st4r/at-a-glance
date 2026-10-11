@@ -690,84 +690,67 @@ def strip_html(data):
 
 # ---------------------------------------------------------------- Page 2
 
-# "Matchups to Watch": an edge a sentence, in plain words -- the EPA and its ranks, then the yards
-# (2026-10-11). Each sentence is about the side that makes the edge -- whichever is further from the
-# middle of the league on the EPA ranks: a strong offense or a weak defense when the offense has the
-# edge, a strong defense or a weak offense when the defense has it (so a defense ranked 17th is never
-# said to "stop the run"). {o} / {d} the teams, {oe} / {de} their EPA and {oer} / {der} those ranks,
-# {ov} / {dv} their yards. (Pass rush: {ov} / {dv} the sack rates, {orr} / {drr} their ranks.)
-_WORDS = {   # who, the yards, the EPA, a weak defense, a strong one
-    "pass": ("quarterbacks", "yards an attempt", "EPA a dropback", "has struggled against the pass", "shuts down the pass"),
-    "rb": ("running backs", "yards a carry", "EPA a play", "has struggled against the run", "stops the run"),
-    "wr": ("receivers", "yards a target", "EPA a target", "has struggled to cover receivers", "covers receivers well"),
-    "te": ("tight ends", "yards a target", "EPA a target", "has struggled to cover tight ends", "handles tight ends well"),
-}
-_KINDS = {
-    "off_strong": "{o}'s {who} average {oe} {e} ({oer}) and {ov} {y}; {d} allows {de} ({der}) and {dv}.",
-    "def_weak": "{d} {weak}, allowing {de} {e} ({der}) and {dv} {y}; {o}'s {who} average {oe} ({oer}) and {ov}.",
-    "def_strong": "{d} {strong}, allowing {de} {e} ({der}) and {dv} {y}; {o}'s {who} average {oe} ({oer}) and {ov}.",
-    "off_weak": "{o}'s {who} have had a hard time, averaging {oe} {e} ({oer}) and {ov} {y}; {d} allows {de} ({der}) and {dv}.",
-}
-_FIELDS = {f: "{" + f + "}" for f in ("o", "d", "ov", "dv", "orr", "drr", "oe", "de", "oer", "der")}
-SENTENCES = {key: {kind: t.format(who=who, y=y, e=e, weak=weak, strong=strong, **_FIELDS) for kind, t in _KINDS.items()}
-             for key, (who, y, e, weak, strong) in _WORDS.items()}
-# pass rush has no EPA: the sack rates alone
-SENTENCES["qb"] = {
-    "off_strong": "{o} keeps its quarterback upright, sacked on just {ov} of dropbacks ({orr}), and {d}'s pass rush gets home on {dv} ({drr}).",
-    "def_weak": "{d}'s pass rush has rarely gotten home, with sacks on {dv} of dropbacks ({drr}), and {o} gives up sacks on {ov} ({orr}).",
-    "def_strong": "{d}'s pass rush gets to the quarterback on {dv} of dropbacks ({drr}), and {o} has given up sacks on {ov} ({orr}).",
-    "off_weak": "{o} has had trouble protecting its quarterback, sacked on {ov} of dropbacks ({orr}), and {d} gets sacks on {dv} ({drr})."}
+# Key Matchups' sentences (simplified 2026-10-11, Jason: they carried six or seven numbers each), each
+# saying what's ranked or compared. Before the game: the two EPA ranks, nothing else (the numbers are
+# on the O-vs-D cards), led by the side that makes the edge -- the rank further from the middle, so a
+# 21st-ranked defense isn't the lead when it's the 32nd-ranked offense that gives it the edge. After
+# it: the side with the advantage first, the game's number, then each unit's usual -- the comparison,
+# with nothing to work out.
 WATCH_MAX = 4   # the biggest edges only: what to watch, not everything
+_UNITS = {   # the offense's players; what the defense stops; the EPA's unit
+    "pass": ("quarterbacks", "the pass", "EPA a dropback"),
+    "rb": ("running backs", "the run", "EPA a play"),
+    "wr": ("receivers", "receivers", "EPA a target"),
+    "te": ("tight ends", "tight ends", "EPA a target"),
+}
+BEFORE = {
+    "o": "{o}'s {who} rank {orr} in EPA; {d}'s defense ranks {drr} against them.",
+    "d": "{d}'s defense ranks {drr} in EPA against {them}; {o}'s {who} rank {orr}.",
+}
+BEFORE_SACKS = {
+    "o": "{o}'s line ranks {orr} at avoiding sacks; {d}'s pass rush ranks {drr} at getting them.",
+    "d": "{d}'s pass rush ranks {drr} at getting sacks; {o}'s line ranks {orr} at avoiding them.",
+}
+AFTER = {
+    "o": "{o}'s {who} put up {g} {e} (usually {oa}) against a {d} defense that usually allows {da}.",
+    "d": "{d}'s defense held {o}'s {who} to {g} {e} (it usually allows {da}); they usually put up {oa}.",
+}
+AFTER_SACKS = {
+    "o": "{o}'s quarterbacks were sacked on {g} of dropbacks (usually {oa}) against a {d} pass rush that usually gets {da}.",
+    "d": "{d}'s pass rush got sacks on {g} of {o}'s dropbacks (it usually gets {da}); {o} is usually sacked on {oa}.",
+}
 
 
-def _rank_words(n, total):
+def _rank_words(n, total=None):
     """A sentence's rank, in its color on the green-to-red scale (Jason, 2026-10-11)."""
     if n is None:
         return "\u2013"
-    words = "best in the NFL" if n == 1 else "worst in the NFL" if n == total else ordinal(n)
-    return f'<b class="mu-w-rk" style="color:{_rank_color(n)}">{words}</b>'
+    return f'<b class="mu-w-rk" style="color:{_rank_color(n)}">{ordinal(n)}</b>'
 
 
 def _sentence(g, o, d):
-    """The sentence as HTML: the template is ours, the teams and numbers are escaped."""
+    """Before the game: the edge's sentence as HTML (the template ours, the teams escaped) -- the two
+    ranks it goes by (the EPA's; Pass rush the sack rate's), led by the one further from the middle."""
     mid = (g["n"] + 1) / 2
-    if g["edge"] == o:   # a strong offense, or a weak defense?
-        kind = "off_strong" if mid - g["orr"] >= g["drr"] - mid else "def_weak"
-    else:                # a strong defense, or a weak offense?
-        kind = "def_strong" if mid - g["drr"] >= g["orr"] - mid else "off_weak"
-    ln = next(x for x in g["lines"] if x["key"] == g["key"])
-    ep = next((x for x in g["lines"] if x["key"] == EPA_OF.get(g["key"])), None)
-    if ep is None and g["key"] != "qb":   # no EPA for one of them: say so with a dash
-        ep = {"ov": "\u2013", "dv": "\u2013", "orr": None, "drr": None, "n": ln["n"]}
-    v = {"ov": esc(ln["ov"]), "dv": esc(ln["dv"]), "orr": _rank_words(ln["orr"], ln["n"]), "drr": _rank_words(ln["drr"], ln["n"])}
-    if ep:
-        v.update(oe=esc(ep["ov"]), de=esc(ep["dv"]), oer=_rank_words(ep["orr"], ep["n"]), der=_rank_words(ep["drr"], ep["n"]))
-    return esc(SENTENCES[g["key"]][kind]).format(o=esc(o), d=esc(d), **v)
-
-
-# "Deciding Matchups" (a finished game, Jason, 2026-10-11): each advantage in a sentence -- the game's
-# number, then both units against their season averages, the side with the advantage first -- the
-# biggest impact first (the bolt's). Pass rush: the sack rates.
-_FINAL_WORDS = {"pass": ("quarterbacks", "EPA a dropback", "dropbacks"), "rb": ("running backs", "EPA a play", "plays"),
-                "wr": ("receivers", "EPA a target", "targets"), "te": ("tight ends", "EPA a target", "targets")}
-FINAL_OFFENSE = "{o}'s {who} put up {g} {e} on {n} {plays}: {od} vs their {oa} average, and {dd} vs the {da} {d} usually allows."
-FINAL_DEFENSE = "{d}'s defense held {o}'s {who} to {g} {e} on {n} {plays}: {dd} vs the {da} it usually allows, and {od} vs their {oa} average."
-FINAL_PROTECT = "{o} kept its quarterback clean, sacked on {g} of dropbacks: {od} vs its {oa} average, and {dd} vs the {da} {d} usually gets."
-FINAL_RUSH = "{d}'s pass rush got home on {g} of {o}'s dropbacks: {dd} vs the {da} it usually gets, and {od} vs the {oa} {o} usually gives up."
+    side = "o" if abs(mid - g["orr"]) >= abs(mid - g["drr"]) else "d"
+    ranks = {"o": esc(o), "d": esc(d), "orr": _rank_words(g["orr"]), "drr": _rank_words(g["drr"])}
+    if g["key"] == "qb":
+        return esc(BEFORE_SACKS[side]).format(**ranks)
+    who, them, _e = _UNITS[g["key"]]
+    return esc(BEFORE[side]).format(who=who, them=them, **ranks)
 
 
 def _final_sentence(g, o, d):
-    """The sentence as HTML for an advantage: the templates are ours, the numbers escaped."""
+    """After the game: the advantage's sentence as HTML, led by the side with it -- the game's number,
+    then each unit's usual."""
     f = next(r[6] for r in ROWS if r[0] == g["ekey"])
-    od, dd = _diffs(g)
+    side = "o" if g["edge"] == o else "d"
+    usual = lambda v: esc(f(v)) if v is not None else "\u2013"
+    nums = {"o": esc(o), "d": esc(d), "g": f'<b>{esc(f(g["game"]))}</b>', "oa": usual(g["oa"]), "da": usual(g["da"])}
     if g["key"] == "qb":
-        t = FINAL_PROTECT if g["edge"] == o else FINAL_RUSH
-        words = {}
-    else:
-        t = FINAL_OFFENSE if g["edge"] == o else FINAL_DEFENSE
-        who, e, plays = _FINAL_WORDS[g["key"]]
-        words = {"who": who, "e": e, "plays": plays, "n": g["n"]}
-    return esc(t).format(o=esc(o), d=esc(d), g=esc(f(g["game"])), oa=esc(f(g["oa"])), da=esc(f(g["da"])), od=od, dd=dd, **words)
+        return esc(AFTER_SACKS[side]).format(**nums)
+    who, _them, e = _UNITS[g["key"]]
+    return esc(AFTER[side]).format(who=who, e=e, **nums)
 
 
 def watch(data):
@@ -801,8 +784,8 @@ def _watch_body(data):
                 'same side of their season averages.</p>')
     else:
         body = f'<p class="mu-w-none">No big edges in this one: every matchup is within {EDGE_GAP} spots in the league rankings.</p>'
-    sub = ("Both units against their season averages" if data.get("final")
-           else f"Edges: {EDGE_GAP}+ spots apart in the EPA rankings")
+    sub = ("This game vs each unit's usual" if data.get("final")
+           else f"EPA ranks · edges {EDGE_GAP}+ spots apart")
     # a list too long for a short phone scrolls inside the card (P1_JS's detailAtTop knows .mu-scroll)
     return (f'<div class="mu mu-p2"><div class="mu-sub">{esc(sub)}</div>'
             f'<div class="mu-scroll">{body}</div></div>')
