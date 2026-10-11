@@ -37,7 +37,8 @@ x in the defense's color inside it.
 
 Tapping it opens its Page 2 (Jason, 2026-10-10; it was a Numbers view behind a switch on the card), a
 deck of three cards (render_block), swiped between sideways with the game's other Page 2s:
-  Matchups to Watch  the edges in plain sentences, biggest first: the EPA and its ranks, then the yards
+  Key Matchups       the edges in plain sentences, biggest first: the EPA and its ranks, then the yards
+                     (titled "Matchups to Watch" until 2026-10-11; a key its icon, the O-vs-D cards O-bolt-X)
   <away> O vs <home> D  the away offense against the home defense: a group a stat -- its title, then
                      a line a measure, each with its descriptor and both numbers -- the EPA with both
                      ranks, then the yards (no ranks; Pass rush has only its sack rate, ranked) -- and
@@ -63,9 +64,9 @@ its EPA above what the two averages expected, times the plays. Each unit's diffe
 own side (Jason, 2026-10-11): ▲ better than its average, ▼ worse, the arrow and the color agreeing.
 Page 1 (option C of mockups/build_final_matchup_mockup.py): a row a stat -- its name and the game's
 EPA, then a bar a unit (its O or X, in its team's color) centered on its own average, to the right
-when it did better and the left when worse. Page 2 (option A): "Deciding Matchups", then "<away> O vs
+when it did better and the left when worse. Page 2 (option A): "Key Matchups", then "<away> O vs
 <home> D" and "<home> O vs <away> D" as tables -- the stat, the game's EPA, each unit's ▲/▼ and
-average, the advantage. The condensed view's strip stays off.
+average, the advantage. The condensed view's strip shows the card's longest bar (_final_strip).
 """
 
 import html
@@ -607,9 +608,51 @@ def biggest(data):
     return best
 
 
+def _biggest_diff(data):
+    """A finished game's biggest difference: (offense, defense, group, side) for the longest bar on the
+    Page 1 card -- the unit furthest from its own season average, either way, as the bar shows it (its
+    share of the average, capped at 100%) -- ties (many bars are full) going to the one that added up to
+    the most over the game (the difference times the plays, so five targets to a tight end don't beat
+    thirty to the receivers); None without one."""
+    best, most = None, (-1.0, -1.0)
+    for o, d, groups in data.get("halves", []):
+        for g in groups:
+            hb = next(r[5] for r in ROWS if r[0] == g["ekey"])
+            for side, avg in (("o", g["oa"]), ("d", g["da"])):
+                if avg is not None:
+                    size = (min(1.0, abs(_share(g["ekey"], g["game"], avg, hb))), abs(g["game"] - avg) * g["n"])
+                    if size > most:
+                        best, most = (o, d, g, side), size
+    return best
+
+
+def _final_strip(data):
+    """A finished game's strip (Jason, 2026-10-11): the Page 1 card's biggest difference -- the unit's
+    O or X and pill, what it is ("receivers", "pass D"), its bar centered on its average in its team's
+    color, and the amount, ▲ better / ▼ worse, with what it measures ("EPA vs avg")."""
+    b = _biggest_diff(data)
+    if not b:
+        return ""
+    o, d, g, side = b
+    team, c = (o, _colors(o, d)[0]) if side == "o" else (d, _colors(o, d)[1])
+    words = (OFF_WORDS if side == "o" else DEF_WORDS)[g["key"]]
+    arrow, amount, color, share = _verdict(g, side)
+    w = abs(share) * 50
+    kind = "EPA" if g["ekey"] in P2_ONLY else "sack %"
+    label = (f'Biggest difference: {team} {words}, {amount} {kind} '
+             f'{"better" if arrow == "\u25b2" else "worse" if arrow == "\u25bc" else "level with"} than its season average')
+    return (f'<a class="card c-mu" tabindex="0" data-detail="matchup" aria-label="{esc(label)}"><span class="mx-in">'
+            f'<span class="mx-mark mu-c" style="{c}">{O_MARK if side == "o" else X_MARK}</span>{helmets.pill_html(team)}'
+            f'<span class="mx-t">{esc(words)}</span><span class="mx-bar"><i class="mf-mid"></i>'
+            f'<i class="mf-bar mu-c" style="left:{50 if share >= 0 else 50 - w:.1f}%;width:{w:.1f}%;{c}"></i></span>'
+            f'<span class="mx-r"><b style="color:{color}">{arrow}{esc(amount)}</b> <i>{kind} vs avg</i></span></span></a>')
+
+
 def strip_html(data):
-    """The condensed view's strip, or "" without an edge (or for a finished game)."""
-    b = None if (data or {}).get("final") else biggest(data)
+    """The condensed view's strip: the biggest edge before a game, the biggest difference after; "" without one."""
+    if (data or {}).get("final"):
+        return _final_strip(data)
+    b = biggest(data)
     if not b:
         return ""
     o, d, g = b
@@ -743,11 +786,16 @@ def _watch_body(data):
             f'<div class="mu-scroll">{body}</div></div>')
 
 
-# the Page 2 cards' icons (titles and nav dots): an O and an X for each offense against a defense, the
-# bolt for the summary
-OX_ICON = ('<svg viewBox="0 0 30 14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true">'
-           '<circle cx="7" cy="7" r="5.4"/><path d="M18.4 1.6l10.8 10.8M29.2 1.6 18.4 12.4"/></svg>')
-PAGE_ICONS = {"away": OX_ICON, "home": OX_ICON, "watch": BOLT}
+# the Page 2 cards' icons (titles and nav dots): an O, a bolt and an X for each offense against a
+# defense, a key for the summary
+# (2026-10-11: the summary card is "Key Matchups" with a key, before the game and after; the bolt
+# moved in between the offense cards' O and X)
+OX_ICON = ('<svg viewBox="0 0 44 16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true">'
+           '<circle cx="7" cy="8" r="5.4"/><path d="M22.4 0 15 9.2h4.6L18.6 16 27 6.4h-4.7z" fill="currentColor" stroke="none"/>'
+           '<path d="M32 2.6l10.8 10.8M42.8 2.6 32 13.4"/></svg>')
+KEY_ICON = ('<svg viewBox="0 0 26 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" '
+            'stroke-linejoin="round" aria-hidden="true"><circle cx="6.4" cy="7" r="4.6"/><path d="M11 7h13.4M19.6 7v4M23.4 7v3"/></svg>')
+PAGE_ICONS = {"away": OX_ICON, "home": OX_ICON, "watch": KEY_ICON}
 
 
 def render_block(data):
@@ -765,7 +813,7 @@ def render_block(data):
     # the summary first (Jason, 2026-10-10) -- what decided a finished game -- then each offense against
     # the other's defense
     (ao, ad, arows), (ho, hd, hrows) = data["halves"]
-    cards = [("watch", "Deciding Matchups" if final else "Matchups to Watch", _watch_body(data)),
+    cards = [("watch", "Key Matchups", _watch_body(data)),
              ("away", f"{ao} O vs {ad} D", numbers_card(ao, ad, arows)), ("home", f"{ho} O vs {hd} D", numbers_card(ho, hd, hrows))]
 
     def title(cid, name):
@@ -802,7 +850,21 @@ a.card.c-mu{display:flex;justify-content:center;align-items:center;padding:9px 1
 .mx-r{flex:none;margin-left:3px;font-size:12.5px}
 .mx-vs{color:var(--aag-text-3);font-weight:400}
 .mx-r i{font-style:normal;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--aag-text-3);margin-left:2px}
-@media (max-width:370px){ .mx-in{gap:5px;font-size:12px} .mx-r{font-size:11.5px} }   /* 360px Androids */
+/* a finished game's strip: the unit's mark and a small bar centered on its average */
+.mx-mark{display:block;flex:none;width:10px;height:10px;color:var(--c)}
+.mx-bar{position:relative;flex:none;width:52px;height:6px;border-radius:2px;background:var(--tile-border-soft)}
+/* a finished game has no room to spare (its Game Info has the score by quarter, its team cards the game
+   stats, and on some phones its Leaders were already a few pixels short): the strip is slimmer; on
+   phones 800px tall or more the team cards give 14px of their spacing and the Leaders rows close up
+   to 3px gaps, the page's floor 830px; below 800px, where the team cards have no spacing to give (they
+   get 16px more instead), the floor is 840px -- those phones scroll a little more than they already do */
+.p1[data-final] .view-c.has-mu{min-height:830px;
+  grid-template-rows:auto calc((max(100dvh, 720px) - var(--bar) - var(--bbar) - 48px) * 1.18 / 3.42 - 14px) auto minmax(0,1fr)}
+.p1[data-final] .view-c.has-mu .c-cmp-in{gap:clamp(3px,calc(2.4vh - 17px),12px)}
+@media (max-height:799px){ .p1[data-final] .view-c.has-mu{min-height:840px;
+  grid-template-rows:auto calc((max(100dvh, 720px) - var(--bar) - var(--bbar) - 48px) * 1.18 / 3.42 + 16px) auto minmax(0,1fr)} }
+.p1[data-final] .view-c.has-mu a.card.c-mu{padding:5px 14px}
+@media (max-width:370px){ .mx-in{gap:5px;font-size:12px} .mx-r{font-size:11.5px} .mx-bar{width:40px} }   /* 360px Androids */
 @media (max-width:340px){   /* a 320px phone: the bolt goes, and the ranks wrap under the words when
   they don't fit beside them (two-digit ranks and "sack %"); the page's floor gives that line room */
   .view-c.has-mu{min-height:776px}
