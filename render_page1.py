@@ -856,7 +856,7 @@ def render_p1_block(d, prefix="../"):
     except Exception:
         players_page = ""
     try:   # the Matchups card's Page 2 (2026-10-10, matchup.py)
-        matchup_page = matchup.render_block(d.get("matchup"), f"{loc(a)} Offense", f"{loc(h)} Offense") if mu_body else ""
+        matchup_page = matchup.render_block(d.get("matchup")) if mu_body else ""
     except Exception:
         matchup_page = ""
     has_detail = " ".join(k for k, block in

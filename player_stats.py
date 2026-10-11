@@ -21,6 +21,8 @@ from divisions import normalize_abbr
 STATS = {
     "cmp": "completions", "att": "attempts", "pyds": "passing_yards", "ptd": "passing_tds",
     "int": "passing_interceptions", "sk": "sacks_suffered",
+    # the Matchups Page 2's EPA lines (matchup.py, 2026-10-11); not shown on Player Stats
+    "pepa": "passing_epa", "rpepa": "rushing_epa", "repa": "receiving_epa",
     "car": "carries", "ryds": "rushing_yards", "rtd": "rushing_tds", "r1d": "rushing_first_downs",
     "rfum": "rushing_fumbles_lost",
     "rec": "receptions", "tgt": "targets", "reyds": "receiving_yards", "retd": "receiving_tds",

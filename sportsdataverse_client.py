@@ -36,10 +36,12 @@ def _parquet(tag, name):
 def get_defense_vs_position(season):
     """One dict per team and position group ("QB", "RB", "WR", "TE"): team (the site's abbreviation),
     position_group, games, and what the defense allowed -- sack_rate_allowed (sacks a dropback, vs
-    QBs), rush_yards_per_carry_allowed (vs RBs), yards_per_target_allowed (vs WRs and TEs)."""
+    QBs), epa_per_play_allowed (every group, for the Matchups Page 2), rush_yards_per_carry_allowed (vs RBs),
+    yards_per_target_allowed (vs WRs and TEs)."""
     try:
         df = _parquet("nfl_defense_vs_position", f"defense_vs_position_{season}.parquet")
-        keep = ("position_group", "games", "sack_rate_allowed", "rush_yards_per_carry_allowed", "yards_per_target_allowed")
+        keep = ("position_group", "games", "sack_rate_allowed", "epa_per_play_allowed", "rush_yards_per_carry_allowed",
+                "yards_per_target_allowed")
         rows = []
         for r in df.iter_rows(named=True):
             team = TEAM_FIX.get(r.get("pos_team"), r.get("pos_team"))

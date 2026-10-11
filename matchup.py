@@ -4,6 +4,13 @@ team's offense against the other's defense, position by position, from the seaso
 of its own in the deck, after the two team cards and before Leaders. Games not yet played only: the
 defense numbers are the season so far, so on a finished game they'd count that game too.
 
+  QB passing  its quarterbacks' passing yards an attempt   vs  passing yards an attempt it allows to QBs
+              (added 2026-10-11)
+  ...and under each of the first four, on Page 2 only (EPA_OF), its expected points added a play:
+    QB  passing EPA / (attempts + sacks)                   vs  EPA a play it allows to QBs
+    RB  RBs' rushing + receiving EPA / (carries + targets) vs  EPA a play it allows to RBs (runs and targets)
+    WR  WRs' receiving EPA / targets                       vs  EPA a target it allows to WRs
+    TE  TEs' receiving EPA / targets                       vs  EPA a target it allows to TEs
   Run game    the offense's running backs' yards a carry   vs  yards a carry the defense allows to RBs
   To WRs      yards a target to its wide receivers         vs  yards a target it allows to WRs
   To TEs      yards a target to its tight ends             vs  yards a target it allows to TEs
@@ -11,22 +18,35 @@ defense numbers are the season so far, so on a finished game they'd count that g
               (sacks / (attempts + sacks): the offense wants it low, the defense high)
 
 The defense side is sportsdataverse's defense-vs-position file (sportsdataverse_client.py, kept as
-"defense_vs_position" in data/matchups.json by build_data.py); the offense side is totaled here from
-the site's own player stats (player_weeks), so the two measure the same thing. Each side is ranked
-among the league's teams, 1 = best on that side. The edge goes to the side ranked EDGE_GAP or more
-places better; closer than that is even.
+"defense_vs_position" in data/matchups.json by build_data.py) -- except QB passing, which that file
+doesn't have: it's totaled from nflverse's weekly player stats by opponent (defense_passing). The
+offense side is totaled here from the site's own player stats (player_weeks), so the two measure the
+same thing. Each side is ranked among the league's teams, 1 = best on that side. The edge goes to the
+side ranked EDGE_GAP or more places better; closer than that is even.
 
-The card (Page 1) is the chart: a slim row a position -- 32, its name, 1 -- over a 32-to-1 track with
-the offense's O and the defense's X on it, as on a play diagram, the stretch between them in the
-favored team's color (gray when even), each mark's rank under it. No numbers. Both at the same rank:
-one mark, the offense's O with a small x in the defense's color inside it.
+Everything goes by EPA (Jason, 2026-10-11 -- a combined yards-and-EPA rank before that, which a reader
+couldn't work out from the two ranks on Page 2): the chart puts the marks at the EPA ranks, and every
+edge, bolt and Matchups to Watch pick goes by them. The yards are shown as numbers only, no ranks. Pass
+rush has no EPA, so it goes by its sack rate.
+
+The card (Page 1) is the chart: a slim row a position -- its name over a 1-to-32 track (Jason,
+2026-10-11: 1st on the left, the 1 and 32 at the track's ends) with the offense's O and the defense's
+X on it at their EPA ranks, as on a play diagram, the stretch between them in the favored team's color (gray when even),
+each mark's rank under it. No numbers. Both at the same rank: one mark, the offense's O with a small
+x in the defense's color inside it.
 
 Tapping it opens its Page 2 (Jason, 2026-10-10; it was a Numbers view behind a switch on the card), a
 deck of three cards (render_block), swiped between sideways with the game's other Page 2s:
-  Matchups to Watch  the edges in plain sentences, biggest first, then the ones too close to call
-  <away> Offense     the away offense against the home defense: both numbers, both ranks and the edge
-                     (the favored team's pill, a short line when even)
-  <home> Offense     the home offense against the away defense, the same way
+  Matchups to Watch  the edges in plain sentences, biggest first: the EPA and its ranks, then the yards
+  <away> O vs <home> D  the away offense against the home defense: a group a stat -- its title, then
+                     a line a measure, each with its descriptor and both numbers -- the EPA with both
+                     ranks, then the yards (no ranks; Pass rush has only its sack rate, ranked) -- and
+                     one edge for the group (the favored team's pill, a short line when even), under
+                     "BAL O" / "CLE D"
+  <home> O vs <away> D  the home offense against the away defense, the same way
+Page 2's ranks are on the site's green-to-red rank scale (render_page1.rank_color; Jason, 2026-10-11).
+One edge a group (Jason, 2026-10-11; each line had its own, and yards and EPA disagreed in a third of
+them), from the EPA ranks.
 In each half (one team's offense against the other's defense) the biggest edge gets a bolt beside its
 name in the favored team's color and a tint -- no words; on the chart its stretch is bolder too.
 Nothing is marked in a half where every row is even.
@@ -38,17 +58,33 @@ from collections import defaultdict
 import helmets
 import render_page2gameinfo
 import team_line_colors
+from divisions import normalize_abbr
 
 EDGE_GAP = 8
 
+def _epa(v):
+    """+.33 / −.05, the way EPA is usually written -- no leading zero, so it fits Page 2's number columns."""
+    return f"{v:+.2f}".replace("0.", ".", 1).replace("-", "−")
+
+
 # (key, row name, what the Numbers view says the offense number is, defense column in the file,
-#  defense position group, is a higher number better for the offense?, format)
+#  defense position group, is a higher number better for the offense?, format). QB passing has no
+#  column in the file: defense_passing totals it.
 ROWS = [
-    ("rb", "Run game", "RB yards a carry", "rush_yards_per_carry_allowed", "RB", True, lambda v: f"{v:.1f}"),
-    ("wr", "To WRs", "Yards a target", "yards_per_target_allowed", "WR", True, lambda v: f"{v:.1f}"),
-    ("te", "To TEs", "Yards a target", "yards_per_target_allowed", "TE", True, lambda v: f"{v:.1f}"),
+    ("pass", "QB passing", "Yards/att", None, None, True, lambda v: f"{v:.1f}"),
+    ("pass_epa", "QB EPA", "EPA/dropback", "epa_per_play_allowed", "QB", True, _epa),
+    ("rb", "Run game", "Yards/carry", "rush_yards_per_carry_allowed", "RB", True, lambda v: f"{v:.1f}"),
+    ("rb_epa", "RB EPA", "EPA/play", "epa_per_play_allowed", "RB", True, _epa),
+    ("wr", "To WRs", "Yards/target", "yards_per_target_allowed", "WR", True, lambda v: f"{v:.1f}"),
+    ("wr_epa", "WR EPA", "EPA/target", "epa_per_play_allowed", "WR", True, _epa),
+    ("te", "To TEs", "Yards/target", "yards_per_target_allowed", "TE", True, lambda v: f"{v:.1f}"),
+    ("te_epa", "TE EPA", "EPA/target", "epa_per_play_allowed", "TE", True, _epa),
     ("qb", "Pass rush", "Sack rate", "sack_rate_allowed", "QB", False, lambda v: f"{v * 100:.1f}%"),
 ]
+# Page 2's EPA lines, each under its row on the offense cards (Jason, 2026-10-11) -- not on the chart, in
+# Matchups to Watch or in the bolt
+EPA_OF = {"pass": "pass_epa", "rb": "rb_epa", "wr": "wr_epa", "te": "te_epa"}
+P2_ONLY = set(EPA_OF.values())
 
 
 def esc(v):
@@ -61,19 +97,35 @@ def ordinal(n):
 
 # ---------------------------------------------------------------- the numbers
 
-def defense_table(rows):
-    """sportsdataverse_client.get_defense_vs_position's rows -> {team: {"rb", "wr", "te", "qb"}}, what
-    each defense allows (build_data.py keeps this in data/matchups.json)."""
+def defense_passing(player_weekly):
+    """nflverse's weekly player stats -> {team: passing yards an attempt its defense allows to QBs},
+    regular season, the same QB rows offense_table counts for the offense."""
+    tot = defaultdict(lambda: [0.0, 0.0])
+    for r in player_weekly or []:
+        if r.get("season_type") not in (None, "REG") or r.get("position") != "QB" or not r.get("opponent_team"):
+            continue
+        t = tot[normalize_abbr(r["opponent_team"])]
+        t[0] += float(r.get("passing_yards") or 0)
+        t[1] += float(r.get("attempts") or 0)
+    return {team: yds / att for team, (yds, att) in tot.items() if att}
+
+
+def defense_table(rows, player_weekly=None):
+    """sportsdataverse_client.get_defense_vs_position's rows (and nflverse's weekly player stats, for QB
+    passing) -> {team: {"pass", "rb", "wr", "te", "qb", and their "<key>_epa"}}, what each defense allows (build_data.py keeps
+    this in data/matchups.json)."""
     out = defaultdict(dict)
     for r in rows or []:
         for key, _n, _m, col, group, _hb, _f in ROWS:
-            if r.get("position_group") == group and r.get(col) is not None:
+            if group and r.get("position_group") == group and r.get(col) is not None:
                 out[r["team"]][key] = float(r[col])
+    for team, v in defense_passing(player_weekly).items():
+        out[team]["pass"] = v
     return dict(out)
 
 
 def offense_table(player_weeks):
-    """{team: {"rb", "wr", "te", "qb"}} -- the same four measures for each offense, from player_weeks."""
+    """{team: {"pass", "rb", "wr", "te", "qb", and their "<key>_epa"}} -- the same measures for each offense, from player_weeks."""
     tot = defaultdict(lambda: defaultdict(float))
     for team, rows in (player_weeks or {}).items():
         t = tot[team]
@@ -81,16 +133,23 @@ def offense_table(player_weeks):
             pos = r.get("pos")
             if pos == "QB":
                 t["att"] += r.get("att") or 0
+                t["pyds"] += r.get("pyds") or 0
+                t["pepa"] += r.get("pepa") or 0
                 t["sk"] += r.get("sk") or 0
             elif pos in ("RB", "FB"):
                 t["car"] += r.get("car") or 0
                 t["ryds"] += r.get("ryds") or 0
+                t["RBtgt"] += r.get("tgt") or 0
+                t["RBepa"] += (r.get("rpepa") or 0) + (r.get("repa") or 0)
             elif pos in ("WR", "TE"):
                 t[pos + "tgt"] += r.get("tgt") or 0
                 t[pos + "yds"] += r.get("reyds") or 0
+                t[pos + "epa"] += r.get("repa") or 0
     per = lambda a, b: a / b if b else None
-    return {team: {"rb": per(t["ryds"], t["car"]), "wr": per(t["WRyds"], t["WRtgt"]), "te": per(t["TEyds"], t["TEtgt"]),
-                   "qb": per(t["sk"], t["att"] + t["sk"])} for team, t in tot.items()}
+    return {team: {"pass": per(t["pyds"], t["att"]), "rb": per(t["ryds"], t["car"]), "wr": per(t["WRyds"], t["WRtgt"]),
+                   "te": per(t["TEyds"], t["TEtgt"]), "qb": per(t["sk"], t["att"] + t["sk"]),
+                   "pass_epa": per(t["pepa"], t["att"] + t["sk"]), "rb_epa": per(t["RBepa"], t["car"] + t["RBtgt"]),
+                   "wr_epa": per(t["WRepa"], t["WRtgt"]), "te_epa": per(t["TEepa"], t["TEtgt"])} for team, t in tot.items()}
 
 
 def _ranks(values, higher_better):
@@ -116,32 +175,46 @@ def league(player_weeks, defense):
     return {"off": off, "def": dfn, "o_rank": o_rank, "d_rank": d_rank}
 
 
+def _line(lg, o, d, key):
+    """One measure's line: both numbers, both ranks; None without them."""
+    _k, _name, measure, _c, _g, _hb, f = next(r for r in ROWS if r[0] == key)
+    ov, dv = lg["off"].get(o, {}).get(key), lg["def"].get(d, {}).get(key)
+    orr, drr = lg["o_rank"][key].get(o), lg["d_rank"][key].get(d)
+    if None in (ov, dv, orr, drr):
+        return None
+    return {"key": key, "measure": measure, "ov": f(ov), "dv": f(dv), "orr": orr, "drr": drr,
+            "n": max(len(lg["o_rank"][key]), len(lg["d_rank"][key]))}
+
+
 def _half(lg, o, d):
-    """One team's offense (o) against the other's defense (d): a dict a row, the biggest edge marked."""
-    rows = []
-    for key, name, measure, _c, _g, _hb, f in ROWS:
-        ov, dv = lg["off"].get(o, {}).get(key), lg["def"].get(d, {}).get(key)
-        orr, drr = lg["o_rank"][key].get(o), lg["d_rank"][key].get(d)
-        if None in (ov, dv, orr, drr):
+    """One team's offense (o) against the other's defense (d): a group a stat -- its lines (the EPA, then
+    the yards unranked; Pass rush its sack rate alone), the ranks it goes by (orr / drr, of n: the
+    EPA's, or the sack rate's), the edge -- the biggest edge marked (a tie marks both). Without EPA for
+    one of the teams a group goes by its yards, ranked."""
+    groups = []
+    for key, name, *_ in ROWS:
+        if key in P2_ONLY or not (ln := _line(lg, o, d, key)):
             continue
-        n = max(len(lg["o_rank"][key]), len(lg["d_rank"][key]))
-        edge = o if drr - orr >= EDGE_GAP else d if orr - drr >= EDGE_GAP else None
-        rows.append({"key": key, "name": name, "measure": measure, "ov": f(ov), "dv": f(dv), "orr": orr, "drr": drr,
-                     "n": n, "edge": edge, "top": False})
-    edges = [r for r in rows if r["edge"]]
-    if edges:   # the half's biggest edge; a tie marks both
-        most = max(abs(r["orr"] - r["drr"]) for r in edges)
-        for r in edges:
-            r["top"] = abs(r["orr"] - r["drr"]) == most
-    return rows
+        ep = _line(lg, o, d, EPA_OF[key]) if key in EPA_OF else None
+        lines = [ep, dict(ln, ranked=False)] if ep else [ln]
+        by = lines[0]
+        edge = o if by["drr"] - by["orr"] >= EDGE_GAP else d if by["orr"] - by["drr"] >= EDGE_GAP else None
+        groups.append({"key": key, "name": name, "lines": lines, "orr": by["orr"], "drr": by["drr"], "n": by["n"],
+                       "edge": edge, "top": False})
+    edged = [g for g in groups if g["edge"]]
+    if edged:
+        most = max(abs(g["orr"] - g["drr"]) for g in edged)
+        for g in edged:
+            g["top"] = abs(g["orr"] - g["drr"]) == most
+    return groups
 
 
 def card_data(lg, away, home):
-    """What the card shows for a game -- {"halves": [(offense, defense, rows), ...]} -- or None."""
+    """What the card shows for a game -- {"halves": [(offense, defense, groups), ...]} -- or None."""
     if not lg or not (away and home):
         return None
     halves = [(o, d, _half(lg, o, d)) for o, d in ((away, home), (home, away))]
-    return {"halves": halves} if all(rows for _o, _d, rows in halves) else None
+    return {"halves": halves} if all(groups for _o, _d, groups in halves) else None
 
 
 # ---------------------------------------------------------------- the card
@@ -197,124 +270,144 @@ def _rank_labels(po, pd, r, oc, dc):
 
 
 def _chart(o, d, rows, oc, dc):
-    px = lambda rank, n: (n - rank) / max(1, n - 1) * 100   # 1st at the right, the "better" end
+    px = lambda rank, n: (rank - 1) / max(1, n - 1) * 100   # 1st at the left (Jason, 2026-10-11)
     out = []
     for r in rows:
         po, pd = px(r["orr"], r["n"]), px(r["drr"], r["n"])
         gap = oc if r["edge"] == o else dc if r["edge"] == d else "--lc:var(--aag-text-3);--dc:var(--aag-text-3)"
-        label = (f'{r["name"]}: {o} offense {ordinal(r["orr"])}, {d} defense {ordinal(r["drr"])}'
+        label = (f'{r["name"]}{" (EPA)" if len(r["lines"]) > 1 else ""}: {o} offense {ordinal(r["orr"])}, '
+                 f'{d} defense {ordinal(r["drr"])}'
                  + (f', edge {r["edge"]}' if r["edge"] else ", even"))
         out.append(
             f'<div class="mu-tr{" top" if r["top"] else ""}" role="img" aria-label="{esc(label)}">'
-            f'<div class="mu-tr-top"><span class="mu-tk">{r["n"]}</span><span class="mu-tr-l"><span class="mu-nm">{esc(r["name"])}'
-            f'{_bolt(r, gap)}</span></span><span class="mu-tk">1</span></div>'
+            f'<div class="mu-tr-l"><span class="mu-nm">{esc(r["name"])}{_bolt(r, gap)}</span></div>'
+            f'<div class="mu-line"><span class="mu-tk">1</span>'
             f'<div class="mu-track"><i class="mu-gap mu-c" style="left:{min(po, pd):.1f}%;width:{abs(po - pd):.1f}%;{gap}"></i>'
             + (f'<i class="mu-mk" style="left:{po:.1f}%">{tie_mark(oc, dc)}</i>' if r["orr"] == r["drr"] else
                f'<i class="mu-mk mu-c" style="left:{pd:.1f}%;{dc}">{X_MARK}</i>'
                f'<i class="mu-mk mu-c" style="left:{po:.1f}%;{oc}">{O_MARK}</i>')
-            + _rank_labels(po, pd, r, oc, dc) + '</div></div>')
+            + _rank_labels(po, pd, r, oc, dc) + f'</div><span class="mu-tk">{r["n"]}</span></div></div>')
     return (f'<div class="mu-blk"><div class="mu-blk-h"><span>{helmets.pill_html(o)} offense <i class="mu-lg mu-c" style="{oc}">{O_MARK}</i></span>'
             f'<span class="mu-vs">vs</span><span>{helmets.pill_html(d)} defense <i class="mu-lg mu-c" style="{dc}">{X_MARK}</i></span></div>'
             f'{"".join(out)}</div>')
 
 
-def _numbers(o, d, rows, oc, dc):
+def _rank_color(n):
+    from render_page1 import rank_color   # (render_page1 imports this module)
+    return rank_color(n)
+
+
+def _numbers(o, d, groups, oc, dc):
+    """Page 2's offense card: a group a stat -- its title, a line a measure, one edge."""
+    rk = lambda n: f'<small style="color:{_rank_color(n)}">{ordinal(n)}</small>'   # green-to-red (Jason, 2026-10-11)
+
+    def line(r):   # the yards under the EPA: the numbers alone (Jason, 2026-10-11)
+        ranked = r.get("ranked", True)
+        return (f'<div class="mu-ln"><div class="mu-ln-l">{esc(r["measure"])}</div>'
+                f'<div class="mu-er-v"><b>{r["ov"]}</b>{rk(r["orr"]) if ranked else ""}</div><div class="mu-er-vs">vs</div>'
+                f'<div class="mu-er-v"><b>{r["dv"]}</b>{rk(r["drr"]) if ranked else ""}</div></div>')
     out = "".join(
-        f'<div class="mu-er{" top" if r["top"] else ""}"><div class="mu-er-l">{esc(r["name"])}{_bolt(r, oc if r["edge"] == o else dc)}'
-        f'<small>{esc(r["measure"])}</small></div>'
-        f'<div class="mu-er-v"><b>{r["ov"]}</b><small>{ordinal(r["orr"])}</small></div><div class="mu-er-vs">vs</div>'
-        f'<div class="mu-er-v"><b>{r["dv"]}</b><small>{ordinal(r["drr"])}</small></div>'
-        f'<div class="mu-er-e">{helmets.pill_html(r["edge"]) if r["edge"] else "<span class=mu-even title=Even></span>"}</div></div>'
-        for r in rows)
+        f'<div class="mu-grp{" top" if g["top"] else ""}"><div class="mu-grp-r">'
+        f'<div class="mu-grp-t">{esc(g["name"])}{_bolt(g, oc if g["edge"] == o else dc)}</div>{"".join(line(r) for r in g["lines"])}</div>'
+        f'<div class="mu-er-e">{helmets.pill_html(g["edge"]) if g["edge"] else "<span class=mu-even title=Even></span>"}</div></div>'
+        for g in groups)
+    head = (f'<div class="mu-grp mu-hd"><div class="mu-grp-r"><div class="mu-ln"><div></div><div>{esc(o)} O</div><div></div>'
+            f'<div>{esc(d)} D</div></div></div><div class="mu-er-e">Edge</div></div>')   # "BAL O" (Jason, 2026-10-11)
     return (f'<div class="mu-blk"><div class="mu-blk-h"><span>{helmets.pill_html(o)} offense</span><span class="mu-vs">vs</span>'
-            f'<span>{helmets.pill_html(d)} defense</span></div>'
-            f'<div class="mu-er mu-er-hd"><div></div><div>{esc(o)}</div><div></div><div>{esc(d)}</div><div>Edge</div></div>{out}</div>')
+            f'<span>{helmets.pill_html(d)} defense</span></div>{head}{out}</div>')
 
 
 def card_body(data):
     """The card's body (render_page1 puts it in the deck): the chart, or "" without data."""
     if not data:
         return ""
-    chart = "".join(_chart(o, d, rows, *_colors(o, d)) for o, d, rows in data["halves"])
-    return f'<div class="mu"><div class="mu-sub">League rank · 1st on the right</div>{chart}</div>'
+    chart = "".join(_chart(o, d, groups, *_colors(o, d)) for o, d, groups in data["halves"])
+    return f'<div class="mu"><div class="mu-sub">League rank by EPA · 1st on the left</div>{chart}</div>'
 
 
 # ---------------------------------------------------------------- Page 2
 
-# "Matchups to Watch": an edge a sentence, in plain words. Each sentence is about the side that makes
-# the edge -- whichever is further from the middle of the league: a strong offense or a weak defense
-# when the offense has the edge, a strong defense or a weak offense when the defense has it (so a
-# defense ranked 17th is never said to "stop the run"). {o} / {d} the teams, {ov} / {dv} their
-# numbers, {orr} / {drr} their ranks.
-SENTENCES = {
-    "rb": {"off_strong": "{o}'s running backs average {ov} yards a carry ({orr}), and {d} gives up {dv} to running backs ({drr}).",
-           "def_weak": "{d} has struggled against the run, giving up {dv} yards a carry ({drr}), and {o}'s running backs average {ov} ({orr}).",
-           "def_strong": "{d} stops the run, allowing {dv} yards a carry ({drr}), while {o}'s running backs average {ov} ({orr}).",
-           "off_weak": "{o}'s running backs have had a hard time, averaging {ov} yards a carry ({orr}), and {d} allows {dv} ({drr})."},
-    "wr": {"off_strong": "{o}'s receivers average {ov} yards a target ({orr}), and {d} allows {dv} to receivers ({drr}).",
-           "def_weak": "{d} has struggled to cover receivers, allowing {dv} yards a target ({drr}), and {o}'s receivers average {ov} ({orr}).",
-           "def_strong": "{d} covers receivers well, allowing {dv} yards a target ({drr}), while {o}'s receivers average {ov} ({orr}).",
-           "off_weak": "{o}'s receivers have had a hard time, averaging {ov} yards a target ({orr}), and {d} allows {dv} ({drr})."},
-    "te": {"off_strong": "{o}'s tight ends average {ov} yards a target ({orr}), and {d} allows {dv} to tight ends ({drr}).",
-           "def_weak": "{d} has struggled to cover tight ends, allowing {dv} yards a target ({drr}), and {o}'s tight ends average {ov} ({orr}).",
-           "def_strong": "{d} handles tight ends well, allowing {dv} yards a target ({drr}), while {o}'s tight ends average {ov} ({orr}).",
-           "off_weak": "{o}'s tight ends have had a hard time, averaging {ov} yards a target ({orr}), and {d} allows {dv} ({drr})."},
-    "qb": {"off_strong": "{o} keeps its quarterback upright, sacked on just {ov} of dropbacks ({orr}), and {d}'s pass rush gets home on {dv} ({drr}).",
-           "def_weak": "{d}'s pass rush has rarely gotten home, with sacks on {dv} of dropbacks ({drr}), and {o} gives up sacks on {ov} ({orr}).",
-           "def_strong": "{d}'s pass rush gets to the quarterback on {dv} of dropbacks ({drr}), and {o} has given up sacks on {ov} ({orr}).",
-           "off_weak": "{o} has had trouble protecting its quarterback, sacked on {ov} of dropbacks ({orr}), and {d} gets sacks on {dv} ({drr})."},
+# "Matchups to Watch": an edge a sentence, in plain words -- the EPA and its ranks, then the yards
+# (2026-10-11). Each sentence is about the side that makes the edge -- whichever is further from the
+# middle of the league on the EPA ranks: a strong offense or a weak defense when the offense has the
+# edge, a strong defense or a weak offense when the defense has it (so a defense ranked 17th is never
+# said to "stop the run"). {o} / {d} the teams, {oe} / {de} their EPA and {oer} / {der} those ranks,
+# {ov} / {dv} their yards. (Pass rush: {ov} / {dv} the sack rates, {orr} / {drr} their ranks.)
+_WORDS = {   # who, the yards, the EPA, a weak defense, a strong one
+    "pass": ("quarterbacks", "yards an attempt", "EPA a dropback", "has struggled against the pass", "shuts down the pass"),
+    "rb": ("running backs", "yards a carry", "EPA a play", "has struggled against the run", "stops the run"),
+    "wr": ("receivers", "yards a target", "EPA a target", "has struggled to cover receivers", "covers receivers well"),
+    "te": ("tight ends", "yards a target", "EPA a target", "has struggled to cover tight ends", "handles tight ends well"),
 }
-# a too-close row, named from the offense's side
-CLOSE_WORDS = {"rb": "run game", "wr": "receivers", "te": "tight ends", "qb": "pass protection"}
+_KINDS = {
+    "off_strong": "{o}'s {who} average {oe} {e} ({oer}) and {ov} {y}; {d} allows {de} ({der}) and {dv}.",
+    "def_weak": "{d} {weak}, allowing {de} {e} ({der}) and {dv} {y}; {o}'s {who} average {oe} ({oer}) and {ov}.",
+    "def_strong": "{d} {strong}, allowing {de} {e} ({der}) and {dv} {y}; {o}'s {who} average {oe} ({oer}) and {ov}.",
+    "off_weak": "{o}'s {who} have had a hard time, averaging {oe} {e} ({oer}) and {ov} {y}; {d} allows {de} ({der}) and {dv}.",
+}
+_FIELDS = {f: "{" + f + "}" for f in ("o", "d", "ov", "dv", "orr", "drr", "oe", "de", "oer", "der")}
+SENTENCES = {key: {kind: t.format(who=who, y=y, e=e, weak=weak, strong=strong, **_FIELDS) for kind, t in _KINDS.items()}
+             for key, (who, y, e, weak, strong) in _WORDS.items()}
+# pass rush has no EPA: the sack rates alone
+SENTENCES["qb"] = {
+    "off_strong": "{o} keeps its quarterback upright, sacked on just {ov} of dropbacks ({orr}), and {d}'s pass rush gets home on {dv} ({drr}).",
+    "def_weak": "{d}'s pass rush has rarely gotten home, with sacks on {dv} of dropbacks ({drr}), and {o} gives up sacks on {ov} ({orr}).",
+    "def_strong": "{d}'s pass rush gets to the quarterback on {dv} of dropbacks ({drr}), and {o} has given up sacks on {ov} ({orr}).",
+    "off_weak": "{o} has had trouble protecting its quarterback, sacked on {ov} of dropbacks ({orr}), and {d} gets sacks on {dv} ({drr})."}
 WATCH_MAX = 4   # the biggest edges only: what to watch, not everything
 
 
 def _rank_words(n, total):
-    return "best in the NFL" if n == 1 else "worst in the NFL" if n == total else ordinal(n)
+    """A sentence's rank, in its color on the green-to-red scale (Jason, 2026-10-11)."""
+    if n is None:
+        return "\u2013"
+    words = "best in the NFL" if n == 1 else "worst in the NFL" if n == total else ordinal(n)
+    return f'<b class="mu-w-rk" style="color:{_rank_color(n)}">{words}</b>'
 
 
-def _sentence(r, o, d):
-    mid = (r["n"] + 1) / 2
-    if r["edge"] == o:   # a strong offense, or a weak defense?
-        kind = "off_strong" if mid - r["orr"] >= r["drr"] - mid else "def_weak"
+def _sentence(g, o, d):
+    """The sentence as HTML: the template is ours, the teams and numbers are escaped."""
+    mid = (g["n"] + 1) / 2
+    if g["edge"] == o:   # a strong offense, or a weak defense?
+        kind = "off_strong" if mid - g["orr"] >= g["drr"] - mid else "def_weak"
     else:                # a strong defense, or a weak offense?
-        kind = "def_strong" if mid - r["drr"] >= r["orr"] - mid else "off_weak"
-    return SENTENCES[r["key"]][kind].format(o=o, d=d, ov=r["ov"], dv=r["dv"],
-                                            orr=_rank_words(r["orr"], r["n"]), drr=_rank_words(r["drr"], r["n"]))
+        kind = "def_strong" if mid - g["drr"] >= g["orr"] - mid else "off_weak"
+    ln = next(x for x in g["lines"] if x["key"] == g["key"])
+    ep = next((x for x in g["lines"] if x["key"] == EPA_OF.get(g["key"])), None)
+    if ep is None and g["key"] != "qb":   # no EPA for one of them: say so with a dash
+        ep = {"ov": "\u2013", "dv": "\u2013", "orr": None, "drr": None, "n": ln["n"]}
+    v = {"ov": esc(ln["ov"]), "dv": esc(ln["dv"]), "orr": _rank_words(ln["orr"], ln["n"]), "drr": _rank_words(ln["drr"], ln["n"])}
+    if ep:
+        v.update(oe=esc(ep["ov"]), de=esc(ep["dv"]), oer=_rank_words(ep["orr"], ep["n"]), der=_rank_words(ep["drr"], ep["n"]))
+    return esc(SENTENCES[g["key"]][kind]).format(o=esc(o), d=esc(d), **v)
 
 
 def watch(data):
-    """The summary card's lines -- [(favored team, sentence, the biggest?)], the WATCH_MAX biggest gaps,
-    biggest first -- and the rows too close to call, ["CIN's run game vs MIA", ...]."""
-    edges, close = [], []
-    for o, d, rows in data["halves"]:
-        for r in rows:
-            if r["edge"]:
-                edges.append((abs(r["orr"] - r["drr"]), r["edge"], _sentence(r, o, d)))
-            else:
-                close.append(f"{o}'s {CLOSE_WORDS[r['key']]} vs {d}")
+    """The summary card's lines -- [(favored team, sentence HTML, the biggest?)], the WATCH_MAX biggest
+    gaps on the EPA ranks (Pass rush: the sack rate's), biggest first. (The rows too close to call were listed under them until
+    2026-10-11.)"""
+    edges = [(abs(g["orr"] - g["drr"]), g["edge"], _sentence(g, o, d))
+             for o, d, groups in data["halves"] for g in groups if g["edge"]]
     edges.sort(key=lambda e: -e[0])
     most = edges[0][0] if edges else None
-    return [(team, text, gap == most) for gap, team, text in edges[:WATCH_MAX]], close
+    return [(team, text, gap == most) for gap, team, text in edges[:WATCH_MAX]]
 
 
 BOLT_TAG = f'<span class="mu-bolt" title="Biggest edge">{BOLT}</span>'
 
 
 def _watch_body(data):
-    lines, close = watch(data)
+    lines = watch(data)
     if lines:
         items = "".join(
             f'<li class="mu-w-i"><span class="mu-w-p">{helmets.pill_html(team)}</span>'
-            f'<p>{esc(text)}{BOLT_TAG if top else ""}</p></li>'
+            f'<p>{text}{BOLT_TAG if top else ""}</p></li>'
             for team, text, top in lines)
         body = f'<ul class="mu-w">{items}</ul>'
     else:
         body = f'<p class="mu-w-none">No big edges in this one: every matchup is within {EDGE_GAP} spots in the league rankings.</p>'
-    if close and lines:
-        body += f'<p class="mu-w-close"><b>Too close to call:</b> {esc(", ".join(close))}.</p>'
     # a list too long for a short phone scrolls inside the card (P1_JS's detailAtTop knows .mu-scroll)
-    return (f'<div class="mu mu-p2"><div class="mu-sub">Edges: {EDGE_GAP}+ spots apart in the rankings</div>'
+    return (f'<div class="mu mu-p2"><div class="mu-sub">Edges: {EDGE_GAP}+ spots apart in the EPA rankings</div>'
             f'<div class="mu-scroll">{body}</div></div>')
 
 
@@ -325,13 +418,14 @@ OX_ICON = ('<svg viewBox="0 0 30 14" fill="none" stroke="currentColor" stroke-wi
 PAGE_ICONS = {"away": OX_ICON, "home": OX_ICON, "watch": BOLT}
 
 
-def render_block(data, away_title, home_title):
+def render_block(data):
     """The hidden .p2 layer for the Matchups card's Page 2, spliced into Page 1's .p1 block ("" without
-    data). away_title / home_title: the two offense cards' titles ("Cincinnati Offense")."""
+    data). The two offense cards are titled "CIN O vs MIA D" (Jason, 2026-10-11; "Cincinnati Offense" before)."""
     if not data:
         return ""
     from render_page1 import DOWN, UP
     (ao, ad, arows), (ho, hd, hrows) = data["halves"]
+    away_title, home_title = f"{ao} O vs {ad} D", f"{ho} O vs {hd} D"
 
     def numbers_card(o, d, rows):
         return (f'<div class="mu mu-p2"><div class="mu-sub">Season to date · rank among 32 teams</div>'
@@ -367,17 +461,11 @@ MATCHUP_CSS = """
 /* the offense cards' four rows share the card's height (up to a point), like the Player Stats rows */
 .p2k-mu .body>.mu-p2{flex:1;min-height:0;display:flex;flex-direction:column}
 .p2k-mu .mu-p2>.mu-blk{flex:1;display:flex;flex-direction:column}
-.p2k-mu .mu-blk>.mu-er:not(.mu-er-hd){flex:1 1 auto;max-height:104px}
+.p2k-mu .mu-blk>.mu-grp:not(.mu-hd){flex:1 1 auto;max-height:120px}
 .mu-p2 .mu-blk{margin-top:14px}
 .mu-p2 .tpill{height:20px;min-width:50px;font-size:11px}
 .mu-p2 .mu-blk-h{font-size:13px;margin-bottom:8px}
-.mu-p2 .mu-er{padding:11px 0;grid-template-columns:1fr 56px 18px 56px 58px}
-.mu-p2 .mu-er-l{font-size:15px}
-.mu-p2 .mu-er-l small{font-size:10.5px;margin-top:2px}
-.mu-p2 .mu-er-v b{font-size:19px}
-.mu-p2 .mu-er-v small{font-size:10.5px}
-.mu-p2 .mu-er-hd{font-size:10px;padding-bottom:4px}
-.mu-p2 .mu-er.top{margin:0 -10px;padding-left:10px;padding-right:10px}
+.mu-p2 .mu-grp.top{margin:0 -10px;padding-left:10px;padding-right:10px}
 /* Matchups to Watch: the favored team's pill, then the sentence */
 .mu-scroll{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;scrollbar-width:none}
 .mu-scroll::-webkit-scrollbar{display:none}
@@ -387,69 +475,74 @@ MATCHUP_CSS = """
 .mu-w-p{padding-top:1px}
 .mu-w-i p{font-size:14px;line-height:1.4}
 .mu-w-i .mu-bolt{color:var(--text-2)}
-.mu-w-close,.mu-w-none{margin-top:10px;padding-top:10px;border-top:1px solid var(--tile-border-soft);font-size:13px;line-height:1.4;color:var(--text-2)}
-.mu-w-none{border-top:0;font-size:14px;color:inherit}
-.mu-w-close b{color:var(--ink)}
+.mu-w-rk{font-weight:700}
+.mu-w-none{margin-top:10px;padding-top:10px;font-size:14px;line-height:1.4}
 .mu .tpill{height:18px;min-width:44px;padding:0 5px;border-width:2px;font-size:10px}
-.mu-blk{margin-top:10px}
-.mu-blk+.mu-blk{margin-top:12px;padding-top:10px;border-top:1px solid var(--tile-border-soft)}
+.mu-blk{margin-top:6px}
+.mu-blk+.mu-blk{margin-top:8px;padding-top:6px;border-top:1px solid var(--tile-border-soft)}
 .mu-blk-h{display:flex;align-items:center;justify-content:center;gap:8px;font-size:11px;font-weight:700;color:var(--text-2);margin-bottom:4px}
 .mu-blk-h>span{display:inline-flex;align-items:center;gap:5px}
 .mu-vs{color:var(--aag-text-3);font-weight:400}
 .mu-lg{display:inline-block;width:12px;height:12px;color:var(--c)}
 .mu-xo{display:block;width:100%;height:100%;overflow:visible}
 .mu-half{color:var(--c)}
-/* Chart: a slim row -- 32, the name, 1 -- over the track */
-.mu-tr{padding:5px 0 7px;border-top:1px solid var(--tile-border-soft)}
-.mu-tr-top{display:grid;grid-template-columns:20px 1fr 20px;align-items:baseline;margin:0 0 6px}
-.mu-tr-l{text-align:center;font-size:12px;font-weight:700}
+/* Chart: a slim row -- the name over the track, 1 and 32 at its ends */
+.mu-tr{padding:3px 0 4px;border-top:1px solid var(--tile-border-soft)}
+.mu-tr-l{text-align:center;font-size:12px;font-weight:700;margin:0 0 3px}
 .mu-nm{position:relative;display:inline-block}
-.mu-tk{font-size:8.5px;font-weight:700;color:var(--aag-text-3)}
-.mu-tk:first-child{text-align:left}.mu-tk:last-child{text-align:right}
-.mu-track{position:relative;height:3px;margin:0 2px 15px;border-radius:2px;background:var(--tile-border)}
+.mu-line{display:grid;grid-template-columns:12px 1fr 12px;align-items:center;column-gap:11px;margin-bottom:10px}
+.mu-tk{font-size:9px;font-weight:700;line-height:1;color:var(--aag-text-3)}
+.mu-tk:first-child{text-align:right}.mu-tk:last-child{text-align:left}
+.mu-track{position:relative;height:3px;border-radius:2px;background:var(--tile-border)}
 /* each mark's rank under it, in its team's color; close marks push theirs apart */
-.mu-rk{position:absolute;top:9px;transform:translateX(-50%);font-size:9px;font-weight:700;line-height:1;white-space:nowrap;
+.mu-rk{position:absolute;top:8px;transform:translateX(-50%);font-size:9px;font-weight:700;line-height:1;white-space:nowrap;
   color:var(--c,var(--text-2))}
-.mu-rk-l{transform:translateX(calc(-100% + 3px))}
-.mu-rk-r{transform:translateX(-3px)}
+.mu-rk-l{transform:translateX(calc(-100% + 1px))}
+.mu-rk-r{transform:translateX(-1px)}
 .mu-gap{position:absolute;top:0;bottom:0;border-radius:2px;opacity:.6;background:var(--c)}
 .mu-mk{position:absolute;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;color:var(--c)}
-/* Numbers: name, offense, vs, defense, edge */
-.mu-er{display:grid;grid-template-columns:1fr 46px 16px 46px 52px;align-items:center;column-gap:4px;padding:5px 0;border-top:1px solid var(--tile-border-soft)}
-.mu-er-hd{border-top:0;padding:0 0 2px;font-size:9px;font-weight:700;letter-spacing:.05em;color:var(--aag-text-3);text-align:center}
-.mu-er-l{font-size:13px;font-weight:700;line-height:1.15}
-.mu-er-l small{display:block;font-size:9.5px;font-weight:400;color:var(--aag-text-3)}
-.mu-er-v{text-align:center;line-height:1.1}
-.mu-er-v b{display:block;font-size:15px;font-variant-numeric:proportional-nums}
-.mu-er-v small{font-size:9.5px;font-weight:700;color:var(--text-2)}
+/* Numbers: a group a stat -- its title over a line a measure (descriptor, offense, vs, defense), the
+   group's edge at the right */
+.mu-grp{display:flex;align-items:center;column-gap:6px;padding:8px 0;border-top:1px solid var(--tile-border-soft)}
+.mu-grp-r{flex:1;min-width:0}
+.mu-grp-t{font-size:15px;font-weight:700;line-height:1.2;margin-bottom:2px}
+.mu-ln{display:grid;grid-template-columns:minmax(0,1fr) 66px 10px 66px;align-items:baseline;column-gap:3px;line-height:1.35}
+.mu-ln-l{font-size:11px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mu-er-v{display:flex;justify-content:center;align-items:baseline;gap:2px}
+.mu-er-v b{font-size:17px;font-variant-numeric:proportional-nums}
+.mu-er-v small{font-size:10px;font-weight:700}
 .mu-er-vs{text-align:center;font-size:9px;color:var(--aag-text-3)}
-.mu-er-e{display:flex;justify-content:center}
+.mu-er-e{flex:0 0 54px;display:flex;justify-content:center}
+.mu-hd{border-top:0;padding:0 0 3px}
+.mu-hd .mu-ln>div,.mu-hd .mu-er-e{font-size:10px;font-weight:700;letter-spacing:.05em;color:var(--aag-text-3);text-align:center}
 .mu-even{display:block;width:14px;height:2px;border-radius:1px;background:var(--aag-text-3)}   /* even: just a line */
 /* each half's biggest edge: tinted, its stretch bolder, a bolt in the favored team's color */
-.mu-er.top,.mu-tr.top{background:var(--tile-hover);border-radius:10px;border-top-color:transparent;margin:0 -8px;padding-left:8px;padding-right:8px}
-.mu-er.top+.mu-er,.mu-tr.top+.mu-tr{border-top-color:transparent}
+.mu-grp.top,.mu-tr.top{background:var(--tile-hover);border-radius:10px;border-top-color:transparent;margin:0 -8px;padding-left:8px;padding-right:8px}
+.mu-grp.top+.mu-grp,.mu-tr.top+.mu-tr{border-top-color:transparent}
 .mu-tr.top .mu-track{height:5px}
 .mu-tr.top .mu-gap{opacity:1}
 .mu-bolt{display:inline-block;width:9px;height:12px;margin-left:5px;vertical-align:-1px;color:var(--c)}
 .mu-bolt svg{display:block;width:100%;height:100%}
 .mu-nm .mu-bolt{position:absolute;left:100%;top:50%;transform:translateY(-50%)}   /* the name stays centered */
-/* shorter phones: the card is shorter, so the rows close up -- below 740px tall (an iPhone 8 / SE 2nd
-   gen) the subtitle and Numbers' small "RB yards a carry" lines go; below 600px (an SE 1st gen) a
-   size down again */
+/* shorter phones: the card is shorter, so the rows close up -- below 790px tall the chart's ten rows
+   don't fit with each name over its line, so the name goes to the line's left (2026-10-11); below
+   740px (an iPhone 8 / SE 2nd gen) the subtitle and Numbers' "vs" go; below
+   600px (an SE 1st gen) a size down again */
+@media (max-height:790px){
+  .mu-tr{display:grid;grid-template-columns:74px 1fr;align-items:center;padding:5px 0 14px}
+  .mu-tr-l{margin:0;text-align:left;font-size:11.5px;white-space:nowrap}
+  .mu-line{margin:0}
+}
 @media (max-height:740px){
   .mu-w-i{padding:8px 0}
   .mu-w-i p,.mu-w-none{font-size:13px;line-height:1.35}
-  .mu-w-close{font-size:12px}
-  .mu-sub,.mu-er-l small{display:none}
-  .mu-blk{margin-top:8px}
-  .mu-blk+.mu-blk{margin-top:8px;padding-top:6px}
-  .mu-tr{padding:3px 0 2px}
-  .mu-tr-top{margin-bottom:4px}
-  .mu-track{margin-bottom:13px}
-  .mu-rk{top:8px}
-  .mu-er{padding:4px 0;grid-template-columns:1fr 66px 10px 66px 50px}
-  .mu-er-v{display:flex;justify-content:center;align-items:baseline;gap:4px}   /* "3.5 27th": the rank beside the number */
-  .mu-er-v b{display:inline}
+  .mu-sub{display:none}
+  .mu-tr{padding:4px 0 13px}
+  .mu-grp{padding:4px 0}
+  .mu-grp-t{font-size:14px;margin-bottom:1px}
+  .mu-ln{grid-template-columns:minmax(0,1fr) 66px 0 66px}   /* the "vs" goes: the descriptors need the room */
+  .mu-er-vs{visibility:hidden}
+  .mu-er-v b{font-size:16px}
 }
 @media (max-height:600px){
   .matchup .body{padding-top:40px;padding-bottom:8px}
@@ -458,23 +551,26 @@ MATCHUP_CSS = """
   .mu-blk+.mu-blk{margin-top:5px;padding-top:4px}
   .mu-blk-h{margin-bottom:1px}
   .mu .tpill{height:16px;min-width:40px;font-size:9px}
-  .mu-tr{padding:1px 0 0}
-  .mu-tr-top{margin-bottom:1px;line-height:1.1}
-  .mu-track{margin-bottom:9px}
+  .mu-tr{padding:2px 0 11px;grid-template-columns:66px 1fr}
+  .mu-tr-l{font-size:10.5px}
+  .mu-line{column-gap:9px}
   .mu-rk{top:5px;font-size:8px}
-  .mu-tr-l{font-size:11px}
-  .mu-er-hd{display:none}
-  .mu-er{padding:1px 0}
-  .mu-er-l{font-size:12px}
-  .mu-er-v b{font-size:13px}
+  .mu-grp{padding:2px 0}
+  .mu-grp-t{font-size:12.5px;margin-bottom:0}
+  .mu-ln{line-height:1.25}
+  .mu-er-v b{font-size:14px}
   .mu-er-v small{font-size:9px}
 }
-/* a phone 320px wide: narrower number and edge columns, so the names keep one line */
+/* a phone 320px wide: narrower number and edge columns, so the descriptors keep one line */
 @media (max-width:340px){
-  .mu-er{grid-template-columns:1fr 56px 6px 56px 44px;column-gap:3px}
-  .mu-er-v{gap:3px}
-  .mu-er-v b{font-size:12px}
+  .mu-grp{column-gap:3px}
+  .mu-ln{grid-template-columns:minmax(0,1fr) 59px 0 59px;column-gap:3px}
+  .mu-er-vs{visibility:hidden}
+  .mu-ln-l{font-size:9.5px}
+  .mu-grp-t{font-size:12.5px}
+  .mu-er-v b{font-size:14px}
+  .mu-er-v small{font-size:9.5px}
+  .mu-er-e{flex-basis:44px}
   .mu-er-e .tpill{min-width:38px;padding:0 4px}
-  .mu-er-l{font-size:11.5px;white-space:nowrap}   /* "Pass rush" kept to one line */
 }
 """

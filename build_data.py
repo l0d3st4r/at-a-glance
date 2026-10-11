@@ -350,7 +350,7 @@ def main():
 
     # Page 1 (matchup page) data for every game of the season. Wrapped so a
     # problem here can never break Page 0's data above.
-    game_details, player_weeks, rosters_weekly, snaps, depth = {}, {}, [], [], []
+    game_details, player_weeks, rosters_weekly, snaps, depth, player_weekly = {}, {}, [], [], [], []
     try:
         team_weekly, err = nflverse_client.get_team_stats_weekly(season)
         if err:
@@ -423,13 +423,14 @@ def main():
         warnings.append(f"rookies: {e}")
 
     # Page 1's Matchup card (2026-10-10, matchup.py): what each defense allows to each position, from
-    # sportsdataverse -- the offense side comes from player_weeks when the pages are drawn
+    # sportsdataverse (QB passing, 2026-10-11, from nflverse's weekly player stats by opponent) -- the
+    # offense side comes from player_weeks when the pages are drawn
     defense_vs_position = {}
     rows, err = sportsdataverse_client.get_defense_vs_position(season)
     if err:
         warnings.append(f"get_defense_vs_position: {err}")
     try:
-        defense_vs_position = matchup.defense_table(rows)
+        defense_vs_position = matchup.defense_table(rows, player_weekly)
     except Exception as e:
         warnings.append(f"defense_vs_position: {e}")
 
