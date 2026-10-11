@@ -366,7 +366,7 @@ def stadium_condensed(st):
 # ---------------------------------------------------------------- card icons
 
 # Jason's clipboard drawing (an X and an O on a play sheet) -- Kickoff's icon until 2026-10-10, now
-# the Matchup card's on Page 1 (matchup.py); Kickoff has an empty rectangle in its place for now.
+# the Matchup card's on Page 1 (matchup.py).
 CLIPBOARD_ICON = (
     '<svg viewBox="-1548 -1861 3096 3722" aria-hidden="true"><path d="'
     'M634.859,-1230.95 C631.96,-1579.31 349.052,-1860.43 2.95259e-13,-1860.43 C-349.052,-1860.43 -631.96,-1579.31 '
@@ -390,8 +390,27 @@ CLIPBOARD_ICON = (
     'L-1166.3,149.24 L-802.784,-313.701 L-1188.23,-802.421 L-932.671,-802.421 L-668.938,-468.022 Z" '
     'fill="currentColor"/></svg>'
     )
-KICKOFF_ICON = ('<svg viewBox="0 0 14 17" aria-hidden="true"><rect x="1.1" y="1.1" width="11.8" height="14.8" rx="2.2" '
-                'fill="none" stroke="currentColor" stroke-width="2.2"/></svg>')   # a placeholder
+# Kickoff's icon (Jason's drawing, "kickoff nfl.svg", 2026-10-11): the field in perspective, its sidelines
+# and the ball teed up in the middle, a goalpost at each end -- cropped to its bounds, in one color.
+KICKOFF_ICON = (
+    '<svg viewBox="-1707 -716 3414 1570" aria-hidden="true"><path fill="currentColor" d="'
+    'M-1101.5,-192.683 L-1706.36,853.182 L1706.36,853.182 L1101.5,-192.683 L-1101.5,-192.683 Z '
+    'M1467.93,732.28 L1048.73,732.28 L583.709,-71.7819 L1002.91,-71.7819 L1467.93,732.28 Z '
+    'M-1478.32,732.28 L-1013.29,-71.7819 L-594.093,-71.7819 L-1059.12,732.28 L-1478.32,732.28 Z '
+    'M0,525.756 C-227.482,525.756 -411.893,438.225 -411.893,330.249 C-411.893,222.274 -227.482,134.743 0,134.743 '
+    'C227.482,134.743 411.893,222.274 411.893,330.249 C411.893,438.225 227.482,525.756 0,525.756 Z '
+    'M-1289.71,330.249 L-1289.71,-129.213 L-1359.41,-129.213 L-1359.41,330.249 Z '
+    'M-1193.57,-256.153 L-1193.14,-256.153 L-1193.14,-256.9 L-1192.52,-257.97 L-1193.14,-257.97 L-1193.14,-715.615 '
+    'L-1284.72,-715.615 L-1284.72,-257.97 L-1285.75,-257.97 L-1531.9,167.648 L-1438.67,167.648 Z '
+    'M-1531.57,-291.814 L-1531.57,167.648 L-1439.99,167.648 L-1439.99,-291.814 Z '
+    'M1288.72,330.249 L1288.72,-129.213 L1358.42,-129.213 L1358.42,330.249 Z '
+    'M1192.58,-256.153 L1192.15,-256.153 L1192.15,-256.9 L1191.53,-257.97 L1192.15,-257.97 L1192.15,-715.615 '
+    'L1283.73,-715.615 L1283.73,-257.97 L1284.76,-257.97 L1530.91,167.648 L1437.68,167.648 Z '
+    'M1530.58,-291.814 L1530.58,167.648 L1439,167.648 L1439,-291.814 Z"/></svg>'
+    )
+# the NBA game pages' Tip-Off card (render_nba_game.py) keeps the placeholder until it has its own
+TIPOFF_ICON = ('<svg viewBox="0 0 14 17" aria-hidden="true"><rect x="1.1" y="1.1" width="11.8" height="14.8" rx="2.2" '
+               'fill="none" stroke="currentColor" stroke-width="2.2"/></svg>')
 
 # Each card's icon (Jason's icons, 2026-10-04), working like Page 1's NAV_ICONS: in front of the
 # card's title (expanded and condensed) and as the card's nav dot. Stadium is his drawing, cropped
@@ -421,9 +440,10 @@ P2_ICONS = {
 }
 
 
-def _title(cid, name):
-    """A card's title: its icon (P2_ICONS) in front of its name, like Page 1's render_page1.title_icon."""
-    icon = P2_ICONS.get(cid)
+def _title(cid, name, icons=None):
+    """A card's title: its icon (P2_ICONS, or the icons given) in front of its name, like Page 1's
+    render_page1.title_icon."""
+    icon = (icons or P2_ICONS).get(cid)
     return f'<span class="ttl">{f"<span class=t-ic>{icon}</span>" if icon else ""}{name}</span>'
 
 

@@ -556,6 +556,10 @@ def arena_condensed(d):
             f'{stadium_icons.svg("dome", "st-icon")}</div><div class="strip">{gi._fact(label, esc(value))}</div>')
 
 
+# the Game Info cards' icons: the NFL pages', but Tip-Off keeps its placeholder (Kickoff's is a football field)
+NBA_P2_ICONS = dict(gi.P2_ICONS, kickoff=gi.TIPOFF_ICON)
+
+
 def render_gameinfo_block(d, time_html):
     info = d.get("info")
     if not isinstance(info, dict):
@@ -564,13 +568,13 @@ def render_gameinfo_block(d, time_html):
              ("stadium", "Arena", arena_body(d), arena_condensed(d))]
     slots = "".join(
         f'<section class="slot"><a class="card p2k p2k-{cid}" tabindex="-1" aria-label="{name}">'
-        f'<span class="peek peek-top">{p1.DOWN}{gi._title(cid, name)}</span><div class="body">{body}</div>'
-        f'<span class="peek peek-bot">{p1.UP}{gi._title(cid, name)}</span></a></section>'
+        f'<span class="peek peek-top">{p1.DOWN}{gi._title(cid, name, NBA_P2_ICONS)}</span><div class="body">{body}</div>'
+        f'<span class="peek peek-bot">{p1.UP}{gi._title(cid, name, NBA_P2_ICONS)}</span></a></section>'
         for cid, name, body, _c in cards)
-    dots = "".join(f'<button class="dot" type="button" aria-label="{name}">{gi.P2_ICONS.get(cid, "")}</button>'
+    dots = "".join(f'<button class="dot" type="button" aria-label="{name}">{NBA_P2_ICONS.get(cid, "")}</button>'
                    for cid, name, _b, _c in cards)
     condensed = "".join(f'<a class="card cc cc-{cid}" tabindex="0" aria-label="{name}"><span class="card-title">'
-                        f'{gi._title(cid, name)}</span>{c}</a>' for cid, name, _b, c in cards)
+                        f'{gi._title(cid, name, NBA_P2_ICONS)}</span>{c}</a>' for cid, name, _b, c in cards)
     return ('<div class="p2" data-page="game-info" aria-label="Game info" role="region">'
             f'<div class="p2-view p2-l deck">{slots}</div><nav class="dots p2-dots ic-dots" aria-label="Cards">{dots}</nav>'
             f'<div class="p2-view p2-c n{len(cards)}">{condensed}</div></div>')
