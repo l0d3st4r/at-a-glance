@@ -325,6 +325,43 @@ def card_body(data):
     return f'<div class="mu"><div class="mu-sub">League rank by EPA · 1st on the left</div>{chart}</div>'
 
 
+# ---------------------------------------------------------------- the condensed view's strip
+
+# The condensed view has no room for the card, so it gets one line (Jason, 2026-10-11, option C of
+# mockups/build_matchup_condensed_mockup.py): the game's biggest edge -- the largest rank gap among
+# both halves' edges -- as a slim card between the team cards and Leaders: a bolt, the favored team's
+# pill, what the edge is ("receivers vs CLE", "pass D vs ATL", short enough for a 320px phone), the two ranks (the favored side's
+# first) and what they rank ("EPA"; Pass rush "sack %"). Tapping it opens the Page 2.
+OFF_WORDS = {"pass": "passing", "rb": "run game", "wr": "receivers", "te": "TEs", "qb": "O-line"}
+DEF_WORDS = {"pass": "pass D", "rb": "run D", "wr": "coverage", "te": "TE D", "qb": "rush"}
+
+
+def biggest(data):
+    """(offense, defense, group) for the game's biggest edge, or None (no data, or every row even)."""
+    best = None
+    for o, d, groups in (data or {}).get("halves", []):
+        for g in groups:
+            if g["edge"] and (best is None or abs(g["orr"] - g["drr"]) > abs(best[2]["orr"] - best[2]["drr"])):
+                best = (o, d, g)
+    return best
+
+
+def strip_html(data):
+    """The condensed view's strip, or "" without an edge."""
+    b = biggest(data)
+    if not b:
+        return ""
+    o, d, g = b
+    words = f'{OFF_WORDS[g["key"]]} vs {d}' if g["edge"] == o else f'{DEF_WORDS[g["key"]]} vs {o}'
+    fav, other = (g["orr"], g["drr"]) if g["edge"] == o else (g["drr"], g["orr"])
+    kind = "sack %" if g["key"] == "qb" else "EPA"
+    rk = lambda n: f'<b style="color:{_rank_color(n)}">{ordinal(n)}</b>'
+    label = f'Biggest edge: {g["edge"]} {words}, {ordinal(fav)} vs {ordinal(other)} in {kind}'
+    return (f'<a class="card c-mu" tabindex="0" data-detail="matchup" aria-label="{esc(label)}"><span class="mx-in">'
+            f'<span class="mx-bolt">{BOLT}</span>{helmets.pill_html(g["edge"])}<span class="mx-t">{esc(words)}</span>'
+            f'<span class="mx-r">{rk(fav)} <span class="mx-vs">vs</span> {rk(other)} <i>{kind}</i></span></span></a>')
+
+
 # ---------------------------------------------------------------- Page 2
 
 # "Matchups to Watch": an edge a sentence, in plain words -- the EPA and its ranks, then the yards
@@ -450,6 +487,30 @@ def render_block(data):
 # --aag-tc-light token (theme.py) rather than a [data-theme] selector, as temp_colors.py does -- so
 # they follow the theme inside Page 0's overlay shadow roots too.
 MATCHUP_CSS = """
+/* The condensed view's strip (strip_html), between the team cards and Leaders. Its height comes from
+   the team cards (10px, never below the 184px their contents need on a short phone), the Leaders rows
+   closing up (gaps of 4-7px instead of 6-10px), and on phones under 760px tall, where that isn't
+   enough, a page floor of 760px instead of 720px (they scroll up to 40px more). The rows' share is
+   render_page1's .view-c formula. */
+.view-c.has-mu{min-height:760px;
+  grid-template-rows:auto max(calc((max(100dvh, 720px) - var(--bar) - var(--bbar) - 48px) * 1.18 / 3.42 - 10px),184px) auto minmax(0,1fr)}
+.view-c.has-mu .c-cmp-in{gap:clamp(4px,calc(2.4vh - 15px),14px)}
+/* one line, centered -- the bolt, pill, words and ranks stay together on a wide screen (Jason, 2026-10-11) */
+a.card.c-mu{display:flex;justify-content:center;align-items:center;padding:9px 16px;min-width:0}
+.mx-in{display:flex;align-items:center;gap:7px;min-width:0;max-width:100%;font-size:13px;font-weight:700;white-space:nowrap}
+.mx-bolt{display:block;flex:none;width:9px;height:12px;color:var(--aag-text-3)}
+.mx-bolt svg{display:block;width:100%;height:100%}
+.c-mu .tpill{height:18px;min-width:44px;padding:0 5px;border-width:2px;font-size:10px;flex:none}
+.mx-t{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.mx-r{flex:none;margin-left:3px;font-size:12.5px}
+.mx-vs{color:var(--aag-text-3);font-weight:400}
+.mx-r i{font-style:normal;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--aag-text-3);margin-left:2px}
+@media (max-width:370px){ .mx-in{gap:5px;font-size:12px} .mx-r{font-size:11.5px} }   /* 360px Androids */
+@media (max-width:340px){   /* a 320px phone: the bolt goes, and the ranks wrap under the words when
+  they don't fit beside them (two-digit ranks and "sack %"); the page's floor gives that line room */
+  .view-c.has-mu{min-height:776px}
+  .mx-in{flex-wrap:wrap;justify-content:center;column-gap:5px;row-gap:1px;font-size:12px}
+  .mx-bolt{display:none} .c-mu .tpill{min-width:38px} .mx-t{overflow:visible} .mx-r{font-size:11.5px} }
 .matchup .body{padding:48px 18px 16px;justify-content:flex-start}   /* right under the title, like the Player Stats cards */
 .mu{width:100%;max-width:440px;margin:0 auto}
 .mu-c{--c:color-mix(in srgb,var(--lc) var(--aag-tc-light),var(--dc))}

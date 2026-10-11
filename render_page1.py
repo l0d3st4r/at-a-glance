@@ -13,7 +13,7 @@ Design = Jason's approved v8 preview (2026-09-16):
     faded), and the Leaders card shows each team's leaders in THAT game, no crowns (season
     leaders until nflverse publishes the game's player stats -- see leaders_scope)
   - cards: Game Info, away team, home team, Matchup (games not yet played, 2026-10-10 --
-    matchup.py; expanded view only), Leaders
+    matchup.py; in the condensed view a one-line strip of the game's biggest edge, 2026-10-11), Leaders
   - team cards: last-game arrow (green up = W, red down = L, yellow line = T),
     record, top 3 injuries (starters first), offense/defense ranks
   - leaders: each team's leader in 5 stats, crown when top 3 in the league
@@ -805,10 +805,14 @@ def render_p1_block(d, prefix="../"):
         f'<button class="toggle" type="button"><span class="i-plus">{PLUS}</span><span class="i-minus">{MINUS}</span></button>'
         "</div></nav>"
     )
+    try:   # the condensed view's Matchups strip: the game's biggest edge (2026-10-11, matchup.py)
+        mu_strip = matchup.strip_html(d.get("matchup"))
+    except Exception:
+        mu_strip = ""
     condensed = (
-        '<div class="view view-c" aria-label="Condensed matchup">'
+        f'<div class="view view-c{" has-mu" if mu_strip else ""}" aria-label="Condensed matchup">'
         f'<a class="card c-game" tabindex="0" data-detail="game-info" aria-label="Game info">{card_title("Game Info", cid="game-info")}{game_body_compact(d)}</a>'
-        f'<div class="c-teams">{c_team(away, "away", final)}{c_team(home, "home", final)}</div>'
+        f'<div class="c-teams">{c_team(away, "away", final)}{c_team(home, "home", final)}</div>{mu_strip}'
         f'<a class="card c-cmp" tabindex="0" data-detail="leaders" aria-label="{leaders_name}">{card_title(leaders_name, cid="leaders")}<div class="c-cmp-in">{pill_row(a, h)}{rows}</div></a>'
         "</div>"
     )
@@ -817,7 +821,7 @@ def render_p1_block(d, prefix="../"):
     # names as the team pages' top bar; the condensed cards keep the abbreviation
     loc = lambda t: render_page2team.LOCATION_NAMES.get(t, t)
     # the Matchups card (2026-10-10, matchup.py) after the team cards, on games not yet played; its deep
-    # dive is matchup.render_block (below), and it has no condensed twin
+    # dive is matchup.render_block (below), and its condensed twin is the strip above
     try:
         mu_body = matchup.card_body(d.get("matchup"))
     except Exception:   # the card's trouble never costs the game its page
@@ -1163,7 +1167,8 @@ window.AAG_P1 = window.AAG_P1 || { init: function (root, opts) {
   dots.forEach(function (d, k) { on(d, 'click', function () { go(k); }); });
 
   // Condensed card for each expanded card, matched by name (data-detail): game info, away team, home
-  // team, leaders. The Matchup card (2026-10-10) has none -- null -- so a switch from it is instant.
+  // team, the Matchups strip (2026-10-11), leaders. A Matchups card without its strip (no edge in the
+  // game) has none -- null -- so a switch from it is instant.
   function condensedCards() {
     return slots.map(function (s) { return root.querySelector('.view-c [data-detail="' + s.querySelector('a.card').getAttribute('data-detail') + '"]'); });
   }
