@@ -50,6 +50,22 @@ them), from the EPA ranks.
 In each half (one team's offense against the other's defense) the biggest edge gets a bolt beside its
 name in the favored team's color and a tint -- no words; on the chart its stretch is bolder too.
 Nothing is marked in a half where every row is even.
+
+A finished regular-season game (Jason, 2026-10-11; final_data): the same two halves -- each offense
+against the other's defense -- but each stat is the one number from that game, set against both units'
+own season averages (their other games): what the offense usually gains, and what the defense usually
+allows (totaled here from its opponents' player stats, so it's the same measure). Each difference is
+colored on the rank colors' scale by its share of that average. No ranks anywhere. The "Advantage"
+(not "won": a team can have the better EPA and still lose the game) goes to the offense when it beat
+its average and the defense allowed more than its average, to the defense when both went the other
+way, by ADV_SHARE or more each; mixed is even. The bolt goes to the advantage that moved the game most:
+its EPA above what the two averages expected, times the plays. Each unit's difference is told from its
+own side (Jason, 2026-10-11): ▲ better than its average, ▼ worse, the arrow and the color agreeing.
+Page 1 (option C of mockups/build_final_matchup_mockup.py): a row a stat -- its name and the game's
+EPA, then a bar a unit (its O or X, in its team's color) centered on its own average, to the right
+when it did better and the left when worse. Page 2 (option A): "Deciding Matchups", then "<away> O vs
+<home> D" and "<home> O vs <away> D" as tables -- the stat, the game's EPA, each unit's ▲/▼ and
+average, the advantage. The condensed view's strip stays off.
 """
 
 import html
@@ -64,6 +80,7 @@ EDGE_GAP = 8
 
 def _epa(v):
     """+.33 / −.05, the way EPA is usually written -- no leading zero, so it fits Page 2's number columns."""
+    v = 0.0 if abs(v) < 0.005 else v   # not "−.00"
     return f"{v:+.2f}".replace("0.", ".", 1).replace("-", "−")
 
 
@@ -124,32 +141,60 @@ def defense_table(rows, player_weekly=None):
     return dict(out)
 
 
-def offense_table(player_weeks):
-    """{team: {"pass", "rb", "wr", "te", "qb", and their "<key>_epa"}} -- the same measures for each offense, from player_weeks."""
+def _add(t, r):
+    """One player-week row into a team's sums."""
+    pos = r.get("pos")
+    if pos == "QB":
+        t["att"] += r.get("att") or 0
+        t["pyds"] += r.get("pyds") or 0
+        t["pepa"] += r.get("pepa") or 0
+        t["sk"] += r.get("sk") or 0
+    elif pos in ("RB", "FB"):
+        t["car"] += r.get("car") or 0
+        t["ryds"] += r.get("ryds") or 0
+        t["RBtgt"] += r.get("tgt") or 0
+        t["RBepa"] += (r.get("rpepa") or 0) + (r.get("repa") or 0)
+    elif pos in ("WR", "TE"):
+        t[pos + "tgt"] += r.get("tgt") or 0
+        t[pos + "yds"] += r.get("reyds") or 0
+        t[pos + "epa"] += r.get("repa") or 0
+
+
+def _measures(t):
+    """A team's sums -> {"pass", "rb", "wr", "te", "qb", their "<key>_epa"}, and each EPA's plays
+    ("<key>_n": dropbacks, carries + targets, targets) and total ("<key>_tot")."""
+    per = lambda a, b: a / b if b else None
+    return {"pass": per(t["pyds"], t["att"]), "rb": per(t["ryds"], t["car"]), "wr": per(t["WRyds"], t["WRtgt"]),
+            "te": per(t["TEyds"], t["TEtgt"]), "qb": per(t["sk"], t["att"] + t["sk"]),
+            "pass_epa": per(t["pepa"], t["att"] + t["sk"]), "rb_epa": per(t["RBepa"], t["car"] + t["RBtgt"]),
+            "wr_epa": per(t["WRepa"], t["WRtgt"]), "te_epa": per(t["TEepa"], t["TEtgt"]),
+            "pass_n": t["att"] + t["sk"], "rb_n": t["car"] + t["RBtgt"], "wr_n": t["WRtgt"], "te_n": t["TEtgt"],
+            "pass_tot": t["pepa"], "rb_tot": t["RBepa"], "wr_tot": t["WRepa"], "te_tot": t["TEepa"]}
+
+
+def offense_table(player_weeks, week=None, skip_week=None, teams=None):
+    """{team: _measures} for each offense, from player_weeks: the season, one week's game, or the season
+    without one week (final_data), for every team or just `teams`."""
     tot = defaultdict(lambda: defaultdict(float))
     for team, rows in (player_weeks or {}).items():
-        t = tot[team]
+        if teams is not None and team not in teams:
+            continue
         for r in rows:
-            pos = r.get("pos")
-            if pos == "QB":
-                t["att"] += r.get("att") or 0
-                t["pyds"] += r.get("pyds") or 0
-                t["pepa"] += r.get("pepa") or 0
-                t["sk"] += r.get("sk") or 0
-            elif pos in ("RB", "FB"):
-                t["car"] += r.get("car") or 0
-                t["ryds"] += r.get("ryds") or 0
-                t["RBtgt"] += r.get("tgt") or 0
-                t["RBepa"] += (r.get("rpepa") or 0) + (r.get("repa") or 0)
-            elif pos in ("WR", "TE"):
-                t[pos + "tgt"] += r.get("tgt") or 0
-                t[pos + "yds"] += r.get("reyds") or 0
-                t[pos + "epa"] += r.get("repa") or 0
-    per = lambda a, b: a / b if b else None
-    return {team: {"pass": per(t["pyds"], t["att"]), "rb": per(t["ryds"], t["car"]), "wr": per(t["WRyds"], t["WRtgt"]),
-                   "te": per(t["TEyds"], t["TEtgt"]), "qb": per(t["sk"], t["att"] + t["sk"]),
-                   "pass_epa": per(t["pepa"], t["att"] + t["sk"]), "rb_epa": per(t["RBepa"], t["car"] + t["RBtgt"]),
-                   "wr_epa": per(t["WRepa"], t["WRtgt"]), "te_epa": per(t["TEepa"], t["TEtgt"])} for team, t in tot.items()}
+            if (week is None or r.get("wk") == week) and (skip_week is None or r.get("wk") != skip_week):
+                _add(tot[team], r)
+    return {team: _measures(t) for team, t in tot.items() if any(t.values())}
+
+
+def allowed(player_weeks, opponents, defense, skip_week):
+    """_measures of what `defense` allowed in its games but skip_week -- its opponents' player stats in
+    the weeks they played it (opponents: {(team, week): opponent}); None without any."""
+    t = defaultdict(float)
+    for (team, week), opp in opponents.items():
+        if team == defense and week != skip_week:
+            for r in (player_weeks or {}).get(opp) or []:
+                if r.get("wk") == week:
+                    _add(t, r)
+    return _measures(t) if any(t.values()) else None
 
 
 def _ranks(values, higher_better):
@@ -182,8 +227,8 @@ def _line(lg, o, d, key):
     orr, drr = lg["o_rank"][key].get(o), lg["d_rank"][key].get(d)
     if None in (ov, dv, orr, drr):
         return None
-    return {"key": key, "measure": measure, "ov": f(ov), "dv": f(dv), "orr": orr, "drr": drr,
-            "n": max(len(lg["o_rank"][key]), len(lg["d_rank"][key]))}
+    n = lg["n"][key] if "n" in lg else max(len(lg["o_rank"][key]), len(lg["d_rank"][key]))
+    return {"key": key, "measure": measure, "ov": f(ov), "dv": f(dv), "orr": orr, "drr": drr, "n": n}
 
 
 def _half(lg, o, d):
@@ -217,6 +262,146 @@ def card_data(lg, away, home):
     return {"halves": halves} if all(groups for _o, _d, groups in halves) else None
 
 
+# A finished game (Jason, 2026-10-11): each offense's game against the other's defense, set against both
+# units' season averages (their other games). A stat counts only on MIN_PLAYS or more plays (dropbacks,
+# carries + targets, targets) -- in the game and in a season average -- so one lucky target says nothing.
+MIN_PLAYS = 3
+_FAMILY = {"pass": "pass", "pass_epa": "pass", "qb": "pass", "rb": "rb", "rb_epa": "rb",
+           "wr": "wr", "wr_epa": "wr", "te": "te", "te_epa": "te"}
+ADV_SHARE = 0.10   # an advantage needs both units 10% or more of their averages to the same side
+_WEEKS = {}   # (id(player_weeks), week) -> that week's games, once a build
+
+
+def _counted(v):
+    """A _measures dict with the stats on too few plays taken out."""
+    v = dict(v or {})
+    for k, fam in _FAMILY.items():
+        if (v.get(fam + "_n") or 0) < MIN_PLAYS:
+            v[k] = None
+    return v
+
+
+def _share(key, game, avg, better_high):
+    """The difference as a share of the average, + when better for the unit (never dividing by less
+    than DIFF_FLOOR: an average near zero would make any difference a huge share)."""
+    share = (game - avg) / max(abs(avg), DIFF_FLOOR["epa" if key in P2_ONLY else "qb"])
+    return share if better_high else -share
+
+
+def _final_half(games, off_avg, def_avg, o, d):
+    """One offense's game (o) against the other's defense (d): a group a stat -- the measured key (the
+    EPA, or the sack rate), the game's number, the offense's and the defense's averages, the plays, the
+    game's yards, the advantage and its impact -- the bolt on the biggest impact."""
+    groups = []
+    for key, name, *_ in ROWS:
+        if key in P2_ONLY:
+            continue
+        ekey = EPA_OF.get(key, key)
+        game = games[o].get(ekey)
+        if game is None:
+            continue
+        hb = next(r[5] for r in ROWS if r[0] == ekey)
+        oa, da = off_avg.get(ekey), (def_avg or {}).get(ekey)
+        edge, impact = None, 0.0
+        if oa is not None and da is not None:
+            so, sd = _share(ekey, game, oa, hb), _share(ekey, game, da, not hb)   # + good for that unit
+            if so >= ADV_SHARE and sd <= -ADV_SHARE:
+                edge = o
+            elif sd >= ADV_SHARE and so <= -ADV_SHARE:
+                edge = d
+            if ekey in P2_ONLY:   # the EPA above (or below) what the two averages expected, on these plays
+                impact = abs(game - (oa + da) / 2) * games[o][_FAMILY[ekey] + "_n"]
+        yards = None
+        if key in EPA_OF and games[o].get(key) is not None:
+            ymeasure, yf = next((r[2], r[6]) for r in ROWS if r[0] == key)
+            yards = (ymeasure, yf(games[o][key]))
+        groups.append({"key": key, "name": name, "ekey": ekey, "game": game, "oa": oa, "da": da,
+                       "n": int(games[o].get(_FAMILY[ekey] + "_n") or 0), "yards": yards,
+                       "edge": edge, "impact": impact, "top": False})
+    edged = [g for g in groups if g["edge"] and g["impact"]]
+    if edged:
+        most = max(g["impact"] for g in edged)
+        for g in edged:
+            g["top"] = g["impact"] == most
+    return groups
+
+
+def final_data(player_weeks, week, away, home, opponents):
+    """A finished game's card -- {"final": True, "week", "halves": [(offense, defense, groups), ...]} --
+    each offense's game against the other's defense, against both units' season averages. None before
+    the game's player stats are out."""
+    if week is None or not (away and home):
+        return None
+    key = (id(player_weeks), week)
+    if key not in _WEEKS:
+        _WEEKS[key] = offense_table(player_weeks, week)
+    if away not in _WEEKS[key] or home not in _WEEKS[key]:
+        return None
+    games = {t: _counted(_WEEKS[key][t]) for t in (away, home)}
+    off_avg = offense_table(player_weeks, skip_week=week, teams={away, home})
+    off_avg = {t: _counted(off_avg.get(t)) for t in (away, home)}
+    def_avg = {t: _counted(allowed(player_weeks, opponents or {}, t, week)) for t in (away, home)}
+    halves = [(o, d, _final_half(games, off_avg[o], def_avg[d], o, d)) for o, d in ((away, home), (home, away))]
+    return {"final": True, "week": week, "halves": halves} if all(g for _o, _d, g in halves) else None
+
+
+def _fmt_diff(key, v):
+    """A difference from an average: +.30 (EPA), +1.2% (sack rate)."""
+    return _epa(v) if key in P2_ONLY else f"{v * 100:+.1f}%".replace("-", "\u2212")
+
+
+# The difference's color (Jason, 2026-10-11): its share of the average (_share) on the rank colors'
+# green-to-red scale -- 100% better or more the greenest, level the middle gray, 100% worse or more the
+# reddest -- better meaning better for that unit: more EPA for an offense, less allowed for a defense,
+# and the sack rate the other way round for each.
+DIFF_FLOOR = {"epa": 0.10, "qb": 0.02}
+
+
+def _diff(key, game, avg, better_high):
+    """The difference HTML, colored by its share; "" without an average."""
+    if avg is None:
+        return ""
+    share = max(-1.0, min(1.0, _share(key, game, avg, better_high)))
+    return f'<span class="mu-dl" style="color:{_rank_color(round(16.5 - share * 15.5))}">{_fmt_diff(key, game - avg)}</span>'
+
+
+def _diffs(g):
+    """(the offense's difference, the defense's) HTML for a finished game's group."""
+    hb = next(r[5] for r in ROWS if r[0] == g["ekey"])
+    return _diff(g["ekey"], g["game"], g["oa"], hb), _diff(g["ekey"], g["game"], g["da"], not hb)
+
+
+def _verdict(g, side):
+    """(arrow, amount, color, share) for one unit ("o" or "d") -- its difference from its own average,
+    told from its own side: ▲ better, ▼ worse, = level; the color its share on the rank scale. None
+    without an average."""
+    avg = g["oa"] if side == "o" else g["da"]
+    if avg is None:
+        return None
+    hb = next(r[5] for r in ROWS if r[0] == g["ekey"])
+    share = _share(g["ekey"], g["game"], avg, hb if side == "o" else not hb)
+    capped = max(-1.0, min(1.0, share))
+    arrow = "=" if abs(share) < 0.03 else "\u25b2" if share > 0 else "\u25bc"
+    amount = _fmt_diff(g["ekey"], abs(g["game"] - avg)).lstrip("+")
+    return arrow, amount, _rank_color(round(16.5 - capped * 15.5)), capped
+
+
+def _vchip(g, side):
+    v = _verdict(g, side)
+    if not v:
+        return '<span class="mf-v mf-na">\u2013</span>'
+    arrow, amount, color, _ = v
+    return f'<span class="mf-v" style="color:{color}"><i>{arrow}</i>{esc(amount)}</span>'
+
+
+def _game_label(g, html=False):
+    """The game's number with what it is: "+.05 EPA", "11.1% sacked" (as HTML, the unit in a span a
+    short phone's one-line row drops)."""
+    f = next(r[6] for r in ROWS if r[0] == g["ekey"])
+    unit = "EPA" if g["ekey"] in P2_ONLY else "sacked"
+    return f'{esc(f(g["game"]))}<span class="mf-unit"> {unit}</span>' if html else f'{f(g["game"])} {unit}'
+
+
 # ---------------------------------------------------------------- the card
 
 # the chart's marks, as on a play diagram: O the offense, X the defense (each in its team's color)
@@ -229,13 +414,16 @@ X_MARK = ('<svg class="mu-xo" viewBox="0 0 14 14" fill="none" stroke-linecap="ro
           f'<path d="{_X}" stroke="var(--aag-tile)" stroke-width="5"/><path d="{_X}" stroke="currentColor" stroke-width="2.4"/></svg>')
 
 
-def tie_mark(oc, dc):
+def tie_mark(oc, dc, final=False):
     """Both teams at the same rank (Jason, 2026-10-10, option A of mockups/tie-marks.html): one mark,
     the offense's O with a small x in the defense's color inside it -- a mark that only ever means a
-    tie (an O and an X a rank apart already sit half on top of each other)."""
+    tie (an O and an X a rank apart already sit half on top of each other). A finished game's two
+    offenses: a small o inside instead."""
+    inner = ('<circle cx="7" cy="7" r="1.9" stroke="currentColor" stroke-width="1.8"/>' if final else
+             '<path d="M5.1 5.1l3.8 3.8M8.9 5.1l-3.8 3.8" stroke="currentColor" stroke-width="2"/>')
     return ('<svg class="mu-xo" viewBox="0 0 14 14" fill="none" stroke-linecap="round" aria-hidden="true">'
             f'<g class="mu-c mu-half" style="{oc}"><circle cx="7" cy="7" r="5.2" fill="var(--aag-tile)" stroke="currentColor" stroke-width="2.4"/></g>'
-            f'<g class="mu-c mu-half" style="{dc}"><path d="M5.1 5.1l3.8 3.8M8.9 5.1l-3.8 3.8" stroke="currentColor" stroke-width="2"/></g></svg>')
+            f'<g class="mu-c mu-half" style="{dc}">{inner}</g></svg>')
 
 
 # each half's biggest edge
@@ -269,26 +457,28 @@ def _rank_labels(po, pd, r, oc, dc):
             f'<span class="mu-rk mu-c{" mu-rk-r" if close else ""}" style="left:{rx:.1f}%;{rc}">{ordinal(rr)}</span>')
 
 
-def _chart(o, d, rows, oc, dc):
+def _chart(o, d, rows, oc, dc, final=False):
+    """One half's rows. final: a finished game's two offenses -- both marks O's, "advantage" for "edge"."""
     px = lambda rank, n: (rank - 1) / max(1, n - 1) * 100   # 1st at the left (Jason, 2026-10-11)
+    d_side, d_mark, edge_word = ("offense", O_MARK, "advantage") if final else ("defense", X_MARK, "edge")
     out = []
     for r in rows:
         po, pd = px(r["orr"], r["n"]), px(r["drr"], r["n"])
         gap = oc if r["edge"] == o else dc if r["edge"] == d else "--lc:var(--aag-text-3);--dc:var(--aag-text-3)"
         label = (f'{r["name"]}{" (EPA)" if len(r["lines"]) > 1 else ""}: {o} offense {ordinal(r["orr"])}, '
-                 f'{d} defense {ordinal(r["drr"])}'
-                 + (f', edge {r["edge"]}' if r["edge"] else ", even"))
+                 f'{d} {d_side} {ordinal(r["drr"])}'
+                 + (f', {edge_word} {r["edge"]}' if r["edge"] else ", even"))
         out.append(
             f'<div class="mu-tr{" top" if r["top"] else ""}" role="img" aria-label="{esc(label)}">'
             f'<div class="mu-tr-l"><span class="mu-nm">{esc(r["name"])}{_bolt(r, gap)}</span></div>'
             f'<div class="mu-line"><span class="mu-tk">1</span>'
             f'<div class="mu-track"><i class="mu-gap mu-c" style="left:{min(po, pd):.1f}%;width:{abs(po - pd):.1f}%;{gap}"></i>'
-            + (f'<i class="mu-mk" style="left:{po:.1f}%">{tie_mark(oc, dc)}</i>' if r["orr"] == r["drr"] else
-               f'<i class="mu-mk mu-c" style="left:{pd:.1f}%;{dc}">{X_MARK}</i>'
+            + (f'<i class="mu-mk" style="left:{po:.1f}%">{tie_mark(oc, dc, final)}</i>' if r["orr"] == r["drr"] else
+               f'<i class="mu-mk mu-c" style="left:{pd:.1f}%;{dc}">{d_mark}</i>'
                f'<i class="mu-mk mu-c" style="left:{po:.1f}%;{oc}">{O_MARK}</i>')
             + _rank_labels(po, pd, r, oc, dc) + f'</div><span class="mu-tk">{r["n"]}</span></div></div>')
     return (f'<div class="mu-blk"><div class="mu-blk-h"><span>{helmets.pill_html(o)} offense <i class="mu-lg mu-c" style="{oc}">{O_MARK}</i></span>'
-            f'<span class="mu-vs">vs</span><span>{helmets.pill_html(d)} defense <i class="mu-lg mu-c" style="{dc}">{X_MARK}</i></span></div>'
+            f'<span class="mu-vs">vs</span><span>{helmets.pill_html(d)} {d_side} <i class="mu-lg mu-c" style="{dc}">{d_mark}</i></span></div>'
             f'{"".join(out)}</div>')
 
 
@@ -298,29 +488,100 @@ def _rank_color(n):
 
 
 def _numbers(o, d, groups, oc, dc):
-    """Page 2's offense card: a group a stat -- its title, a line a measure, one edge."""
+    """Page 2's offense card before the game: a group a stat -- its title, a line a measure, one edge."""
+    d_side, d_tag, edge_head = "defense", "D", "Edge"
     rk = lambda n: f'<small style="color:{_rank_color(n)}">{ordinal(n)}</small>'   # green-to-red (Jason, 2026-10-11)
+
+    def row(label, a_cell, d_cell, cls=""):
+        return (f'<div class="mu-ln{cls}"><div class="mu-ln-l">{esc(label)}</div><div class="mu-er-v">{a_cell}</div>'
+                f'<div class="mu-er-vs">vs</div><div class="mu-er-v">{d_cell}</div></div>')
 
     def line(r):   # the yards under the EPA: the numbers alone (Jason, 2026-10-11)
         ranked = r.get("ranked", True)
-        return (f'<div class="mu-ln"><div class="mu-ln-l">{esc(r["measure"])}</div>'
-                f'<div class="mu-er-v"><b>{r["ov"]}</b>{rk(r["orr"]) if ranked else ""}</div><div class="mu-er-vs">vs</div>'
-                f'<div class="mu-er-v"><b>{r["dv"]}</b>{rk(r["drr"]) if ranked else ""}</div></div>')
+        return row(r["measure"], f'<b>{r["ov"]}</b>{rk(r["orr"]) if ranked else ""}', f'<b>{r["dv"]}</b>{rk(r["drr"]) if ranked else ""}')
+
     out = "".join(
         f'<div class="mu-grp{" top" if g["top"] else ""}"><div class="mu-grp-r">'
-        f'<div class="mu-grp-t">{esc(g["name"])}{_bolt(g, oc if g["edge"] == o else dc)}</div>{"".join(line(r) for r in g["lines"])}</div>'
+        f'<div class="mu-grp-t">{esc(g["name"])}{_bolt(g, oc if g["edge"] == o else dc)}</div>'
+        f'{"".join(line(r) for r in g["lines"])}</div>'
         f'<div class="mu-er-e">{helmets.pill_html(g["edge"]) if g["edge"] else "<span class=mu-even title=Even></span>"}</div></div>'
         for g in groups)
     head = (f'<div class="mu-grp mu-hd"><div class="mu-grp-r"><div class="mu-ln"><div></div><div>{esc(o)} O</div><div></div>'
-            f'<div>{esc(d)} D</div></div></div><div class="mu-er-e">Edge</div></div>')   # "BAL O" (Jason, 2026-10-11)
+            f'<div>{esc(d)} {d_tag}</div></div></div><div class="mu-er-e">{edge_head}</div></div>')   # "BAL O" (Jason, 2026-10-11)
     return (f'<div class="mu-blk"><div class="mu-blk-h"><span>{helmets.pill_html(o)} offense</span><span class="mu-vs">vs</span>'
-            f'<span>{helmets.pill_html(d)} defense</span></div>{head}{out}</div>')
+            f'<span>{helmets.pill_html(d)} {d_side}</span></div>{head}{out}</div>')
+
+
+YDS_SHORT = {"pass": "yds/att", "rb": "yds/carry", "wr": "yds/tgt", "te": "yds/tgt"}
+ADV_HEAD = '<span class="mu-adv-l">Advantage</span><span class="mu-adv-s">ADVTG</span>'   # "ADVTG" on a narrow phone
+
+
+def _final_numbers(o, d, groups, oc, dc):
+    """Page 2's card for a finished game's half (option A of mockups/build_final_matchup_mockup.py): a row
+    a stat -- its name, what's measured and the game's yards; the game's number; each unit's ▲/▼ and
+    its average; the advantage."""
+    def avg(g, v):
+        f = next(r[6] for r in ROWS if r[0] == g["ekey"])
+        return f'<small>avg {esc(f(v)) if v is not None else "\u2013"}</small>'
+    rows = "".join(
+        f'<div class="mft{" top" if g["top"] else ""}"><span class="mft-l">'
+        f'<span class="mft-n">{esc(g["name"])}{_bolt(g, oc if g["edge"] == o else dc)}</span>'
+        f'<small>{esc(next(r[2] for r in ROWS if r[0] == g["ekey"]))}</small>'
+        + (f'<small>{esc(g["yards"][1])} {YDS_SHORT.get(g["key"], "")}</small>' if g["yards"] else "")
+        + f'</span><b class="mft-g">{esc(next(r[6] for r in ROWS if r[0] == g["ekey"])(g["game"]))}</b>'
+        f'<span class="mft-c">{_vchip(g, "o")}{avg(g, g["oa"])}</span><span class="mft-c">{_vchip(g, "d")}{avg(g, g["da"])}</span>'
+        f'<span class="mft-e">{helmets.pill_html(g["edge"]) if g["edge"] else "<span class=mu-even title=Even></span>"}</span></div>'
+        for g in groups)
+    head = (f'<div class="mft mft-hd"><span></span><span>Game</span>'
+            f'<span><i class="mu-lg mu-c" style="{oc}">{O_MARK}</i>{esc(o)} O</span>'
+            f'<span><i class="mu-lg mu-c" style="{dc}">{X_MARK}</i>{esc(d)} D</span><span class="mft-e">{ADV_HEAD}</span></div>')
+    return (f'<div class="mu-blk"><div class="mu-blk-h"><span>{helmets.pill_html(o)} offense</span><span class="mu-vs">vs</span>'
+            f'<span>{helmets.pill_html(d)} defense</span></div>{head}{rows}</div>')
+
+
+def _final_chart(o, d, groups, oc, dc):
+    """A finished game's half on Page 1 (option C of mockups/build_final_matchup_mockup.py, Jason,
+    2026-10-11): a row a stat -- its name and the game's EPA ("+.05 EPA"), then a bar a unit, its O or X
+    and the bar in its team's color, centered on its own season average: to the right when it did
+    better than usual, the left when worse, as far as the difference's share of the average (100% the
+    whole half). The amount beside it, ▲ / ▼ on the rank colors. A scale over the half's bars:
+    worse, avg, better."""
+    gray = "--lc:var(--aag-text-3);--dc:var(--aag-text-3)"
+
+    def unit(g, side, c, mark):
+        v = _verdict(g, side)
+        if not v:
+            return (f'<span class="mf-u"><i class="mu-lg mu-c" style="{c}">{mark}</i><span class="mf-tr"><i class="mf-mid"></i></span>'
+                    '<span class="mf-v mf-na">\u2013</span></span>')
+        arrow, amount, color, share = v
+        w = abs(share) * 50
+        return (f'<span class="mf-u"><i class="mu-lg mu-c" style="{c}">{mark}</i><span class="mf-tr"><i class="mf-mid"></i>'
+                f'<i class="mf-bar mu-c" style="left:{50 if share >= 0 else 50 - w:.1f}%;width:{w:.1f}%;{c}"></i></span>'
+                f'<span class="mf-v" style="color:{color}"><i>{arrow}</i>{esc(amount)}</span></span>')
+    out = []
+    for g in groups:
+        bar = oc if g["edge"] == o else dc if g["edge"] == d else gray
+        words = lambda side, who: (f'{who} ' + (lambda v: f'{"level with" if v[0] == "=" else ("better" if v[0] != "\u25bc" else "worse")} '
+                                                 f'its average by {v[1]}' if v else "no average")(_verdict(g, side)))
+        label = (f'{g["name"]}: {_game_label(g)} this game; {words("o", o + " offense")}; {words("d", d + " defense")}'
+                 + (f'; advantage {g["edge"]}' if g["edge"] else "; even"))
+        out.append(f'<div class="mf-cr{" top" if g["top"] else ""}" role="img" aria-label="{esc(label)}">'
+                   f'<span class="mf-l"><span class="mf-nm">{esc(g["name"])}{_bolt(g, bar)}</span><span class="mf-g">{_game_label(g, True)}</span></span>'
+                   f'<span class="mf-us">{unit(g, "o", oc, O_MARK)}{unit(g, "d", dc, X_MARK)}</span></div>')
+    scale = ('<div class="mf-cr mf-sc" aria-hidden="true"><span class="mf-l">EPA vs avg</span><span class="mf-u"><i></i>'
+             '<span class="mf-tr"><span>\u25c0 worse</span><span class="mf-avg">avg</span><span>better \u25b6</span></span><i></i></span></div>')
+    return (f'<div class="mu-blk"><div class="mu-blk-h"><span>{helmets.pill_html(o)} offense <i class="mu-lg mu-c" style="{oc}">{O_MARK}</i></span>'
+            f'<span class="mu-vs">vs</span><span>{helmets.pill_html(d)} defense <i class="mu-lg mu-c" style="{dc}">{X_MARK}</i></span></div>'
+            f'{scale}{"".join(out)}</div>')
 
 
 def card_body(data):
     """The card's body (render_page1 puts it in the deck): the chart, or "" without data."""
     if not data:
         return ""
+    if data.get("final"):
+        chart = "".join(_final_chart(o, d, groups, *_colors(o, d)) for o, d, groups in data["halves"])
+        return f'<div class="mu"><div class="mu-sub">EPA: each unit vs its own season average</div>{chart}</div>'
     chart = "".join(_chart(o, d, groups, *_colors(o, d)) for o, d, groups in data["halves"])
     return f'<div class="mu"><div class="mu-sub">League rank by EPA · 1st on the left</div>{chart}</div>'
 
@@ -347,8 +608,8 @@ def biggest(data):
 
 
 def strip_html(data):
-    """The condensed view's strip, or "" without an edge."""
-    b = biggest(data)
+    """The condensed view's strip, or "" without an edge (or for a finished game)."""
+    b = None if (data or {}).get("final") else biggest(data)
     if not b:
         return ""
     o, d, g = b
@@ -419,10 +680,39 @@ def _sentence(g, o, d):
     return esc(SENTENCES[g["key"]][kind]).format(o=esc(o), d=esc(d), **v)
 
 
+# "Deciding Matchups" (a finished game, Jason, 2026-10-11): each advantage in a sentence -- the game's
+# number, then both units against their season averages, the side with the advantage first -- the
+# biggest impact first (the bolt's). Pass rush: the sack rates.
+_FINAL_WORDS = {"pass": ("quarterbacks", "EPA a dropback", "dropbacks"), "rb": ("running backs", "EPA a play", "plays"),
+                "wr": ("receivers", "EPA a target", "targets"), "te": ("tight ends", "EPA a target", "targets")}
+FINAL_OFFENSE = "{o}'s {who} put up {g} {e} on {n} {plays}: {od} vs their {oa} average, and {dd} vs the {da} {d} usually allows."
+FINAL_DEFENSE = "{d}'s defense held {o}'s {who} to {g} {e} on {n} {plays}: {dd} vs the {da} it usually allows, and {od} vs their {oa} average."
+FINAL_PROTECT = "{o} kept its quarterback clean, sacked on {g} of dropbacks: {od} vs its {oa} average, and {dd} vs the {da} {d} usually gets."
+FINAL_RUSH = "{d}'s pass rush got home on {g} of {o}'s dropbacks: {dd} vs the {da} it usually gets, and {od} vs the {oa} {o} usually gives up."
+
+
+def _final_sentence(g, o, d):
+    """The sentence as HTML for an advantage: the templates are ours, the numbers escaped."""
+    f = next(r[6] for r in ROWS if r[0] == g["ekey"])
+    od, dd = _diffs(g)
+    if g["key"] == "qb":
+        t = FINAL_PROTECT if g["edge"] == o else FINAL_RUSH
+        words = {}
+    else:
+        t = FINAL_OFFENSE if g["edge"] == o else FINAL_DEFENSE
+        who, e, plays = _FINAL_WORDS[g["key"]]
+        words = {"who": who, "e": e, "plays": plays, "n": g["n"]}
+    return esc(t).format(o=esc(o), d=esc(d), g=esc(f(g["game"])), oa=esc(f(g["oa"])), da=esc(f(g["da"])), od=od, dd=dd, **words)
+
+
 def watch(data):
     """The summary card's lines -- [(favored team, sentence HTML, the biggest?)], the WATCH_MAX biggest
     gaps on the EPA ranks (Pass rush: the sack rate's), biggest first. (The rows too close to call were listed under them until
     2026-10-11.)"""
+    if data.get("final"):   # Deciding Matchups: the biggest impact first
+        adv = sorted(((g, o, d) for o, d, groups in data["halves"] for g in groups if g["edge"]), key=lambda x: -x[0]["impact"])
+        most = adv[0][0]["impact"] if adv else None   # one bolt here: the game's biggest, not each half's
+        return [(g["edge"], _final_sentence(g, o, d), bool(g["impact"]) and g["impact"] == most) for g, o, d in adv[:WATCH_MAX]]
     edges = [(abs(g["orr"] - g["drr"]), g["edge"], _sentence(g, o, d))
              for o, d, groups in data["halves"] for g in groups if g["edge"]]
     edges.sort(key=lambda e: -e[0])
@@ -441,10 +731,15 @@ def _watch_body(data):
             f'<p>{text}{BOLT_TAG if top else ""}</p></li>'
             for team, text, top in lines)
         body = f'<ul class="mu-w">{items}</ul>'
+    elif data.get("final"):
+        body = ('<p class="mu-w-none">No clear advantages: in no matchup did the offense and the defense both land on the '
+                'same side of their season averages.</p>')
     else:
         body = f'<p class="mu-w-none">No big edges in this one: every matchup is within {EDGE_GAP} spots in the league rankings.</p>'
+    sub = ("Both units against their season averages" if data.get("final")
+           else f"Edges: {EDGE_GAP}+ spots apart in the EPA rankings")
     # a list too long for a short phone scrolls inside the card (P1_JS's detailAtTop knows .mu-scroll)
-    return (f'<div class="mu mu-p2"><div class="mu-sub">Edges: {EDGE_GAP}+ spots apart in the EPA rankings</div>'
+    return (f'<div class="mu mu-p2"><div class="mu-sub">{esc(sub)}</div>'
             f'<div class="mu-scroll">{body}</div></div>')
 
 
@@ -461,15 +756,17 @@ def render_block(data):
     if not data:
         return ""
     from render_page1 import DOWN, UP
-    (ao, ad, arows), (ho, hd, hrows) = data["halves"]
-    away_title, home_title = f"{ao} O vs {ad} D", f"{ho} O vs {hd} D"
+    final = bool(data.get("final"))
 
     def numbers_card(o, d, rows):
-        return (f'<div class="mu mu-p2"><div class="mu-sub">Season to date · rank among 32 teams</div>'
-                f'{_numbers(o, d, rows, *_colors(o, d))}</div>')
-    # the summary first (Jason, 2026-10-10), then each offense against the other's defense
-    cards = [("watch", "Matchups to Watch", _watch_body(data)),
-             ("away", away_title, numbers_card(ao, ad, arows)), ("home", home_title, numbers_card(ho, hd, hrows))]
+        sub = "EPA this game · each unit vs its average" if final else "Season to date · rank among 32 teams"
+        body = (_final_numbers if final else _numbers)(o, d, rows, *_colors(o, d))
+        return f'<div class="mu mu-p2"><div class="mu-sub">{esc(sub)}</div>{body}</div>'
+    # the summary first (Jason, 2026-10-10) -- what decided a finished game -- then each offense against
+    # the other's defense
+    (ao, ad, arows), (ho, hd, hrows) = data["halves"]
+    cards = [("watch", "Deciding Matchups" if final else "Matchups to Watch", _watch_body(data)),
+             ("away", f"{ao} O vs {ad} D", numbers_card(ao, ad, arows)), ("home", f"{ho} O vs {hd} D", numbers_card(ho, hd, hrows))]
 
     def title(cid, name):
         return f'<span class="ttl"><span class="t-ic">{PAGE_ICONS[cid]}</span>{esc(name)}</span>'
@@ -576,10 +873,52 @@ a.card.c-mu{display:flex;justify-content:center;align-items:center;padding:9px 1
 .mu-er-e{flex:0 0 54px;display:flex;justify-content:center}
 .mu-hd{border-top:0;padding:0 0 3px}
 .mu-hd .mu-ln>div,.mu-hd .mu-er-e{font-size:10px;font-weight:700;letter-spacing:.05em;color:var(--aag-text-3);text-align:center}
+.mu-hd .mu-er-e{min-width:0;white-space:nowrap}   /* "Advantage" may hang over its column's edges, not widen it */
+.mu-adv-s{display:none}
+@media (max-width:440px){ .mu-adv-l{display:none} .mu-adv-s{display:inline} }   /* "ADVTG" (Jason, 2026-10-11) */
+/* a finished game: each unit's ▲/▼ and amount, from its own side, in the rank colors */
+.mu-dl{font-weight:700}
+.mf-v{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mf-v i{font-style:normal;font-size:.8em;margin-right:1px}
+.mf-na{color:var(--aag-text-3)}
+/* Page 1 (C): a row a stat -- name and game EPA, then a bar a unit centered on its average */
+.mf-cr{display:grid;grid-template-columns:86px 1fr;align-items:center;column-gap:8px;padding:4px 0;border-top:1px solid var(--tile-border-soft)}
+.mf-l{display:flex;flex-direction:column;line-height:1.15;min-width:0}
+.mf-nm{display:inline-flex;align-items:center;font-size:12px;font-weight:700;white-space:nowrap}
+.mf-nm .mu-bolt{position:static;transform:none;margin-left:3px}
+.mf-g{font-size:10.5px;font-weight:700;color:var(--text-2);white-space:nowrap}
+.mf-us{display:flex;flex-direction:column;gap:3px}
+.mf-u{display:grid;grid-template-columns:10px 1fr 40px;align-items:center;column-gap:5px;line-height:1}
+.mf-u .mu-lg{width:10px;height:10px}
+.mf-tr{position:relative;height:6px;border-radius:2px;background:var(--tile-border-soft)}
+.mf-mid{position:absolute;left:50%;top:-3px;bottom:-3px;width:1.5px;margin-left:-.75px;background:var(--aag-text-3)}
+.mf-bar{position:absolute;top:0;bottom:0;border-radius:2px;background:var(--c)}
+.mf-u .mf-v{font-size:11px;text-align:right}
+/* the scale over a half's bars: worse, avg, better */
+.mf-sc{border-top:0;padding:0 0 1px}
+.mf-sc .mf-l{font-size:9px;font-weight:700;color:var(--aag-text-3);text-transform:uppercase;letter-spacing:.04em}
+.mf-sc .mf-tr{height:auto;background:none;display:flex;justify-content:space-between;font-size:8.5px;font-weight:700;color:var(--aag-text-3)}
+.mf-sc .mf-avg{position:absolute;left:50%;transform:translateX(-50%)}
+/* Page 2 (A): the stat, the game, each unit, the advantage */
+.mft{display:grid;grid-template-columns:minmax(0,1fr) 42px 58px 58px 48px;align-items:center;column-gap:4px;padding:6px 0;
+  border-top:1px solid var(--tile-border-soft)}
+.p2k-mu .mu-blk>.mft:not(.mft-hd){flex:1 1 auto;max-height:104px}
+.mft-hd{border-top:0;padding:0 0 3px;font-size:10px;font-weight:700;letter-spacing:.04em;color:var(--aag-text-3);text-align:center}
+.mft-hd>span{display:inline-flex;align-items:center;justify-content:center;gap:3px;min-width:0;white-space:nowrap}
+.mft-l{display:flex;flex-direction:column;line-height:1.2;min-width:0}
+.mft-n{display:inline-flex;align-items:center;font-size:14px;font-weight:700}
+.mft-n .mu-bolt{position:static;transform:none;margin-left:4px}
+.mft-l small{font-size:9.5px;color:var(--aag-text-3);white-space:nowrap}
+.mft-g{text-align:center;font-size:15px;font-variant-numeric:proportional-nums;white-space:nowrap}
+.mft-c{display:flex;flex-direction:column;align-items:center;line-height:1.15}
+.mft-c .mf-v{font-size:13.5px}
+.mft-c small{font-size:9px;color:var(--aag-text-3)}
+.mft-e{display:flex;justify-content:center;min-width:0}
+@media (max-width:400px){ .mft{grid-template-columns:minmax(0,1fr) 44px 50px 50px 44px} .mft-n{font-size:13px} .mft-g{font-size:14px} .mft-e .tpill{min-width:40px} }
 .mu-even{display:block;width:14px;height:2px;border-radius:1px;background:var(--aag-text-3)}   /* even: just a line */
 /* each half's biggest edge: tinted, its stretch bolder, a bolt in the favored team's color */
-.mu-grp.top,.mu-tr.top{background:var(--tile-hover);border-radius:10px;border-top-color:transparent;margin:0 -8px;padding-left:8px;padding-right:8px}
-.mu-grp.top+.mu-grp,.mu-tr.top+.mu-tr{border-top-color:transparent}
+.mu-grp.top,.mu-tr.top,.mf-cr.top,.mft.top{background:var(--tile-hover);border-radius:10px;border-top-color:transparent;margin:0 -8px;padding-left:8px;padding-right:8px}
+.mu-grp.top+.mu-grp,.mu-tr.top+.mu-tr,.mf-cr.top+.mf-cr,.mft.top+.mft{border-top-color:transparent}
 .mu-tr.top .mu-track{height:5px}
 .mu-tr.top .mu-gap{opacity:1}
 .mu-bolt{display:inline-block;width:9px;height:12px;margin-left:5px;vertical-align:-1px;color:var(--c)}
@@ -590,6 +929,8 @@ a.card.c-mu{display:flex;justify-content:center;align-items:center;padding:9px 1
    740px (an iPhone 8 / SE 2nd gen) the subtitle and Numbers' "vs" go; below
    600px (an SE 1st gen) a size down again */
 @media (max-height:790px){
+  .mf-cr{padding:3px 0;grid-template-columns:106px 1fr} .mf-l{flex-direction:row;align-items:baseline;gap:4px}
+  .mf-unit{display:none} .mf-nm{font-size:11.5px} .mf-g{font-size:10px} .mf-us{gap:2px}
   .mu-tr{display:grid;grid-template-columns:74px 1fr;align-items:center;padding:5px 0 14px}
   .mu-tr-l{margin:0;text-align:left;font-size:11.5px;white-space:nowrap}
   .mu-line{margin:0}
@@ -601,6 +942,7 @@ a.card.c-mu{display:flex;justify-content:center;align-items:center;padding:9px 1
   .mu-tr{padding:4px 0 13px}
   .mu-grp{padding:4px 0}
   .mu-grp-t{font-size:14px;margin-bottom:1px}
+  .mf-cr{padding:2px 0}
   .mu-ln{grid-template-columns:minmax(0,1fr) 66px 0 66px}   /* the "vs" goes: the descriptors need the room */
   .mu-er-vs{visibility:hidden}
   .mu-er-v b{font-size:16px}
@@ -618,9 +960,20 @@ a.card.c-mu{display:flex;justify-content:center;align-items:center;padding:9px 1
   .mu-rk{top:5px;font-size:8px}
   .mu-grp{padding:2px 0}
   .mu-grp-t{font-size:12.5px;margin-bottom:0}
+  .mf-cr{padding:1px 0} .mf-nm{font-size:11px} .mf-g{font-size:9.5px} .mf-us{gap:1px} .mf-tr{height:5px}
+  .mf-u .mf-v{font-size:10px} .mf-u .mu-lg{width:8px;height:8px}
+  .mft{padding:2px 0} .mft-n{font-size:12.5px} .mft-g{font-size:14px} .mft-c .mf-v{font-size:12px}
   .mu-ln{line-height:1.25}
   .mu-er-v b{font-size:14px}
   .mu-er-v small{font-size:9px}
+}
+/* a phone 320px wide: a finished game's rows narrower */
+@media (max-width:340px){
+  .mf-cr{grid-template-columns:96px 1fr;column-gap:6px} .mf-nm{font-size:10.5px} .mf-u{grid-template-columns:10px 1fr 36px;column-gap:4px}
+  .mft{grid-template-columns:minmax(0,1fr) 36px 50px 50px 42px;column-gap:3px} .mft-n{font-size:12px} .mft-g{font-size:14px}
+  .mft-n,.mft-l small{white-space:normal} .mft-l small:first-of-type{display:none}   /* names and yards may wrap; "EPA/dropback" goes */
+  .mft-g{font-size:13px}
+  .mft-c .mf-v{font-size:12px} .mft-e .tpill{min-width:38px;padding:0 4px}
 }
 /* a phone 320px wide: narrower number and edge columns, so the descriptors keep one line */
 @media (max-width:340px){

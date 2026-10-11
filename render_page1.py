@@ -12,8 +12,9 @@ Design = Jason's approved v8 preview (2026-09-16):
   - finished games: final score in the top bar next to each abbreviation (loser
     faded), and the Leaders card shows each team's leaders in THAT game, no crowns (season
     leaders until nflverse publishes the game's player stats -- see leaders_scope)
-  - cards: Game Info, away team, home team, Matchup (games not yet played, 2026-10-10 --
-    matchup.py; in the condensed view a one-line strip of the game's biggest edge, 2026-10-11), Leaders
+  - cards: Game Info, away team, home team, Matchup (2026-10-10, matchup.py: games not yet played
+    by the season so far, with a one-line strip of the biggest edge in the condensed view; finished
+    regular-season games by their own numbers, 2026-10-11), Leaders
   - team cards: last-game arrow (green up = W, red down = L, yellow line = T),
     record, top 3 injuries (starters first), offense/defense ranks
   - leaders: each team's leader in 5 stats, crown when top 3 in the league
@@ -909,6 +910,12 @@ def write_all(data, site_dir, warnings=None):
             warnings.append(f"matchup: {traceback.format_exc(limit=1)}")
     out_dir = os.path.join(site_dir, "game")
     os.makedirs(out_dir, exist_ok=True)
+    # who played whom each regular-season week -- a defense's season average is its opponents' stats
+    opponents = {}
+    for g in details.values():
+        a_t, h_t, wk = (g.get("away") or {}).get("team"), (g.get("home") or {}).get("team"), g.get("week")
+        if g.get("game_type") == "REG" and a_t and h_t and wk is not None:
+            opponents[(a_t, wk)], opponents[(h_t, wk)] = h_t, a_t
     count = 0
     for gid, d in details.items():
         try:
@@ -938,9 +945,17 @@ def write_all(data, site_dir, warnings=None):
                     for r in ps[side]:
                         r["medals"] = medals.get((team, r["id"]), {})
                 d = dict(d, player_stats=ps)
-            # the Matchup card: games not yet played (its numbers are the season so far)
+            # the Matchup card: games not yet played get the season so far; finished regular-season games
+            # their own numbers against both units' season averages (2026-10-11), once its player stats are out
+            a_t, h_t = (d.get("away") or {}).get("team"), (d.get("home") or {}).get("team")
             if mu_league and not d.get("final"):
-                d = dict(d, matchup=matchup.card_data(mu_league, (d.get("away") or {}).get("team"), (d.get("home") or {}).get("team")))
+                d = dict(d, matchup=matchup.card_data(mu_league, a_t, h_t))
+            elif d.get("final") and d.get("game_type") == "REG" and player_weeks:
+                try:
+                    d = dict(d, matchup=matchup.final_data(player_weeks, d.get("week"), a_t, h_t, opponents))
+                except Exception:
+                    if warnings is not None:
+                        warnings.append(f"matchup {gid}: {traceback.format_exc(limit=1)}")
             safe = "".join(ch for ch in str(gid) if ch.isalnum() or ch in "_-")
             with open(os.path.join(out_dir, f"{safe}.html"), "w", encoding="utf-8") as f:
                 f.write(render_standalone(d))
