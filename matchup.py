@@ -458,7 +458,17 @@ def _rank_labels(po, pd, r, oc, dc):
             f'<span class="mu-rk mu-c{" mu-rk-r" if close else ""}" style="left:{rx:.1f}%;{rc}">{ordinal(rr)}</span>')
 
 
-def _chart(o, d, rows, oc, dc, final=False):
+def _sides(o, d, oc, dc, d_side, d_mark, flip):
+    """A half's heading -- "[BAL] offense O vs [CLE] defense X" -- the defense's side first when flip (the
+    home offense's half, so the away team leads, as everywhere else on the site; Jason, 2026-10-11)."""
+    sides = [f'<span>{helmets.pill_html(o)} offense <i class="mu-lg mu-c" style="{oc}">{O_MARK}</i></span>',
+             f'<span>{helmets.pill_html(d)} {d_side} <i class="mu-lg mu-c" style="{dc}">{d_mark}</i></span>']
+    if flip:
+        sides.reverse()
+    return f'{sides[0]}<span class="mu-vs">vs</span>{sides[1]}'
+
+
+def _chart(o, d, rows, oc, dc, final=False, flip=False):
     """One half's rows. final: a finished game's two offenses -- both marks O's, "advantage" for "edge"."""
     px = lambda rank, n: (rank - 1) / max(1, n - 1) * 100   # 1st at the left (Jason, 2026-10-11)
     d_side, d_mark, edge_word = ("offense", O_MARK, "advantage") if final else ("defense", X_MARK, "edge")
@@ -478,8 +488,7 @@ def _chart(o, d, rows, oc, dc, final=False):
                f'<i class="mu-mk mu-c" style="left:{pd:.1f}%;{dc}">{d_mark}</i>'
                f'<i class="mu-mk mu-c" style="left:{po:.1f}%;{oc}">{O_MARK}</i>')
             + _rank_labels(po, pd, r, oc, dc) + f'</div><span class="mu-tk">{r["n"]}</span></div></div>')
-    return (f'<div class="mu-blk"><div class="mu-blk-h"><span>{helmets.pill_html(o)} offense <i class="mu-lg mu-c" style="{oc}">{O_MARK}</i></span>'
-            f'<span class="mu-vs">vs</span><span>{helmets.pill_html(d)} {d_side} <i class="mu-lg mu-c" style="{dc}">{d_mark}</i></span></div>'
+    return (f'<div class="mu-blk"><div class="mu-blk-h">{_sides(o, d, oc, dc, d_side, d_mark, flip)}</div>'
             f'{"".join(out)}</div>')
 
 
@@ -488,12 +497,15 @@ def _rank_color(n):
     return rank_color(n)
 
 
-def _numbers(o, d, groups, oc, dc):
-    """Page 2's offense card before the game: a group a stat -- its title, a line a measure, one edge."""
+def _numbers(o, d, groups, oc, dc, flip=False):
+    """Page 2's offense card before the game: a group a stat -- its title, a line a measure, one edge.
+    flip: the defense's column first -- the home offense's card, so the away team is on the left, as
+    everywhere else on the site (Jason, 2026-10-11)."""
     d_side, d_tag, edge_head = "defense", "D", "Edge"
     rk = lambda n: f'<small style="color:{_rank_color(n)}">{ordinal(n)}</small>'   # green-to-red (Jason, 2026-10-11)
 
     def row(label, a_cell, d_cell, cls=""):
+        a_cell, d_cell = (d_cell, a_cell) if flip else (a_cell, d_cell)
         return (f'<div class="mu-ln{cls}"><div class="mu-ln-l">{esc(label)}</div><div class="mu-er-v">{a_cell}</div>'
                 f'<div class="mu-er-vs">vs</div><div class="mu-er-v">{d_cell}</div></div>')
 
@@ -507,20 +519,24 @@ def _numbers(o, d, groups, oc, dc):
         f'{"".join(line(r) for r in g["lines"])}</div>'
         f'<div class="mu-er-e">{helmets.pill_html(g["edge"]) if g["edge"] else "<span class=mu-even title=Even></span>"}</div></div>'
         for g in groups)
-    head = (f'<div class="mu-grp mu-hd"><div class="mu-grp-r"><div class="mu-ln"><div></div><div>{esc(o)} O</div><div></div>'
-            f'<div>{esc(d)} {d_tag}</div></div></div><div class="mu-er-e">{edge_head}</div></div>')   # "BAL O" (Jason, 2026-10-11)
-    return (f'<div class="mu-blk"><div class="mu-blk-h"><span>{helmets.pill_html(o)} offense</span><span class="mu-vs">vs</span>'
-            f'<span>{helmets.pill_html(d)} {d_side}</span></div>{head}{out}</div>')
+    cols = [f'{esc(o)} O', f'{esc(d)} {d_tag}']   # "BAL O" (Jason, 2026-10-11)
+    sides = [f'<span>{helmets.pill_html(o)} offense</span>', f'<span>{helmets.pill_html(d)} {d_side}</span>']
+    if flip:
+        cols.reverse()
+        sides.reverse()
+    head = (f'<div class="mu-grp mu-hd"><div class="mu-grp-r"><div class="mu-ln"><div></div><div>{cols[0]}</div><div></div>'
+            f'<div>{cols[1]}</div></div></div><div class="mu-er-e">{edge_head}</div></div>')
+    return f'<div class="mu-blk"><div class="mu-blk-h">{sides[0]}<span class="mu-vs">vs</span>{sides[1]}</div>{head}{out}</div>'
 
 
 YDS_SHORT = {"pass": "yds/att", "rb": "yds/carry", "wr": "yds/tgt", "te": "yds/tgt"}
 ADV_HEAD = '<span class="mu-adv-l">Advantage</span><span class="mu-adv-s">ADVTG</span>'   # "ADVTG" on a narrow phone
 
 
-def _final_numbers(o, d, groups, oc, dc):
+def _final_numbers(o, d, groups, oc, dc, flip=False):
     """Page 2's card for a finished game's half (option A of mockups/build_final_matchup_mockup.py): a row
     a stat -- its name, what's measured and the game's yards; the game's number; each unit's ▲/▼ and
-    its average; the advantage."""
+    its average; the advantage. flip: the defense's column first (the away team on the left)."""
     def avg(g, v):
         f = next(r[6] for r in ROWS if r[0] == g["ekey"])
         return f'<small>avg {esc(f(v)) if v is not None else "\u2013"}</small>'
@@ -530,17 +546,21 @@ def _final_numbers(o, d, groups, oc, dc):
         f'<small>{esc(next(r[2] for r in ROWS if r[0] == g["ekey"]))}</small>'
         + (f'<small>{esc(g["yards"][1])} {YDS_SHORT.get(g["key"], "")}</small>' if g["yards"] else "")
         + f'</span><b class="mft-g">{esc(next(r[6] for r in ROWS if r[0] == g["ekey"])(g["game"]))}</b>'
-        f'<span class="mft-c">{_vchip(g, "o")}{avg(g, g["oa"])}</span><span class="mft-c">{_vchip(g, "d")}{avg(g, g["da"])}</span>'
-        f'<span class="mft-e">{helmets.pill_html(g["edge"]) if g["edge"] else "<span class=mu-even title=Even></span>"}</span></div>'
+        + "".join(f'<span class="mft-c">{_vchip(g, side)}{avg(g, g["oa" if side == "o" else "da"])}</span>'
+                  for side in (("d", "o") if flip else ("o", "d")))
+        + f'<span class="mft-e">{helmets.pill_html(g["edge"]) if g["edge"] else "<span class=mu-even title=Even></span>"}</span></div>'
         for g in groups)
-    head = (f'<div class="mft mft-hd"><span></span><span>Game</span>'
-            f'<span><i class="mu-lg mu-c" style="{oc}">{O_MARK}</i>{esc(o)} O</span>'
-            f'<span><i class="mu-lg mu-c" style="{dc}">{X_MARK}</i>{esc(d)} D</span><span class="mft-e">{ADV_HEAD}</span></div>')
-    return (f'<div class="mu-blk"><div class="mu-blk-h"><span>{helmets.pill_html(o)} offense</span><span class="mu-vs">vs</span>'
-            f'<span>{helmets.pill_html(d)} defense</span></div>{head}{rows}</div>')
+    cols = [f'<span><i class="mu-lg mu-c" style="{oc}">{O_MARK}</i>{esc(o)} O</span>',
+            f'<span><i class="mu-lg mu-c" style="{dc}">{X_MARK}</i>{esc(d)} D</span>']
+    sides = [f'<span>{helmets.pill_html(o)} offense</span>', f'<span>{helmets.pill_html(d)} defense</span>']
+    if flip:
+        cols.reverse()
+        sides.reverse()
+    head = f'<div class="mft mft-hd"><span></span><span>Game</span>{"".join(cols)}<span class="mft-e">{ADV_HEAD}</span></div>'
+    return f'<div class="mu-blk"><div class="mu-blk-h">{sides[0]}<span class="mu-vs">vs</span>{sides[1]}</div>{head}{rows}</div>'
 
 
-def _final_chart(o, d, groups, oc, dc):
+def _final_chart(o, d, groups, oc, dc, flip=False):
     """A finished game's half on Page 1 (option C of mockups/build_final_matchup_mockup.py, Jason,
     2026-10-11): a row a stat -- its name and the game's EPA ("+.05 EPA"), then a bar a unit, its O or X
     and the bar in its team's color, centered on its own season average: to the right when it did
@@ -548,6 +568,9 @@ def _final_chart(o, d, groups, oc, dc):
     whole half). The amount beside it, ▲ / ▼ on the rank colors. A scale over the half's bars:
     worse, avg, better."""
     gray = "--lc:var(--aag-text-3);--dc:var(--aag-text-3)"
+    units = [("o", oc, O_MARK), ("d", dc, X_MARK)]
+    if flip:   # the home offense's half: the away defense's bar first
+        units.reverse()
 
     def unit(g, side, c, mark):
         v = _verdict(g, side)
@@ -568,11 +591,10 @@ def _final_chart(o, d, groups, oc, dc):
                  + (f'; advantage {g["edge"]}' if g["edge"] else "; even"))
         out.append(f'<div class="mf-cr{" top" if g["top"] else ""}" role="img" aria-label="{esc(label)}">'
                    f'<span class="mf-l"><span class="mf-nm">{esc(g["name"])}{_bolt(g, bar)}</span><span class="mf-g">{_game_label(g, True)}</span></span>'
-                   f'<span class="mf-us">{unit(g, "o", oc, O_MARK)}{unit(g, "d", dc, X_MARK)}</span></div>')
+                   f'<span class="mf-us">{"".join(unit(g, *u) for u in units)}</span></div>')
     scale = ('<div class="mf-cr mf-sc" aria-hidden="true"><span class="mf-l">EPA vs avg</span><span class="mf-u"><i></i>'
              '<span class="mf-tr"><span>\u25c0 worse</span><span class="mf-avg">avg</span><span>better \u25b6</span></span><i></i></span></div>')
-    return (f'<div class="mu-blk"><div class="mu-blk-h"><span>{helmets.pill_html(o)} offense <i class="mu-lg mu-c" style="{oc}">{O_MARK}</i></span>'
-            f'<span class="mu-vs">vs</span><span>{helmets.pill_html(d)} defense <i class="mu-lg mu-c" style="{dc}">{X_MARK}</i></span></div>'
+    return (f'<div class="mu-blk"><div class="mu-blk-h">{_sides(o, d, oc, dc, "defense", X_MARK, flip)}</div>'
             f'{scale}{"".join(out)}</div>')
 
 
@@ -581,9 +603,9 @@ def card_body(data):
     if not data:
         return ""
     if data.get("final"):
-        chart = "".join(_final_chart(o, d, groups, *_colors(o, d)) for o, d, groups in data["halves"])
+        chart = "".join(_final_chart(o, d, groups, *_colors(o, d), flip=i == 1) for i, (o, d, groups) in enumerate(data["halves"]))
         return f'<div class="mu"><div class="mu-sub">EPA: each unit vs its own season average</div>{chart}</div>'
-    chart = "".join(_chart(o, d, groups, *_colors(o, d)) for o, d, groups in data["halves"])
+    chart = "".join(_chart(o, d, groups, *_colors(o, d), flip=i == 1) for i, (o, d, groups) in enumerate(data["halves"]))
     return f'<div class="mu"><div class="mu-sub">League rank by EPA · 1st on the left</div>{chart}</div>'
 
 
@@ -786,35 +808,37 @@ def _watch_body(data):
             f'<div class="mu-scroll">{body}</div></div>')
 
 
-# the Page 2 cards' icons (titles and nav dots): an O, a bolt and an X for each offense against a
-# defense, a key for the summary
-# (2026-10-11: the summary card is "Key Matchups" with a key, before the game and after; the bolt
-# moved in between the offense cards' O and X)
-OX_ICON = ('<svg viewBox="0 0 44 16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true">'
-           '<circle cx="7" cy="8" r="5.4"/><path d="M22.4 0 15 9.2h4.6L18.6 16 27 6.4h-4.7z" fill="currentColor" stroke="none"/>'
-           '<path d="M32 2.6l10.8 10.8M42.8 2.6 32 13.4"/></svg>')
-KEY_ICON = ('<svg viewBox="0 0 26 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" '
-            'stroke-linejoin="round" aria-hidden="true"><circle cx="6.4" cy="7" r="4.6"/><path d="M11 7h13.4M19.6 7v4M23.4 7v3"/></svg>')
-PAGE_ICONS = {"away": OX_ICON, "home": OX_ICON, "watch": KEY_ICON}
+# the Page 2 cards' icons (titles and nav dots, Jason, 2026-10-11): a key for the summary ("Key
+# Matchups"), a lightning bolt for each offense against a defense -- the away offense's an outline,
+# the home offense's filled
+BOLT_OUTLINE = ('<svg viewBox="-1 -1 14 18" aria-hidden="true"><path d="M7.4 0 0 9.2h4.6L3.6 16 12 6.4H7.3z" fill="none" '
+                'stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>')
+# the key turned 45 degrees to the left (Jason, 2026-10-11): the bow low on the left, the blade up to the right
+KEY_ICON = ('<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+            'stroke-linejoin="round" aria-hidden="true"><g transform="rotate(-45 10 10)"><circle cx="4.4" cy="10" r="3.6"/>'
+            '<path d="M8 10h11M15.2 10v3.2M18.2 10v2.6"/></g></svg>')
+PAGE_ICONS = {"away": BOLT_OUTLINE, "home": BOLT, "watch": KEY_ICON}
 
 
 def render_block(data):
     """The hidden .p2 layer for the Matchups card's Page 2, spliced into Page 1's .p1 block ("" without
-    data). The two offense cards are titled "CIN O vs MIA D" (Jason, 2026-10-11; "Cincinnati Offense" before)."""
+    data). The two offense cards are titled "CIN O vs MIA D" and "CIN D vs MIA O" -- the away team first
+    (Jason, 2026-10-11; "Cincinnati Offense" before)."""
     if not data:
         return ""
     from render_page1 import DOWN, UP
     final = bool(data.get("final"))
 
-    def numbers_card(o, d, rows):
+    def numbers_card(o, d, rows, flip=False):
         sub = "EPA this game · each unit vs its average" if final else "Season to date · rank among 32 teams"
-        body = (_final_numbers if final else _numbers)(o, d, rows, *_colors(o, d))
+        body = (_final_numbers if final else _numbers)(o, d, rows, *_colors(o, d), flip=flip)
         return f'<div class="mu mu-p2"><div class="mu-sub">{esc(sub)}</div>{body}</div>'
     # the summary first (Jason, 2026-10-10) -- what decided a finished game -- then each offense against
     # the other's defense
     (ao, ad, arows), (ho, hd, hrows) = data["halves"]
     cards = [("watch", "Key Matchups", _watch_body(data)),
-             ("away", f"{ao} O vs {ad} D", numbers_card(ao, ad, arows)), ("home", f"{ho} O vs {hd} D", numbers_card(ho, hd, hrows))]
+             ("away", f"{ao} O vs {ad} D", numbers_card(ao, ad, arows)),
+             ("home", f"{hd} D vs {ho} O", numbers_card(ho, hd, hrows, flip=True))]   # the away team on the left
 
     def title(cid, name):
         return f'<span class="ttl"><span class="t-ic">{PAGE_ICONS[cid]}</span>{esc(name)}</span>'
