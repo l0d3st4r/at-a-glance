@@ -1006,7 +1006,7 @@ def build(season, now=None):
     on_pages = {t for g in shown for t in (g["home"], g["away"])} | {
         int(e["team_id"]) for p in rankings_now.values() for e in p["ranks"] + p["others"] + p["dropped"]}
     on_pages |= fbs   # Stat Leaders ranks every FBS player, each with his team's pill
-    team_out = {abbr(t): {"school": teams[t]["school"], "conference": teams[t]["conf_name"], "conf_short": teams[t]["conf_short"],
+    team_out = {abbr(t): {"id": t, "school": teams[t]["school"], "conference": teams[t]["conf_name"], "conf_short": teams[t]["conf_short"],
                           "fbs": teams[t]["fbs"], "color": teams[t]["color"], "alt_color": teams[t]["alt_color"]}
                 for t in on_pages if t in teams}
     for g in shown:   # every opponent on a page or a team's schedule needs a helmet and a name
@@ -1016,7 +1016,7 @@ def build(season, now=None):
                     tid = next((i for i, x in teams.items() if x["abbr"] == row["opponent"]), None)
                     if tid is not None:
                         x = teams[tid]
-                        team_out[x["abbr"]] = {"school": x["school"], "conference": x["conf_name"], "conf_short": x["conf_short"],
+                        team_out[x["abbr"]] = {"id": tid, "school": x["school"], "conference": x["conf_name"], "conf_short": x["conf_short"],
                                                "fbs": x["fbs"], "color": x["color"], "alt_color": x["alt_color"]}
 
     out = {

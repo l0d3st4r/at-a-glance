@@ -15,7 +15,8 @@ Unlike the NBA section, which writes its own markup, this one IS the NFL pages: 
 (with the team pages, Game Info, Player Stats and Matchups) and render_leaders draw it, with their own
 CSS and scripts. setup() points them at college before anything is drawn -- in this process only (the
 workflow runs each section as its own step, so the NFL's pages never see it):
-  - helmets, pills and chart lines in each school's colors (cfb_team_info's two), helmets in site/cfb/helmets/
+  - helmets in Jason's colors (cfb_helmet_colors.py, 2026-10-12), else cfb_team_info's two; the team pills and
+    chart lines from the same colors (pill_colors); helmets in site/cfb/helmets/
   - school names wherever a page names a team; the menu and favicon links one folder deeper
   - the AP rank ahead of a ranked team's abbreviation on Page 0's tiles, Teams on Bye and Page 1's top bar
     (the rank that week); "vs" for "@" at a neutral site; a bowl's or title game's name under its tile's TV
@@ -37,6 +38,7 @@ import os
 import re
 import shutil
 
+import cfb_helmet_colors
 import cfb_icons
 import helmets
 import logo
@@ -47,6 +49,7 @@ import render_page1 as p1
 import render_page2players as ps
 import render_page2team as tp
 import render_standings as rs
+import team_line_colors
 import theme
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -71,17 +74,40 @@ def file_of(abbr):
 
 # ---------------------------------------------------------------- helmets and team colors
 
+def team_colors(t):
+    """(shell, facemask, ear piece): Jason's picks (cfb_helmet_colors.py), else the school's primary on the
+    shell and its alternate on the facemask and ear piece."""
+    pick = cfb_helmet_colors.HELMET_COLORS.get(t.get("id"))
+    if pick:
+        return pick
+    alt = t.get("alt_color") or helmets.FALLBACK_COLORS[1]
+    return (t.get("color") or helmets.FALLBACK_COLORS[0], alt, alt)
+
+
+def pill_colors(t):
+    """(fill, ring) for the team pill, whose letters are always white: the helmet's shell and facemask --
+    unless the shell is too light for white letters (a white, gold or silver helmet), when the fill is the
+    ear piece or facemask color that white reads on and the ring is the shell."""
+    shell, mask, ear = team_colors(t)
+    reads = lambda c: team_line_colors.contrast(c, "#FFFFFF") >= 3
+    if reads(shell):
+        return shell, mask
+    for c in (ear, mask):
+        if reads(c):
+            return c, shell
+    return (t.get("color") or shell), (t.get("alt_color") or mask)
+
+
 def write_helmets(teams, out_dir):
     for sub, width in (("", helmets.OUTLINE_WIDTH), (helmets.LARGE_DIR, helmets.LARGE_OUTLINE_WIDTH)):
         folder = os.path.join(out_dir, "helmets", sub)
         os.makedirs(folder, exist_ok=True)
         for a, t in list(teams.items()) + [("_", {})]:
-            shell = t.get("color") or helmets.FALLBACK_COLORS[0]
-            alt = t.get("alt_color") or helmets.FALLBACK_COLORS[1]
+            colors = team_colors(t)
             for mir in (False, True):
                 name = f"{file_of(a)}-mirrored.svg" if mir else f"{file_of(a)}.svg"
                 with open(os.path.join(folder, name), "w", encoding="utf-8") as f:
-                    f.write(helmets.helmet_svg(a, mirrored=mir, outline_width=width, colors=(shell, alt, alt)))
+                    f.write(helmets.helmet_svg(a, mirrored=mir, outline_width=width, colors=colors))
 
 
 def helmet_filename(team, mirrored=False, large=False):
@@ -448,14 +474,16 @@ def setup(data, site_dir):
     week_ranks = {w["key"]: w.get("ranks") or {} for w in data.get("season_weeks") or []}
     week_teams = {w["key"]: set(w.get("tracked") or []) for w in data.get("season_weeks") or []}
 
-    # helmets, pills and chart lines in each school's colors
+    # helmets, pills and chart lines in each school's colors (team_line_colors picks the chart lines from the
+    # pill's fill and ring, then the helmet's three)
     write_helmets(teams, site_dir)
     helmets.helmet_filename = helmet_filename
     for a, t in teams.items():
-        if t.get("color"):
-            alt = t.get("alt_color") or helmets.FALLBACK_COLORS[1]
-            helmets.PILL_COLORS[a] = helmets.TEAM_COLORS[a] = (t["color"], alt)
-            helmets.EAR_COLORS[a] = alt
+        if t.get("color") or cfb_helmet_colors.HELMET_COLORS.get(t.get("id")):
+            shell, mask, ear = team_colors(t)
+            helmets.TEAM_COLORS[a] = (shell, mask)
+            helmets.EAR_COLORS[a] = ear
+            helmets.PILL_COLORS[a] = pill_colors(t)
             helmets.SHADING_OVERRIDES.pop(a, None)
     # names
     for a, t in teams.items():
