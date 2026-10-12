@@ -95,9 +95,9 @@ are built the same way, by two scripts of their own:
 above and visit `http://localhost:8765/nba/`. The workflow runs both after the
 NFL pages; if either fails, the NFL pages still publish and the run is flagged.
 
-## The college football section
+## The CFB Top 25 section
 
-The college pages live under `site/cfb/` (the menu's College Football section): the games of each
+The college pages live under `site/cfb/` (CFB Top 25, under Football in the menu): the games of each
 week's AP poll teams (Top 25 and receiving votes), the Rankings page (AP, Coaches, CFP) and the FBS stat
 leaders. Two scripts of their own: `python build_cfb_data.py` then `python render_cfb.py`, then serve
 `site/` and visit `http://localhost:8765/cfb/`. The workflow runs them after the NBA's; if either fails,

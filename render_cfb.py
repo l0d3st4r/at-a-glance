@@ -447,7 +447,7 @@ def rankings_page(data):
         "<meta name='viewport' content='width=device-width,initial-scale=1,viewport-fit=cover'>"
         "<meta name='theme-color' content='#F3F3EE'>"
         f"<script>{theme.THEME_HEAD_JS}</script><title>{esc(season)} Rankings · At A Glance</title>"
-        "<meta name='description' content='College Football Rankings'>"
+        "<meta name='description' content='CFB Top 25 Rankings'>"
         f"{logo.favicon_links()}"
         "<link rel='preconnect' href='https://fonts.googleapis.com'><link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>"
         "<link href='https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;700;900&display=swap' rel='stylesheet'>"
@@ -569,7 +569,7 @@ def main():
 
     page0 = rh.render_page0(data)
     page0 = page0.replace("</style>", BADGE_CSS + "</style>", 1).replace("Pro Football Upcoming Game Information",
-                                                                         "College Football Game Information")
+                                                                         "CFB Top 25 Game Information")
     # no condensed view for a week whose rows would come out smaller than Week 11's on an iPhone (Jason,
     # 2026-10-12: 24 games, rows 26px tall at 390 x 844) -- render_html.PAGE0_JS measures it on the screen
     page0 = page0.replace("<main class='track' id='track' data-sticky-days", f"<main class='track' id='track' data-min-tile='{MIN_TILE}' data-sticky-days", 1)
@@ -578,7 +578,7 @@ def main():
     count = p1.write_all(data, SITE_DIR, warnings, matchup_weeks=data.get("matchup_weeks") or {})
     with open(os.path.join(SITE_DIR, "rankings.html"), "w", encoding="utf-8") as f:
         f.write(rankings_page(data))
-    leaders = rl.render(data).replace("Pro Football Stat Leaders", "College Football Stat Leaders")
+    leaders = rl.render(data).replace("Pro Football Stat Leaders", "CFB Top 25 Stat Leaders")
     with open(os.path.join(SITE_DIR, "leaders.html"), "w", encoding="utf-8") as f:
         f.write(leaders)
     if os.path.isfile(SNAP_PATH):

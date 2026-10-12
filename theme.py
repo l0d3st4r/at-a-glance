@@ -24,6 +24,8 @@ Using it saves a choice on the device (localStorage "aag-theme"); switching back
 whatever the phone is set to clears the choice, so the page follows the phone again.
 """
 
+import cfb_icons
+
 BBAR_HEIGHT = "calc(52px + env(safe-area-inset-bottom))"
 
 LIGHT = {
@@ -186,11 +188,27 @@ MENU_CSS = SWITCH_CSS + """
   font-family:Saira,Inter,system-ui,sans-serif;font-style:italic;font-weight:800;font-variation-settings:'wdth' 95;
   font-size:36px;line-height:1.05;letter-spacing:.01em;opacity:.5;transition:opacity .15s}
 .mnu-list a[aria-current]{opacity:1}
-/* the NFL / NBA section names (2026-10-08); six pages to a pane, so the names a size down */
-.mnu-sec{font-size:11px;font-weight:700;letter-spacing:.14em;color:var(--aag-text-3);padding:10px 0 2px}
+/* the NFL / CFB Top 25 / NBA section names (2026-10-08); nine pages to a pane, so the names a size down */
+.mnu-sec{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--aag-text-3);padding:10px 0 2px}
 .mnu-sec:first-child{padding-top:0}
 .mnu-list a{font-size:30px}
-@media (max-height:640px){.mnu-list a{font-size:24px;padding:4px 0}.mnu-sec{padding-top:6px}}
+/* Football (2026-10-12, Jason): a row like a page's that opens and closes the NFL and CFB Top 25 under it --
+   the chevron turns, and the sections slide open (grid rows 0fr -> 1fr), set in under the football icon */
+.mnu-grp-btn{display:flex;align-items:center;gap:14px;width:100%;padding:7px 0;border:0;background:none;cursor:pointer;
+  color:var(--aag-text);text-align:left;font-family:Saira,Inter,system-ui,sans-serif;font-style:italic;font-weight:800;
+  font-variation-settings:'wdth' 95;font-size:30px;line-height:1.05;letter-spacing:.01em;-webkit-tap-highlight-color:transparent}
+.mnu-grp-btn:focus-visible{outline:2px solid var(--aag-focus);outline-offset:3px;border-radius:8px}
+.mnu-chev{display:flex;width:20px;height:20px;margin-left:2px;color:var(--aag-text-2);transition:transform .25s cubic-bezier(.22,1,.36,1)}
+.mnu-chev svg{width:100%;height:100%}
+.mnu-grp.open .mnu-chev{transform:rotate(180deg)}
+.mnu-sub{display:grid;grid-template-rows:0fr;visibility:hidden;
+  transition:grid-template-rows .3s cubic-bezier(.22,1,.36,1),visibility 0s linear .3s}
+.mnu-grp.open .mnu-sub{grid-template-rows:1fr;visibility:visible;transition:grid-template-rows .3s cubic-bezier(.22,1,.36,1)}
+.mnu-sublist{list-style:none;min-height:0;overflow:hidden;margin-left:19px;padding:2px 0 6px 21px;border-left:1px solid var(--aag-tile-border)}
+.mnu-sublist .mnu-sec:first-child{padding-top:6px}
+.mnu-grp + .mnu-sec{padding-top:12px}
+@media (max-height:640px){.mnu-list a,.mnu-grp-btn{font-size:24px;padding:4px 0}.mnu-sec{padding-top:6px}}
+@media (prefers-reduced-motion:reduce){.mnu-sub,.mnu-chev{transition:none!important}}
 .mnu-list a:hover{opacity:.85}
 .mnu-list a:focus-visible{outline:2px solid var(--aag-focus);outline-offset:3px;border-radius:8px}
 /* the icon ahead of each page's name, fitted inside a 40x32 box whatever its shape (empty where none is
@@ -218,16 +236,21 @@ MENU_CSS = SWITCH_CSS + """
 
 MENU_PAGES = (("games", "Games", "index.html"), ("standings", "Standings", "standings.html"),
               ("leaders", "Stat Leaders", "leaders.html"))
-# The menu's sections (2026-10-08): the NFL pages, then college football's (site/cfb/, render_cfb.py,
-# 2026-10-12 -- Rankings in Standings' place), then the NBA's (site/nba/, render_nba.py). Hrefs are from
-# the site root; menu_html's prefix gets there from wherever the page is.
-MENU_SECTIONS = (
-    ("NFL", MENU_PAGES),
-    ("College Football", (("cfb-games", "Games", "cfb/index.html"), ("cfb-rankings", "Rankings", "cfb/rankings.html"),
-                          ("cfb-leaders", "Stat Leaders", "cfb/leaders.html"))),
-    ("NBA", (("nba-games", "Games", "nba/index.html"), ("nba-standings", "Standings", "nba/standings.html"),
-             ("nba-leaders", "Stat Leaders", "nba/leaders.html"))),
+CFB_PAGES = (("cfb-games", "Games", "cfb/index.html"), ("cfb-rankings", "Rankings", "cfb/rankings.html"),
+             ("cfb-leaders", "Stat Leaders", "cfb/leaders.html"))
+NBA_PAGES = (("nba-games", "Games", "nba/index.html"), ("nba-standings", "Standings", "nba/standings.html"),
+             ("nba-leaders", "Stat Leaders", "nba/leaders.html"))
+# The menu (2026-10-08; Football a dropdown since 2026-10-12, Jason): "group" is a row that opens and closes
+# its sections -- Football holds the NFL pages and the CFB Top 25's (site/cfb/, render_cfb.py, Rankings in
+# Standings' place) -- and "section" a heading over its pages, the NBA's (site/nba/, render_nba.py). Hrefs
+# are from the site root; menu_html's prefix gets there from wherever the page is.
+MENU = (
+    ("group", "Football", (("NFL", MENU_PAGES), ("CFB Top 25", CFB_PAGES))),
+    ("section", "NBA", NBA_PAGES),
 )
+GROUP_ICONS = {"Football": cfb_icons.ICONS["game-info"]}   # Jason's football
+CHEVRON = ('<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" '
+           'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>')
 # Each page's icon (SVG markup) for the slot ahead of its name. The NFL's three (Jason, 2026-10-08):
 # his Games and Standings drawings -- only the paths on the drawing's canvas, cropped to their bounds
 # (the files also carried a few off-canvas shapes) -- and for Stat Leaders the Leaders crown
@@ -444,15 +467,33 @@ MENU_ICONS["cfb-leaders"] = _crowns("mnu-crowns-cfb")
 def menu_html(prefix="", current=None):
     """The bottom bar's menu button, and the pane it opens. prefix is the path back to the site root
     ("../" from site/game/ or site/nba/, "../../" from site/nba/game/); current is the page it's on
-    ("games" / "standings" / "leaders", "nba-games" / "nba-standings" / "nba-leaders")."""
+    ("games" / "standings" / "leaders", "cfb-games" / ..., "nba-games" / ...). A group (Football) opens
+    already open on a page inside it, so the page you're on shows; elsewhere it opens closed."""
     items, i = [], 0
-    for name, pages in MENU_SECTIONS:
-        items.append(f'<li class="mnu-sec" style="--i:{i}">{name}</li>')
+
+    def section(name, pages):
+        nonlocal i
+        out = [f'<li class="mnu-sec" style="--i:{i}">{name}</li>']
         i += 1
         for key, label, href in pages:
-            items.append(f'<li style="--i:{i}"><a href="{prefix}{href}"{" aria-current=page" if key == current else ""}>'
-                         f'<span class="mnu-ic" aria-hidden="true">{MENU_ICONS.get(key, "")}</span><span>{label}</span></a></li>')
+            out.append(f'<li style="--i:{i}"><a href="{prefix}{href}"{" aria-current=page" if key == current else ""}>'
+                       f'<span class="mnu-ic" aria-hidden="true">{MENU_ICONS.get(key, "")}</span><span>{label}</span></a></li>')
             i += 1
+        return out
+    for kind, name, body in MENU:
+        if kind == "section":
+            items += section(name, body)
+            continue
+        is_open = any(key == current for _n, pages in body for key, _l, _h in pages)
+        gid = "mnu-g-" + name.lower()
+        head = (f'<button class="mnu-grp-btn" type="button" aria-expanded="{"true" if is_open else "false"}" aria-controls="{gid}">'
+                f'<span class="mnu-ic" aria-hidden="true">{GROUP_ICONS.get(name, "")}</span><span>{name}</span>'
+                f'<span class="mnu-chev">{CHEVRON}</span></button>')
+        start = i
+        i += 1
+        sub = [x for n, pages in body for x in section(n, pages)]
+        items.append(f'<li class="mnu-grp{" open" if is_open else ""}" style="--i:{start}">{head}'
+                     f'<div class="mnu-sub" id="{gid}"{"" if is_open else " inert"}><ul class="mnu-sublist">{"".join(sub)}</ul></div></li>')
     return (
         '<button class="menu-btn" type="button" aria-label="Menu" aria-expanded="false">' + MENU_ICON + "</button>"
         '<div class="mnu" role="dialog" aria-modal="true" aria-label="Menu"><div class="mnu-in">'
@@ -512,7 +553,8 @@ THEME_JS = r"""
     pane.classList.toggle('mnu-tap', !!ptr);
     pane.classList.add('open'); btn.setAttribute('aria-expanded', 'true');
     open = { pane: pane, btn: btn };
-    var first = pane.querySelector('a[aria-current]') || pane.querySelector('a');
+    // the page you're on, else the first row (Football's, when its pages are closed away)
+    var first = pane.querySelector('a[aria-current]') || pane.querySelector('.mnu-grp-btn, .mnu-list a');
     if (first) first.focus({ preventScroll: true });
   }
   function closeMenu(refocus, ptr) {
@@ -540,6 +582,14 @@ THEME_JS = r"""
         return;
       }
       if (cl.contains('mnu-x')) { e.preventDefault(); e.stopPropagation(); closeMenu(true, ptr); return; }
+      if (cl.contains('mnu-grp-btn')) {   // Football: open or close its sections
+        e.preventDefault(); e.stopPropagation();
+        var grp = path[i].parentNode, sub = grp.querySelector('.mnu-sub'), on = !grp.classList.contains('open');
+        grp.classList.toggle('open', on);
+        path[i].setAttribute('aria-expanded', on ? 'true' : 'false');
+        if (on) sub.removeAttribute('inert'); else sub.setAttribute('inert', '');
+        return;
+      }
       if (path[i].tagName === 'A' && open && open.pane.contains(path[i])) return;   // a page: follow it
       if (cl.contains('mnu')) { e.preventDefault(); e.stopPropagation(); closeMenu(true, ptr); return; }   // the pane's empty space
     }
