@@ -218,10 +218,13 @@ MENU_CSS = SWITCH_CSS + """
 
 MENU_PAGES = (("games", "Games", "index.html"), ("standings", "Standings", "standings.html"),
               ("leaders", "Stat Leaders", "leaders.html"))
-# The menu's sections (2026-10-08): the NFL pages, then the NBA's (site/nba/, render_nba.py). Hrefs
-# are from the site root; menu_html's prefix gets there from wherever the page is.
+# The menu's sections (2026-10-08): the NFL pages, then college football's (site/cfb/, render_cfb.py,
+# 2026-10-12 -- Rankings in Standings' place), then the NBA's (site/nba/, render_nba.py). Hrefs are from
+# the site root; menu_html's prefix gets there from wherever the page is.
 MENU_SECTIONS = (
     ("NFL", MENU_PAGES),
+    ("College Football", (("cfb-games", "Games", "cfb/index.html"), ("cfb-rankings", "Rankings", "cfb/rankings.html"),
+                          ("cfb-leaders", "Stat Leaders", "cfb/leaders.html"))),
     ("NBA", (("nba-games", "Games", "nba/index.html"), ("nba-standings", "Standings", "nba/standings.html"),
              ("nba-leaders", "Stat Leaders", "nba/leaders.html"))),
 )
@@ -432,6 +435,10 @@ MENU_ICONS["nba-games"] = (
 )
 MENU_ICONS["nba-standings"] = MENU_ICONS["standings"]
 MENU_ICONS["nba-leaders"] = _crowns("mnu-crowns-nba")
+# College football's: the NFL's three (2026-10-12)
+MENU_ICONS["cfb-games"] = MENU_ICONS["games"]
+MENU_ICONS["cfb-rankings"] = MENU_ICONS["standings"]
+MENU_ICONS["cfb-leaders"] = _crowns("mnu-crowns-cfb")
 
 
 def menu_html(prefix="", current=None):

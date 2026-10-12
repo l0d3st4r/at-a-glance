@@ -897,13 +897,16 @@ def render_standalone(d):
     )
 
 
-def write_all(data, site_dir, warnings=None):
-    """Write site/game/<game_id>.html for every game in data['game_details']. Returns the count."""
+def write_all(data, site_dir, warnings=None, matchup_weeks=None):
+    """Write site/game/<game_id>.html for every game in data['game_details']. Returns the count.
+    matchup_weeks: the Matchups card's offense rows, when they aren't player_weeks (the CFB section's come
+    from the play-by-play, render_cfb.py)."""
     details = data.get("game_details") or {}
     player_weeks = data.get("player_weeks") or {}
+    mu_weeks = player_weeks if matchup_weeks is None else matchup_weeks
     medals_by_limit = {}
     try:   # the Matchup card's league-wide numbers and ranks (matchup.py), once a build
-        mu_league = matchup.league(player_weeks, data.get("defense_vs_position"))
+        mu_league = matchup.league(mu_weeks, data.get("defense_vs_position"))
     except Exception:
         mu_league = None
         if warnings is not None:
@@ -952,7 +955,7 @@ def write_all(data, site_dir, warnings=None):
                 d = dict(d, matchup=matchup.card_data(mu_league, a_t, h_t))
             elif d.get("final") and d.get("game_type") == "REG" and player_weeks:
                 try:
-                    d = dict(d, matchup=matchup.final_data(player_weeks, d.get("week"), a_t, h_t, opponents))
+                    d = dict(d, matchup=matchup.final_data(mu_weeks, d.get("week"), a_t, h_t, opponents))
                 except Exception:
                     if warnings is not None:
                         warnings.append(f"matchup {gid}: {traceback.format_exc(limit=1)}")

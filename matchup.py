@@ -211,6 +211,9 @@ def _ranks(values, higher_better):
 def league(player_weeks, defense):
     """Both sides' numbers and ranks for every team, once a build; None without data for both."""
     off, dfn = offense_table(player_weeks), defense or {}
+    # both sides ranked among the same teams: the ones with a defense line (all 32 in the NFL; the CFB
+    # section's play-by-play also has the FCS teams the FBS schools played, which aren't ranked)
+    off = {t: v for t, v in off.items() if t in dfn}
     if not off or not dfn:
         return None
     o_rank, d_rank = {}, {}
@@ -813,7 +816,8 @@ def render_block(data):
     final = bool(data.get("final"))
 
     def numbers_card(o, d, rows, flip=False):
-        sub = "EPA this game · each unit vs its average" if final else "Season to date · rank among 32 teams"
+        n = max((g.get("n") or 0 for g in rows), default=0) or 32   # 32 in the NFL, the FBS teams in college
+        sub = "EPA this game · each unit vs its average" if final else f"Season to date · rank among {n} teams"
         body = (_final_numbers if final else _numbers)(o, d, rows, *_colors(o, d), flip=flip)
         return f'<div class="mu mu-p2"><div class="mu-sub">{esc(sub)}</div>{body}</div>'
     # the summary first (Jason, 2026-10-10) -- what decided a finished game -- then each offense against

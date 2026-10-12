@@ -95,7 +95,15 @@ are built the same way, by two scripts of their own:
 above and visit `http://localhost:8765/nba/`. The workflow runs both after the
 NFL pages; if either fails, the NFL pages still publish and the run is flagged.
 
-To preview a past season as it looked partway through (handy in the summer,
+## The college football section
+
+The college pages live under `site/cfb/` (the menu's College Football section): the games of each
+week's AP poll teams (Top 25 and receiving votes), the Rankings page (AP, Coaches, CFP) and the FBS stat
+leaders. Two scripts of their own: `python build_cfb_data.py` then `python render_cfb.py`, then serve
+`site/` and visit `http://localhost:8765/cfb/`. The workflow runs them after the NBA's; if either fails,
+the other pages still publish and the run is flagged (`python check_build.py --cfb` checks the result).
+
+To preview a past NBA season as it looked partway through (handy in the summer,
 or before opening night): `python build_nba_data.py --season 2026 --as-of
 2026-03-15 --out data/nba-2026.json`, then `python render_nba.py --data
 data/nba-2026.json`. Results from that day on are hidden, so the pages show

@@ -15,6 +15,9 @@ name: Refresh matchup data and publish
 # night of NBA games is followed within ~15 minutes. That's why checks run every 15 minutes from
 # September through June now (they stopped at February), every 3 hours in July and August.
 #
+# Since 2026-10-12 it covers the college football section's too (check_updates.cfb_fingerprint):
+# sportsdataverse's college files, ESPN's polls, and this week's FBS games going final or getting a TV network.
+#
 # It also rebuilds regardless of nflverse:
 #   - twice a day (08:05 and 16:05 UTC) for the parts that don't come from nflverse:
 #     weather forecasts and which week is "current"
@@ -117,6 +120,25 @@ jobs:
       - name: Verify the NBA section
         continue-on-error: true
         run: python check_build.py --nba
+
+      # The college football section (2026-10-12): site/cfb/, built from sportsdataverse's college files
+      # and ESPN's rankings and scoreboard (build_cfb_data.py, render_cfb.py) -- the games of each week's AP
+      # poll teams. Like the NBA's: a problem here never holds back the other pages, the run is flagged.
+      # AAG_SITE_URL: where to read back the last build's cfb/cfb-snapshot.json (past polls, head coaches,
+      # finished games' weather), so each build only asks for what's new.
+      - name: Pull college football data
+        continue-on-error: true
+        env:
+          AAG_SITE_URL: ${{ needs.check.outputs.site_url }}
+        run: python build_cfb_data.py
+
+      - name: Render college football pages
+        continue-on-error: true
+        run: python render_cfb.py
+
+      - name: Verify the college football section
+        continue-on-error: true
+        run: python check_build.py --cfb
 
       - name: Verify build before publishing
         run: python check_build.py

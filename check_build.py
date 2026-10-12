@@ -7,6 +7,7 @@ deploy instead of after.
 
 Run with: python check_build.py         (the NFL pages)
           python check_build.py --nba   (the NBA section)
+          python check_build.py --cfb   (the college football section)
 """
 
 import glob
@@ -63,9 +64,30 @@ def check_nba():
     print(f"check_build: NBA OK -- {len(pages)} game page(s), {len(ball_files)} ball file(s)")
 
 
+def check_cfb():
+    """The college football section (site/cfb/, render_cfb.py, 2026-10-12), checked on its own (--cfb), like
+    the NBA's: the workflow flags a broken CFB build without holding back the other pages."""
+    cfb = os.path.join(SITE_DIR, "cfb")
+    for name in ("index.html", "rankings.html", "leaders.html"):
+        path = os.path.join(cfb, name)
+        if not os.path.isfile(path) or os.path.getsize(path) < MIN_INDEX_BYTES:
+            fail(f"site/cfb/{name} is missing or nearly empty")
+    pages = glob.glob(os.path.join(cfb, "game", "*.html"))
+    if len(pages) < MIN_GAME_PAGES:
+        fail(f"site/cfb/game/ has {len(pages)} page(s), expected at least {MIN_GAME_PAGES}")
+    helmet_files = glob.glob(os.path.join(cfb, "helmets", "*.svg"))
+    if len(helmet_files) < MIN_HELMET_FILES:
+        fail(f"site/cfb/helmets/ has {len(helmet_files)} file(s), expected at least {MIN_HELMET_FILES}")
+    check_icons(glob.glob(os.path.join(cfb, "**", "*.html"), recursive=True), "site/cfb/")
+    print(f"check_build: CFB OK -- {len(pages)} game page(s), {len(helmet_files)} helmet file(s)")
+
+
 def main():
     if "--nba" in sys.argv[1:]:
         check_nba()
+        return
+    if "--cfb" in sys.argv[1:]:
+        check_cfb()
         return
     index_path = os.path.join(SITE_DIR, "index.html")
     if not os.path.isfile(index_path):
@@ -83,8 +105,8 @@ def main():
     if len(helmet_files) < MIN_HELMET_FILES:
         fail(f"site/helmets/ has {len(helmet_files)} file(s), expected at least {MIN_HELMET_FILES}")
 
-    nba = os.path.join(SITE_DIR, "nba") + os.sep
-    check_icons([p for p in glob.glob(os.path.join(SITE_DIR, "**", "*.html"), recursive=True) if not p.startswith(nba)], "site/")
+    own = tuple(os.path.join(SITE_DIR, d) + os.sep for d in ("nba", "cfb"))   # checked on their own
+    check_icons([p for p in glob.glob(os.path.join(SITE_DIR, "**", "*.html"), recursive=True) if not p.startswith(own)], "site/")
     print(f"check_build: OK -- index.html {size} bytes, {len(game_pages)} game page(s), {len(helmet_files)} helmet file(s)")
 
 

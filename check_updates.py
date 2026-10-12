@@ -6,7 +6,8 @@ The refresh workflow runs this every 15 minutes in season. It builds a small
 the live site was built from (site/nflverse-stamps.json, published alongside the
 pages), and tells the workflow whether a rebuild is worth doing.
 
-Since 2026-10-08 the fingerprint also covers the NBA section's sources (nba_fingerprint, below).
+Since 2026-10-08 the fingerprint also covers the NBA section's sources (nba_fingerprint, below), and
+since 2026-10-12 the college football section's (cfb_fingerprint).
 
 The site reads seven nflverse-data releases (see nflverse_client.py):
 
@@ -113,6 +114,7 @@ def fingerprint(season=None):
             print(f"check_updates: {tag} unreadable: {e}", file=sys.stderr)
             out[tag] = None
     out.update(nba_fingerprint())
+    out.update(cfb_fingerprint())
     return out
 
 
@@ -161,6 +163,50 @@ def nba_fingerprint():
     except (urllib.error.URLError, OSError, ValueError, AttributeError) as e:
         print(f"check_updates: NBA scoreboard unreadable: {e}", file=sys.stderr)
         out["nba_scores"] = None
+    return out
+
+
+# ---------------------------------------------------------------- the college football section (2026-10-12)
+# sportsdataverse's college files (cfb_client.py), each release's timestamp.json; ESPN's rankings (a new
+# poll each Sunday, the CFP's on Tuesdays from November); and ESPN's FBS scoreboard for this week -- each
+# game's kickoff, TV and, once it's over, its final score, so a game going final or a network being named
+# brings a rebuild, while a game in progress (the pages don't show live scores) doesn't, every 15 minutes.
+CFB_TAGS = ["cfb_schedules", "espn_cfb_team_box", "espn_cfb_player_box", "espn_cfb_linescores", "espn_cfb_rosters",
+            "cfbfastR_cfb_pbp", "cfb_defense_vs_position"]
+CFB_SITE_API = "https://site.api.espn.com/apis/site/v2/sports/football/college-football"
+
+
+def cfb_fingerprint():
+    out = {}
+    for tag in CFB_TAGS:
+        try:
+            out["cfb_" + tag] = json.loads(_get(f"{NBA_RELEASES}/{tag}/timestamp.json")).get("last_updated")
+        except (urllib.error.URLError, OSError, ValueError, AttributeError) as e:
+            print(f"check_updates: CFB {tag} unreadable: {e}", file=sys.stderr)
+            out["cfb_" + tag] = None
+    try:
+        req = urllib.request.Request(f"{CFB_SITE_API}/rankings", headers={"User-Agent": BROWSER_UA})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            polls = json.loads(r.read().decode("utf-8")).get("rankings") or []
+        out["cfb_polls"] = "|".join(sorted(f'{p.get("name")}:{p.get("date")}' for p in polls)) or None
+    except (urllib.error.URLError, OSError, ValueError, AttributeError) as e:
+        print(f"check_updates: CFB rankings unreadable: {e}", file=sys.stderr)
+        out["cfb_polls"] = None
+    try:
+        req = urllib.request.Request(f"{CFB_SITE_API}/scoreboard?groups=80&limit=400", headers={"User-Agent": BROWSER_UA})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            events = json.loads(r.read().decode("utf-8")).get("events") or []
+        rows = []
+        for ev in events:
+            c = (ev.get("competitions") or [{}])[0]
+            done = bool(((c.get("status") or {}).get("type") or {}).get("completed"))
+            nets = ",".join(n for b in c.get("broadcasts") or [] for n in b.get("names") or [])
+            scores = ",".join(str(x.get("score")) for x in c.get("competitors") or []) if done else ""
+            rows.append(f'{ev.get("id")}|{ev.get("date")}|{nets}|{done}|{scores}')
+        out["cfb_scores"] = hashlib.sha256("\n".join(sorted(rows)).encode()).hexdigest()[:16] if rows else None
+    except (urllib.error.URLError, OSError, ValueError, AttributeError) as e:
+        print(f"check_updates: CFB scoreboard unreadable: {e}", file=sys.stderr)
+        out["cfb_scores"] = None
     return out
 
 

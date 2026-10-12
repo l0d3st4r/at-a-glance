@@ -641,6 +641,11 @@ def _title(cid, name, icons=None):
 
 # ---------------------------------------------------------------- the layer
 
+# Cards a section leaves out: the CFB section (render_cfb.py) has no injury report to show, so it drops
+# "injuries". Empty for the NFL.
+SKIP_CARDS = set()
+
+
 def render_team_block(side, which, prefix="../"):
     """
     The hidden .p2-shaped layer for one team, spliced into Page 1's .p1 block.
@@ -657,6 +662,7 @@ def render_team_block(side, which, prefix="../"):
         ("stats", "Team Stats", offense_defense_body(team_page.get("stats"))),
         ("schedule", "Schedule", schedule_body(team_page, prefix)),
     ]
+    cards = [c for c in cards if c[0] not in SKIP_CARDS]
     slots = "".join(
         f'<section class="slot"><a class="card p2k p2k-{cid}" tabindex="-1" aria-label="{esc(name)}">'
         f'<span class="peek peek-top">{DOWN}{_title(cid, name)}</span><div class="body">{body}</div>'
