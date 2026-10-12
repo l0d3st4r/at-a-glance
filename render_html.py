@@ -11,8 +11,8 @@ Outputs:
 
 Run with: python render_html.py
 
-Page 0 design (revised 2026-09-16, layout modeled on Apple Sports' NFL
-"Upcoming" tab, using Jason's helmets, no betting lines):
+Page 0 design (revised 2026-09-16: a week-by-week swipe view with a bottom
+bar, using Jason's helmets, no betting lines):
   - white background and black text (as in the Framer design)
   - "Week N" dropdown (native <select> under the hood) listing every week of
     the season plus Wild Card, Divisional Round, Conference Championships and
