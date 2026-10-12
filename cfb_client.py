@@ -159,6 +159,20 @@ def _poll(entry_list):
              "location": (e.get("team") or {}).get("location")} for e in entry_list or [] if _team_id(e)]
 
 
+def poll_key(r):
+    """Which of the site's polls an ESPN ranking is -- "ap", "coaches", "cfp" -- or None. By ESPN's own poll id,
+    not the name: the feed also carries the FCS Coaches Poll and the AFCA Division II Coaches Poll (since
+    2026-10-12), and the Coaches tab is only ever the FBS AFCA Coaches Poll (Jason, 2026-10-12)."""
+    pid, name, kind = str(r.get("id") or ""), r.get("name") or "", r.get("type") or ""
+    if pid == "1" and name.startswith("AP"):
+        return "ap"
+    if pid == "2" and name == "AFCA Coaches Poll":
+        return "coaches"
+    if kind == "cfp" or "Playoff" in name:
+        return "cfp"
+    return None
+
+
 def get_rankings_now():
     """This week's polls: {"ap" | "coaches" | "cfp": {"name", "week", "date", "ranks", "others", "dropped"}}.
     "week" is the poll's week (the poll before that week's games; 1 = preseason)."""
@@ -168,11 +182,10 @@ def get_rankings_now():
         return {}, f"ESPN rankings: {e}"
     out = {}
     for r in d.get("rankings") or []:
-        name = r.get("name") or ""
-        key = "ap" if name.startswith("AP") else "coaches" if name.startswith("AFCA") else \
-            "cfp" if ("Playoff" in name or name.startswith("CFP")) else None
-        if not key:
+        key = poll_key(r)
+        if not key or key in out:
             continue
+        name = r.get("name") or ""
         occ = r.get("occurrence") or {}
         week = int(occ.get("value") or occ.get("number") or 0) if str(occ.get("value") or "").isdigit() else occ.get("number")
         out[key] = {"name": name, "week": week, "date": r.get("date"), "ranks": _poll(r.get("ranks")),

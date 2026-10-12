@@ -15,7 +15,9 @@ Run directly to export all 32 helmets (plus mirrored versions) as files:
     python helmets.py            -> site/helmets/*.svg
 """
 
+import html
 import os
+import re
 
 # (primary, secondary) -- official team colors. Keys are the nflverse
 # abbreviations used in divisions.py.
@@ -177,12 +179,14 @@ def helmet_svg(team, mirrored=False, id_prefix=None, outline_width=OUTLINE_WIDTH
         shell, mask = TEAM_COLORS.get(team, FALLBACK_COLORS)
         ear = EAR_COLORS.get(team, FALLBACK_EAR)
     shell_top, shell_bottom = SHADING_OVERRIDES.get(team, (SHELL_LIGHTEN_TOP, SHELL_DARKEN_BOTTOM))
-    pid = id_prefix or f"helmet-{team or 'x'}{'-m' if mirrored else ''}"
+    # the file is XML: the label escaped and the gradient ids plain characters, so a college abbreviation
+    # like "TA&M" or "W&M" can't break it (an "&" made the whole helmet fail to draw, 2026-10-12)
+    pid = id_prefix or f"helmet-{re.sub(r'[^A-Za-z0-9_-]', '_', team or 'x')}{'-m' if mirrored else ''}"
     flip = ' transform="translate(100 0) scale(-1 1)"' if mirrored else ""
     box = 100 + 2 * outline_pad
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{-outline_pad} {-outline_pad} {box} {box}" role="img" '
-        f'aria-label="{team} helmet">'
+        f'aria-label="{html.escape(str(team))} helmet">'
         "<defs>"
         f'<linearGradient id="{pid}-shell" x1="0.4975" x2="0.5025" y1="0" y2="1">'
         f'<stop offset="0" stop-color="{_mix(shell, WHITE, shell_top)}"/>'

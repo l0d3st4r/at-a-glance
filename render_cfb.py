@@ -57,6 +57,7 @@ DATA_PATH = os.path.join(ROOT, "data", "cfb.json")
 SNAP_PATH = os.path.join(ROOT, "data", "cfb-snapshot.json")
 SITE_DIR = os.path.join(ROOT, "site", "cfb")
 DASH = "—"
+MIN_TILE = 26   # px: the shortest a condensed Page 0 row may be (see main)
 
 # The CFP committee's rankings (collegefootballplayoff.com/about-the-rankings), by season: Tuesdays, then
 # the 12-team field on Selection Day. The CFP tab says so until ESPN's rankings carry the first one.
@@ -569,6 +570,9 @@ def main():
     page0 = rh.render_page0(data)
     page0 = page0.replace("</style>", BADGE_CSS + "</style>", 1).replace("Pro Football Upcoming Game Information",
                                                                          "College Football Game Information")
+    # no condensed view for a week whose rows would come out smaller than Week 11's on an iPhone (Jason,
+    # 2026-10-12: 24 games, rows 26px tall at 390 x 844) -- render_html.PAGE0_JS measures it on the screen
+    page0 = page0.replace("<main class='track' id='track' data-sticky-days", f"<main class='track' id='track' data-min-tile='{MIN_TILE}' data-sticky-days", 1)
     with open(os.path.join(SITE_DIR, "index.html"), "w", encoding="utf-8") as f:
         f.write(page0)
     count = p1.write_all(data, SITE_DIR, warnings, matchup_weeks=data.get("matchup_weeks") or {})

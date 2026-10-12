@@ -879,9 +879,11 @@ PAGE0_JS = """
   // Condensed only where it's needed (2026-10-09): a week whose expanded view already fits on the
   // screen has no condensed view -- the toggle goes away there and pinching does nothing. The choice
   // is kept: swipe on to a longer week and it's condensed again.
+  // A track with data-min-tile (the CFB section's, 2026-10-12) also has no condensed view for a week whose
+  // condensed tiles would come out shorter than that many px -- too many games to fit legibly.
   var toggle = document.getElementById('view-toggle'), bottombar = document.querySelector('.bottombar');
-  var wanted = 'expanded', fitsCache = null;
-  function measureFits() {   // does each week's expanded view end above the bottom bar?
+  var wanted = 'expanded', fitsCache = null, minTile = parseFloat(track.getAttribute('data-min-tile')) || 0;
+  function measureFits() {   // does each week's expanded view end above the bottom bar (or not condense well)?
     var body = document.body, v = body.dataset.view;
     if (v !== 'expanded') body.dataset.view = 'expanded';
     var room = window.innerHeight - (bottombar ? bottombar.offsetHeight : 0);
@@ -889,6 +891,14 @@ PAGE0_JS = """
       var inner = p.querySelector('.week-inner'), last = inner && inner.lastElementChild;
       return !last || last.getBoundingClientRect().bottom - p.getBoundingClientRect().top <= room;
     });
+    if (minTile) {   // the condensed tiles' height, each week
+      body.dataset.view = 'condensed';
+      panels.forEach(function (p, i) {
+        var g = p.querySelector('.game');
+        if (!fitsCache[i] && g && g.getBoundingClientRect().height < minTile) fitsCache[i] = true;
+      });
+      body.dataset.view = 'expanded';
+    }
     if (v !== 'expanded') body.dataset.view = v;
   }
   function fits(i) { if (!fitsCache) measureFits(); return !!fitsCache[i]; }
